@@ -1,0 +1,124 @@
+/**
+ * 아이콘 세트 회귀 (계획: `docs/chzzk-tone-ui-plan.md` P2).
+ *
+ * 전수 검사 포인트: `aria-hidden="true"` 가 하나라도 빠지면 스크린리더가 의미 없는
+ * 그래픽을 읽게 된다. 접근성 이름은 감싸는 버튼의 `aria-label` 이 담당하므로
+ * 아이콘 자체는 항상 숨겨야 한다.
+ */
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { act, type ComponentType } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  GearIcon,
+  LayoutBottomIcon,
+  LayoutRightIcon,
+  LiveDotIcon,
+  MinusIcon,
+  PlusIcon,
+  ResizeHorizontalIcon,
+  type IconProps,
+} from './icons';
+
+declare global {
+  // React 18 이 act 지원 환경임을 알리는 표준 플래그. 없으면 경고가 쏟아진다.
+  // eslint-disable-next-line no-var
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+beforeAll(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+let root: Root | null = null;
+let host: HTMLElement | null = null;
+
+function mount(Icon: ComponentType<IconProps>, props: IconProps = {}) {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  act(() => {
+    root!.render(<Icon {...props} />);
+  });
+  return host.querySelector('svg') as SVGSVGElement;
+}
+
+afterEach(() => {
+  act(() => root?.unmount());
+  root = null;
+  host?.remove();
+  host = null;
+  document.body.replaceChildren();
+});
+
+const STROKE_ICONS: Array<[string, ComponentType<IconProps>]> = [
+  ['PlusIcon', PlusIcon],
+  ['MinusIcon', MinusIcon],
+  ['CloseIcon', CloseIcon],
+  ['ResizeHorizontalIcon', ResizeHorizontalIcon],
+  ['ChevronRightIcon', ChevronRightIcon],
+  ['ChevronLeftIcon', ChevronLeftIcon],
+  ['LayoutRightIcon', LayoutRightIcon],
+  ['LayoutBottomIcon', LayoutBottomIcon],
+  ['GearIcon', GearIcon],
+];
+
+const ALL_ICONS: Array<[string, ComponentType<IconProps>]> = [
+  ...STROKE_ICONS,
+  ['LiveDotIcon', LiveDotIcon],
+];
+
+describe('아이콘 세트 — 공통 규약', () => {
+  it.each(ALL_ICONS)('%s — svg 를 렌더하고 viewBox 가 0 0 16 16 이다', (_name, Icon) => {
+    const svg = mount(Icon);
+    expect(svg).toBeTruthy();
+    expect(svg.tagName.toLowerCase()).toBe('svg');
+    expect(svg.getAttribute('viewBox')).toBe('0 0 16 16');
+  });
+
+  it.each(ALL_ICONS)('%s — aria-hidden="true" 가 있다 (전수 검사)', (_name, Icon) => {
+    const svg = mount(Icon);
+    expect(svg.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it.each(ALL_ICONS)('%s — focusable="false" 가 있다', (_name, Icon) => {
+    const svg = mount(Icon);
+    expect(svg.getAttribute('focusable')).toBe('false');
+  });
+
+  it.each(ALL_ICONS)('%s — size prop 이 width/height 에 반영된다', (_name, Icon) => {
+    const defaultSvg = mount(Icon);
+    expect(defaultSvg.getAttribute('width')).toBe('16');
+    expect(defaultSvg.getAttribute('height')).toBe('16');
+
+    act(() => root?.unmount());
+    root = createRoot(host!);
+    act(() => {
+      root!.render(<Icon size={24} />);
+    });
+    const resizedSvg = host!.querySelector('svg') as SVGSVGElement;
+    expect(resizedSvg.getAttribute('width')).toBe('24');
+    expect(resizedSvg.getAttribute('height')).toBe('24');
+  });
+
+  it.each(ALL_ICONS)('%s — className 이 전달된다', (_name, Icon) => {
+    const svg = mount(Icon, { className: 'test-icon-class' });
+    expect(svg.getAttribute('class')).toBe('test-icon-class');
+  });
+
+  it.each(STROKE_ICONS)('%s — stroke="currentColor" 를 쓴다 (하드코딩 색 없음)', (_name, Icon) => {
+    const svg = mount(Icon);
+    expect(svg.getAttribute('stroke')).toBe('currentColor');
+    expect(svg.getAttribute('fill')).toBe('none');
+  });
+
+  it('LiveDotIcon — 예외로 fill="currentColor" 원 하나를 쓴다', () => {
+    const svg = mount(LiveDotIcon);
+    expect(svg.getAttribute('fill')).toBe('currentColor');
+    expect(svg.getAttribute('stroke')).toBeNull();
+    const circle = svg.querySelector('circle');
+    expect(circle).toBeTruthy();
+  });
+});
