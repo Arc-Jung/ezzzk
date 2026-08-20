@@ -33,9 +33,7 @@ class MockObserver {
   disconnect() {}
 }
 // jsdom 에는 IntersectionObserver/ResizeObserver 가 없다 — 센티널·높이 계산 훅이 쓰므로 최소 스텁을 준다.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IntersectionObserver = MockObserver;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).ResizeObserver = MockObserver;
 
 declare global {
