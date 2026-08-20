@@ -6,8 +6,14 @@
  * - `document.body` 직계 + 최상위 `z-index` 로 렌더해 페이지 리렌더에 지워지지 않게 한다.
  * - 키보드 조작 가능: `Tab` 순회, `Esc` 닫기. 모든 버튼에 `aria-label`.
  * - 터치 기기는 호버로만 드러나는 요소를 두지 않는다. 타겟 44×44px.
- * - 크기는 **반응형**이다: `min(920px, 88vw) × min(600px, 80vh)`.
- *   1920×1080 중앙 배치 시 920×600 @ x=500, y=240 (실측). 1600×900 이하에서는 vw/vh 상한이 걸린다.
+ * - 크기는 **반응형**이다: 너비 `min(920px, 88vw)`, 높이는 콘텐츠에 맞춰 `min(500px, 70vh)`
+ *   ~ `min(600px, 80vh)` 사이에서 늘고 준다(UI 감사 #4·#5, 2026-08-20).
+ *   탭별 콘텐츠 밀도가 달라 고정 600px 이면 짧은 탭(재생·기타·프리셋) 하단에 공백이,
+ *   긴 탭(채팅·소리)은 모바일에서 잘림이 생긴다 — 상한은 지키되 콘텐츠에 맞춰 줄어들게 한다.
+ *   단, 탭 전환마다 시트 크기가 크게 튀면 버튼 위치가 움직여 오조작을 부르므로 최소 높이를 둔다
+ *   (근거는 `SHEET_CSS` 의 `.cm-sheet` 규칙 주석 참조). 멀티뷰 구성 시트(`:has(.cm-mv-columns)`)는
+ *   이 로직에서 제외하고 예전 고정 높이를 그대로 쓴다 — `configSheetCss.ts` 의 860px 오버라이드가
+ *   그 위에서 동작한다.
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
@@ -171,7 +177,6 @@ export const SHEET_CSS = `
 }
 .cm-sheet {
   width: min(${SHEET_MAX_W}px, 88vw);
-  height: min(${SHEET_MAX_H}px, 80vh);
   display: flex;
   flex-direction: column;
   background: ${BG.floating};
@@ -179,6 +184,31 @@ export const SHEET_CSS = `
   border-radius: ${RADIUS.md};
   box-shadow: 0 12px 40px ${BG.scrim};
   overflow: hidden;
+}
+/*
+  높이: 탭별 콘텐츠 밀도 차이를 흡수하려면 고정 높이 대신 콘텐츠에 맞춰 줄어들어야 한다
+  (UI 감사 #4·#5, 2026-08-20) — 그래서 height 대신 max-height/min-height 로 상하한만 준다.
+  실측(docs/ui-audit/settings-*-laptop13.png 픽셀 측정, 탭 콘텐츠 시작점 기준 실높이):
+    재생 296px · 레이아웃 320px · 프리셋 322px · 기타 372px · 멀티뷰 412px · 소리 440px · 채팅 470px
+  가장 짧은 탭(재생)과 가장 긴 탭(채팅)의 차이가 174px 나 되므로, 하한 없이 콘텐츠에만 맡기면
+  탭을 오갈 때마다 시트가 최대 174px 씩 튀어 버튼 위치가 크게 움직인다(오조작 유발). min-height:
+  min(500px, 70vh) 를 둬 튐 폭을 최대 100px(500→600)로 줄이면서, 공백이 가장 컸던 재생 탭의
+  낭비(약 187px, 감사 보고서 #4)도 대부분 없앤다(500px 바닥이면 약 74px 만 남는다).
+  🔴 위 실측은 스크린샷 픽셀 좌표를 잰 근사값이다(미검증: 실제 DOM 레이아웃 재실측 전까지
+  ±10px 오차를 감안한다).
+  ⚠️ 멀티뷰 구성 시트(:has(.cm-mv-columns))는 이 규칙에서 뺀다 — max-height 는 height 와
+  별개 속성이라 여기서 걸면 configSheetCss.ts 의
+  .cm-sheet-backdrop:has(.cm-mv-columns) .cm-sheet { height: min(860px, 92vh); }
+  (좁은 화면 전용 오버라이드, 실측 2026-08-15)를 600px 로 도로 눌러 무효화한다. 멀티뷰는 예전과
+  같은 고정 height 를 그대로 쓰고, 그 위에 얹히는 860px 오버라이드도 이전과 동일하게 유지된다.
+  ⚠️ 이 문자열은 템플릿 리터럴이다 — 주석에 백틱을 쓰지 않는다 (빌드가 깨진다).
+*/
+.cm-sheet:not(:has(.cm-mv-columns)) {
+  max-height: min(${SHEET_MAX_H}px, 80vh);
+  min-height: min(500px, 70vh);
+}
+.cm-sheet:has(.cm-mv-columns) {
+  height: min(${SHEET_MAX_H}px, 80vh);
 }
 .cm-sheet__head {
   display: flex;
