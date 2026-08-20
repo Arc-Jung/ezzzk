@@ -82,7 +82,13 @@ export const PROFILES = [
 ];
 
 export async function openLiveContext(profile, { profileDir, freshProfile = true } = {}) {
-  const dir = profileDir ?? resolve(ROOT, `.playwright-live/${profile.key}`);
+  /*
+   * 🔴 브라우저 프로필은 **반드시 `etc/` 아래**에 만든다 (저장소 규칙, CLAUDE.md).
+   * 기본값이 루트였을 때 `.playwright-probe-*` 디렉터리가 루트를 뒤덮었다 — `.gitignore` 에
+   * 패턴을 하나씩 추가해 따라가는 상황이 반복됐다. 호출부가 `profileDir` 를 깜빡해도
+   * 루트가 더러워지지 않게 **기본값 자체를 `etc/` 로 둔다.**
+   */
+  const dir = profileDir ?? resolve(ROOT, `etc/tmp/playwright/${profile.key}`);
   if (freshProfile) rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
 
