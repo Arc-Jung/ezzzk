@@ -1,9 +1,17 @@
+/* 치지직 토큰으로 전환 (2026-08-20, docs/chzzk-tone-ui-plan.md P2) */
 :root {
-  --cm-bg: #141517;
-  --cm-fg: #e9ecef;
-  --cm-muted: #9aa0a6;
+  --cm-bg-base: var(--color-bg-layer-01, #141517);
+  --cm-bg-raised: var(--color-bg-layer-03, #24272b);
+  --cm-bg-floating: var(--color-bg-layer-04, #2e3033);
+  --cm-fg-strong: var(--color-content-01, #ffffff);
+  --cm-fg: var(--color-content-02, #dfe2ea);
+  --cm-muted: var(--color-content-04, #9da5b6);
+  --cm-border: var(--color-bg-layer-05, #24272b);
+  --cm-radius-xs: var(--sem-radius-xs, 4px);
+  --cm-radius-sm: var(--sem-radius-sm, 6px);
+  --cm-radius-md: var(--sem-radius-md, 8px);
+  --cm-radius-lg: var(--sem-radius-lg, 12px);
   --cm-accent: #00ffa3;
-  --cm-border: #2a2d31;
   color-scheme: dark;
 }
 
@@ -15,13 +23,15 @@ body {
   margin: 0;
   width: 340px;
   font-family:
-    'Apple SD Gothic Neo',
-    'Malgun Gothic',
     -apple-system,
-    BlinkMacSystemFont,
+    system-ui,
+    'Malgun Gothic',
+    '맑은 고딕',
+    Helvetica,
+    Arial,
     sans-serif;
   font-size: 13px;
-  background: var(--cm-bg);
+  background: var(--cm-bg-base);
   color: var(--cm-fg);
 }
 
@@ -95,8 +105,8 @@ body {
   min-width: 26px;
   min-height: 26px;
   border: 1px solid var(--cm-border);
-  border-radius: 5px;
-  background: #1c1f22;
+  border-radius: var(--cm-radius-sm);
+  background: var(--cm-bg-raised);
   color: var(--cm-fg);
   font-size: 13px;
   cursor: pointer;
@@ -132,8 +142,8 @@ body {
 .cm-btn {
   padding: 4px 8px;
   border: 1px solid var(--cm-border);
-  border-radius: 5px;
-  background: #1c1f22;
+  border-radius: var(--cm-radius-sm);
+  background: var(--cm-bg-raised);
   color: var(--cm-fg);
   font-size: 12px;
   cursor: pointer;
@@ -154,8 +164,8 @@ select,
 input[type='text'] {
   padding: 4px 6px;
   border: 1px solid var(--cm-border);
-  border-radius: 5px;
-  background: #1c1f22;
+  border-radius: var(--cm-radius-sm);
+  background: var(--cm-bg-raised);
   color: var(--cm-fg);
   font-size: 12px;
 }
