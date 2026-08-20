@@ -1,9 +1,11 @@
+// 치지직 토큰으로 전환 (2026-08-20, docs/chzzk-tone-ui-plan.md P2)
 /**
  * 설정 패널 전용 스타일. 시트 공용 클래스(`cm-sheet__*`)로 부족한 **탭 레일·목록 레이아웃**만 담는다.
  *
  * `.css` 파일이 아니라 문자열 모듈인 이유: content script 는 `upsertStyle` 로 스타일을 주입하며
  * (`SHEET_CSS` 와 동일한 방식), 별도 CSS 파일은 확장 번들에서 자동으로 페이지에 붙지 않는다.
  */
+import { BG, BORDER, FG, RADIUS, ACCENT } from '../ui/tokens';
 
 export const SETTINGS_PANEL_CSS = `
 .cm-sp { display: flex; gap: 14px; align-items: flex-start; }
@@ -14,9 +16,9 @@ export const SETTINGS_PANEL_CSS = `
   flex: 0 0 auto;
   min-width: 104px;
   padding: 4px;
-  border: 1px solid #2a2d31;
-  border-radius: 8px;
-  background: #1c1f22;
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.md};
+  background: ${BG.raised};
 }
 .cm-sp__tab {
   min-height: var(--cm-target, 32px);
@@ -24,15 +26,15 @@ export const SETTINGS_PANEL_CSS = `
   min-width: var(--cm-target, 32px);
   padding: 5px 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: ${RADIUS.sm};
   background: transparent;
-  color: #e9ecef;
+  color: ${FG.body};
   text-align: left;
   cursor: pointer;
 }
-.cm-sp__tab[aria-selected='true'] { background: #23262a; color: #00ffa3; font-weight: 700; }
+.cm-sp__tab[aria-selected='true'] { background: ${BG.raised}; color: ${ACCENT}; font-weight: 700; }
 .cm-sp__panel { flex: 1 1 auto; min-width: 0; }
-.cm-sp__panel h3 { margin: 12px 0 4px; font-size: 12px; color: #9aa0a6; }
+.cm-sp__panel h3 { margin: 12px 0 4px; font-size: 12px; color: ${FG.muted}; }
 .cm-sp__controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .cm-sp__controls label { display: inline-flex; align-items: center; gap: 4px; }
 .cm-sp__list { list-style: none; margin: 4px 0; padding: 0; }
@@ -54,7 +56,7 @@ export const SETTINGS_PANEL_CSS = `
 .cm-sp-foot {
   margin-top: 14px;
   padding-top: 10px;
-  border-top: 1px solid #2a2d31;
+  border-top: 1px solid ${BORDER.subtle};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -63,10 +65,10 @@ export const SETTINGS_PANEL_CSS = `
 }
 
 /* 라이선스 화면. 본문 스크롤은 .cm-sheet__body 가 하므로 여기서 높이를 잡지 않는다. */
-.cm-lic h3 { margin: 14px 0 4px; font-size: 12px; color: #9aa0a6; }
+.cm-lic h3 { margin: 14px 0 4px; font-size: 12px; color: ${FG.muted}; }
 .cm-lic h3:first-child { margin-top: 0; }
 .cm-lic__list { list-style: none; margin: 6px 0 0; padding: 0; }
-.cm-lic__item { padding: 6px 0; border-bottom: 1px solid #23262a; }
+.cm-lic__item { padding: 6px 0; border-bottom: 1px solid ${BORDER.subtle}; }
 .cm-lic__head {
   display: flex;
   align-items: center;
@@ -81,15 +83,15 @@ export const SETTINGS_PANEL_CSS = `
   gap: 8px;
   flex-wrap: wrap;
   padding: 4px 0;
-  border-bottom: 1px solid #23262a;
+  border-bottom: 1px solid ${BORDER.subtle};
 }
 .cm-lic__kind {
   flex: 0 0 auto;
   padding: 0 6px;
-  border: 1px solid #2a2d31;
-  border-radius: 4px;
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.xs};
   font-size: 11px;
-  color: #9aa0a6;
+  color: ${FG.muted};
 }
 /*
   라이선스 전문은 원어 그대로 싣는다. 원문의 줄바꿈은 살리되(pre-wrap) 좁은 화면에서
@@ -99,9 +101,9 @@ export const SETTINGS_PANEL_CSS = `
 .cm-lic__text {
   margin: 6px 0 0;
   padding: 8px;
-  border: 1px solid #2a2d31;
-  border-radius: 6px;
-  background: #1c1f22;
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.sm};
+  background: ${BG.raised};
   font-size: 11px;
   line-height: 1.5;
   white-space: pre-wrap;

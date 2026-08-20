@@ -12,9 +12,10 @@
  * - **데스크톱 라이브 페이지 전용.** VOD·모바일 웹에는 `#aside-chatting` 이 없다.
  */
 
-import { CHZZK, ID, OURS } from '../constants/class';
+import { CHZZK, ID, OURS, PLAYER } from '../constants/class';
 import { hasSideChat } from '../pageType';
 import { freeWidthIn, resolveToolsSlot } from './chatPreset';
+import { CONTROL_ITEM_CLASS, ensureControlBarAutoHideCss } from './controlBar';
 import { claimWidth, ensureLayoutArbiter, releaseWidth } from '../layoutArbiter';
 import { DEFAULT_SETTINGS } from '../constants/storage';
 import { updateSection } from '../storage';
@@ -300,13 +301,19 @@ const OVERLAY_GAP_PX = 8;
 const OVERLAY_SIDE_MIN_PX = 160;
 
 /**
- * 폭 조절 묶음을 어디에 어떻게 둘지.
+ * P2 — 채팅 폭 조절 묶음을 어디에 어떻게 둘지.
  *
- * - `inline` — 도구 행에 4개까지 그대로 펼친다.
+ * - `player-top-left` — **기본.** 플레이어(`PLAYER.rootPc`) 좌상단에 절대배치로 얹는다.
+ *   도구 행·aside 크기와 무관하므로 접힘 상태에서도 자리를 잃지 않는다. 플레이어를 못 찾으면
+ *   아래 폴백으로 내려간다.
+ * - `inline` — 플레이어를 못 찾았을 때의 폴백. 도구 행에 4개까지 그대로 펼친다.
  * - `popover` — 도구 행에는 토글만 두고, 펼치면 **위로 열리는 팝오버**로 띄운다.
  * - `floating` — 토글 하나조차 못 들어가면 도구 행을 쓰지 않고 화면 오른쪽 플로팅으로 폴백한다.
  */
-export type ControlAnchor = 'inline' | 'popover' | 'floating';
+export type ControlAnchor = 'inline' | 'popover' | 'floating' | 'player-top-left';
+
+/** 플레이어 좌상단 앵커의 안쪽 여백(px). 영상 그림을 가리지 않게 작게 유지한다. */
+const PLAYER_TOP_LEFT_INSET_PX = 12;
 
 /**
  * 도구 행의 여유 폭으로 배치를 정한다. **순수 함수 — 테스트 대상.**
@@ -356,6 +363,22 @@ function controlCss(touchTargetPx: number): string {
 #${CONTROL_ID} .${ITEMS_CLASS} { display: none; gap: ${gap}px; }
 #${CONTROL_ID}[data-expanded="true"] .${ITEMS_CLASS} { display: flex; }
 #${CONTROL_ID}[data-anchor="floating"] .${ITEMS_CLASS} { flex-direction: column; }
+/*
+  P2 — 기본 자리. 플레이어(PLAYER.rootPc) 좌상단 안쪽에 절대배치로 얹는다.
+  🔴 자동 숨김은 CONTROL_ITEM_CLASS 클래스(컨트롤바와 같은 신호, controlBar.ts 의
+  ensureControlBarAutoHideCss 가 주입)로 동기화한다 — 이 저장소는 JS 로 opacity 를 따라
+  읽는 방식이 실측에서 실패한 이력이 있다(컨트롤바 자동 숨김 주석 참조).
+  플레이어 루트가 위치 기준(position: relative)을 이미 갖고 있다고 본다 (미검증 — 네이티브
+  컨트롤도 같은 방식으로 얹히므로 근거는 있으나 이 저장소에 DOM 캡처 증거는 없다).
+  ⚠️ 이 문자열은 템플릿 리터럴이다 — 주석에 백틱을 쓰지 않는다 (빌드가 깨진다).
+*/
+#${CONTROL_ID}[data-anchor="player-top-left"] {
+  position: absolute;
+  top: ${PLAYER_TOP_LEFT_INSET_PX}px;
+  left: ${PLAYER_TOP_LEFT_INSET_PX}px;
+  z-index: ${OURS.topZIndex - 2};
+}
+#${CONTROL_ID}[data-anchor="player-top-left"] .${ITEMS_CLASS} { flex-direction: row; }
 /*
   도구 행에 4개를 펼칠 자리가 없으면 **채팅 영역 바깥(영상 위)** 에 띄운다.
   🔴 예전에는 컨트롤 바로 위(bottom: 100%)로 열었는데, 그 자리가 정확히 치지직 입력창이라
@@ -687,25 +710,42 @@ export const chatWidthFeature: Feature = {
 
     const anchorControl = (container: HTMLElement): void => {
       /**
-       * 🔴 접힌 상태에서는 도구 행을 쓸 수 없다 — 채팅 aside 자체가 폭 0 이라 그 안의 버튼이
-       * 화면에서 사라진다. 그러면 **펼치기 버튼을 다시 누를 방법이 없다** (실측 2026-08-15,
-       * 하네스에서 `채팅 펼치기` 클릭이 10개 프로필 전부 타임아웃했다).
+       * P2 — **플레이어 좌상단이 기본 자리다.** 도구 행·aside 크기와 무관하므로 접힘·재렌더
+       * 어디에서도 자리를 잃지 않는다. 컨트롤바 자동 숨김과 같은 신호(`CONTROL_ITEM_CLASS`)를
+       * 쓰므로 opacity 를 JS 로 따라 읽지 않는다 (그 방식은 이 저장소에서 실측 실패 이력이 있다).
        */
-      const slot = collapsed ? null : resolveToolsSlot(document, 'right');
-      /**
-       * 🔴 이미 도구 행에 들어가 있으면 **우리 폭을 도로 더해** 계산한다.
-       * 그러지 않으면 "들어갔더니 여유가 줄어 다시 나가고, 나갔더니 여유가 늘어 또 들어오는"
-       * 진동이 생긴다.
-       */
-      const free = slot
-        ? freeWidthIn(slot.parent) +
-          (container.parentElement === slot.parent
-            ? container.getBoundingClientRect().width + CONTROL_GAP_PX
-            : 0)
-        : null;
-      const anchor = resolveControlAnchor(free, ctx.device.profile.touchTargetPx);
-      const parent = anchor === 'floating' || !slot ? document.body : slot.parent;
-      const before = anchor === 'floating' || !slot ? null : slot.before;
+      const playerRoot = qs<HTMLElement>(PLAYER.rootPc);
+
+      let anchor: ControlAnchor;
+      let parent: Element;
+      let before: Element | null;
+
+      if (playerRoot) {
+        anchor = 'player-top-left';
+        parent = playerRoot;
+        before = null;
+      } else {
+        /**
+         * 🔴 접힌 상태에서는 도구 행을 쓸 수 없다 — 채팅 aside 자체가 폭 0 이라 그 안의 버튼이
+         * 화면에서 사라진다. 그러면 **펼치기 버튼을 다시 누를 방법이 없다** (실측 2026-08-15,
+         * 하네스에서 `채팅 펼치기` 클릭이 10개 프로필 전부 타임아웃했다).
+         */
+        const slot = collapsed ? null : resolveToolsSlot(document, 'right');
+        /**
+         * 🔴 이미 도구 행에 들어가 있으면 **우리 폭을 도로 더해** 계산한다.
+         * 그러지 않으면 "들어갔더니 여유가 줄어 다시 나가고, 나갔더니 여유가 늘어 또 들어오는"
+         * 진동이 생긴다.
+         */
+        const free = slot
+          ? freeWidthIn(slot.parent) +
+            (container.parentElement === slot.parent
+              ? container.getBoundingClientRect().width + CONTROL_GAP_PX
+              : 0)
+          : null;
+        anchor = resolveControlAnchor(free, ctx.device.profile.touchTargetPx);
+        parent = anchor === 'floating' || !slot ? document.body : slot.parent;
+        before = anchor === 'floating' || !slot ? null : slot.before;
+      }
 
       // 같은 자리면 DOM 을 건드리지 않는다 (관찰자 churn 방지).
       if (
@@ -716,11 +756,14 @@ export const chatWidthFeature: Feature = {
         return;
       }
       container.dataset['anchor'] = anchor;
+      // 컨트롤바 자동 숨김과 같은 신호를 쓰는 곳은 플레이어 좌상단뿐이다 — 도구 행·플로팅은
+      // 자체적으로 항상 보인다.
+      container.classList.toggle(CONTROL_ITEM_CLASS, anchor === 'player-top-left');
 
       if (!before) {
         container.classList.remove(OURS.toolsSlotClass);
         delete container.dataset['side'];
-        document.body.appendChild(container);
+        parent.appendChild(container);
         return;
       }
       container.classList.add(OURS.toolsSlotClass);
@@ -730,6 +773,8 @@ export const chatWidthFeature: Feature = {
 
     const mountControl = (): void => {
       upsertStyle(CONTROL_STYLE_ID, controlCss(ctx.device.profile.touchTargetPx));
+      // 플레이어 좌상단 자리에서 컨트롤바와 같은 자동 숨김 신호를 쓴다 (여러 기능이 불러도 안전).
+      ensureControlBarAutoHideCss();
 
       const container = document.createElement('div');
       container.id = CONTROL_ID;

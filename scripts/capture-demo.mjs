@@ -319,7 +319,7 @@ async function fetchLiveChannels() {
 
 async function captureProfile(profile, channels) {
   const context = await openLiveContext(profile, {
-    profileDir: resolve(ROOT, `.playwright-demo/${profile.key}`),
+    profileDir: resolve(ROOT, `etc/tmp/playwright/demo/${profile.key}`),
   });
   const done = [];
   const failed = [];
@@ -432,7 +432,7 @@ async function captureProfile(profile, channels) {
 }
 
 async function main() {
-  rmSync(resolve(ROOT, '.playwright-demo'), { recursive: true, force: true });
+  rmSync(resolve(ROOT, 'etc/tmp/playwright/demo'), { recursive: true, force: true });
   mkdirSync(OUT_DIR, { recursive: true });
 
   const channels = await fetchLiveChannels();
