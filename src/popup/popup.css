@@ -22,14 +22,7 @@
 body {
   margin: 0;
   width: 340px;
-  font-family:
-    -apple-system,
-    system-ui,
-    'Malgun Gothic',
-    '맑은 고딕',
-    Helvetica,
-    Arial,
-    sans-serif;
+  font-family: -apple-system, system-ui, 'Malgun Gothic', '맑은 고딕', Helvetica, Arial, sans-serif;
   font-size: 13px;
   background: var(--cm-bg-base);
   color: var(--cm-fg);
