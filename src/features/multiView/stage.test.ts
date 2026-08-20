@@ -377,7 +377,8 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     [...document.querySelectorAll('.cm-stage-chat__line')].map((n) => n.textContent);
 
   it('사이드 채팅 패널에 BETA 뱃지가 붙고 활성 슬롯 채널명이 보인다', () => {
-    const { stage } = openStage();
+    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+    const { stage } = openStage({ chatMode: 'active' });
 
     expect(panel()).not.toBeNull();
     expect(panel()?.querySelector(`.${OURS.betaBadgeClass}`)?.textContent).toBe(BETA_BADGE_TEXT);
@@ -387,7 +388,8 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   it('활성 슬롯 채팅만 패널에 들어간다 (비활성 슬롯은 스트립 전용)', () => {
-    const { stage } = openStage();
+    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+    const { stage } = openStage({ chatMode: 'active' });
 
     sendFromSlot(chat(2, '비활성'));
     expect(panelLines()).toEqual([]);
@@ -399,7 +401,8 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   it('활성 슬롯을 바꾸면 제목이 따라가고 이전 채널 줄이 남지 않는다', () => {
-    const { stage } = openStage();
+    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+    const { stage } = openStage({ chatMode: 'active' });
     sendFromSlot(chat(1, '슬롯1사람'));
     expect(panelLines().join()).toContain('슬롯1사람');
 
@@ -414,7 +417,8 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   it('`채팅 끄기` 는 토글이다 — 끄면 패널이 사라지고 다시 켤 수 있다', () => {
-    const { stage } = openStage();
+    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+    const { stage } = openStage({ chatMode: 'active' });
     const toggle = () =>
       document.querySelector<HTMLButtonElement>(
         '.cm-stage-bar [aria-label="채팅 끄기"], .cm-stage-bar [aria-label="채팅 켜기"]',
@@ -429,6 +433,15 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     expect(panel()).not.toBeNull();
     expect(toggle()?.getAttribute('aria-label')).toBe('채팅 끄기');
 
+    stage.close();
+  });
+
+  it("기본값이 chatMode: 'none' 이다 — 멀티뷰를 켜면 우측 채팅이 무대를 먹지 않는다", () => {
+    expect(DEFAULT_SETTINGS.multiView.chatMode).toBe('none');
+
+    // 기본 설정 그대로 열면 패널도 컨트롤도 없다.
+    const { stage } = openStage();
+    expect(panel()).toBeNull();
     stage.close();
   });
 

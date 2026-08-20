@@ -143,9 +143,14 @@ export type Settings = {
     lowerInactiveQuality: boolean;
     restoreLastLayout: boolean;
     /**
-     * @deprecated 2026-08-12 — 멀티뷰 중에는 기존 우측 채팅을 항상 비활성화한다.
-     * 값은 마이그레이션 안전을 위해 남겨 두지만 **어디서도 읽지 않는다.**
-     * 스테이지가 채팅 자리를 덮어 "보이지도 않는데 폭만 차지하는" 죽은 공간이 됐던 옵션이다.
+     * 멀티뷰 스테이지의 **사이드 채팅 패널(BETA)** 을 쓸지. `'none'` 이면 만들지 않는다.
+     *
+     * 🔴 기본값은 `'none'` 이다 (2026-08-20 요청). 켜 두면 무대 오른쪽을 채팅이 가져가
+     * 슬롯이 그만큼 좁아진다 — 멀티뷰를 켠 목적은 영상을 여러 개 보는 것이지 채팅이 아니다.
+     * 필요한 사람은 스테이지 조작 바에서 켜면 된다.
+     *
+     * ⚠️ 기존 우측 채팅(FR-05 aside)과는 다른 것이다. 그쪽은 멀티뷰 중 **항상** 비활성이며
+     * 이 값과 무관하다 (2026-08-12 — 스테이지가 덮어 "보이지도 않는데 폭만 차지"했다).
      */
     chatMode: 'active' | 'none';
     slotChatLines: SlotLines;
@@ -249,7 +254,7 @@ export const DEFAULT_SETTINGS: Settings = {
     // 요청에 따라 기본값은 **끄기** — 비활성 슬롯도 목표 화질(1080p)로 재생한다.
     lowerInactiveQuality: false,
     restoreLastLayout: true,
-    chatMode: 'active',
+    chatMode: 'none',
     slotChatLines: 3,
     slotChatLinesActive: 5,
     // 4분할 슬롯은 이미 16:9 라 예약 배치 시 영상이 30% 줄어든다 → 오버레이가 기본값.

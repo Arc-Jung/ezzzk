@@ -25,6 +25,14 @@ import { warning } from '../utils/log';
 /** 증폭 상한. 200% 까지는 실측으로 확인했고, 그 이상은 찢어짐(클리핑) 위험이 커진다. */
 export const MAX_BOOST_PERCENT = 200;
 
+/**
+ * 과증폭 경계. 이 값을 **넘으면** 게이지를 빨강으로 칠한다 (2026-08-20 요청).
+ *
+ * 100% 초과는 "원본보다 크다"는 정보(주황)고, 150% 초과는 "찢어질 수 있다"는 경고(빨강)다.
+ * 두 단계를 나누지 않으면 120% 와 190% 가 같은 색이라 위험 구간을 알 수 없다.
+ */
+export const CLIPPING_RISK_PERCENT = 150;
+
 export type CompressorParams = {
   /** dB, -100~0 — 이 세기를 넘는 소리부터 누른다. */
   threshold: number;
@@ -69,9 +77,24 @@ export function boostToGain(percent: number): number {
   return clamped / 100;
 }
 
-/** 100% 를 넘겼는가 — 게이지 색(주황) 판정에 쓴다. **순수 함수.** */
+/** 100% 를 넘겼는가 — 게이지에 증폭 표시를 할지 판정한다. **순수 함수.** */
 export function isBoosted(percent: number): boolean {
   return Number.isFinite(percent) && percent > 100;
+}
+
+/** 과증폭(찢어짐 위험) 구간인가 — `CLIPPING_RISK_PERCENT` 를 **넘으면** 참. **순수 함수.** */
+export function isClippingRisk(percent: number): boolean {
+  return Number.isFinite(percent) && percent > CLIPPING_RISK_PERCENT;
+}
+
+/**
+ * 게이지 색. 세 단계다 — 기본(흰색) / 증폭(주황) / 과증폭(빨강).
+ * 색은 **정보의 유일한 전달 수단이 아니다** — 호출부가 `aria-label` 에도 같은 구분을 남긴다.
+ */
+export function volumeGaugeColor(percent: number): string {
+  if (isClippingRisk(percent)) return '#ff5252';
+  if (isBoosted(percent)) return '#ff9f43';
+  return '#fff';
 }
 
 /**
