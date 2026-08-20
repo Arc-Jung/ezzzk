@@ -47,6 +47,47 @@ export const SETTINGS_PANEL_CSS = `
 }
 .cm-sp__list > li.cm-sp__list-item--stack { display: block; }
 .cm-sp__list input[type='text'] { flex: 1 1 auto; min-width: 0; }
+/*
+ * 켜기/끄기 토글 스위치. 트랙(막대) + 노브(원) 로 그린다 — 예전엔 켜기 ●──/끄기 ──○ 처럼
+ * 글자로 그린 그림이라 작은 크기에서 방향 구분이 안 됐고 폰트마다 폭도 들쑥날쑥했다(사용자 보고).
+ * 표준 방향: OFF = 노브 왼쪽 · ON = 노브 오른쪽.
+ * 색약 사용자는 트랙 색을 구분 못 하므로 켜기/끄기 글자를 스위치 옆(.cm-sp__toggle-text)에
+ * 그대로 남긴다 — 상태를 트랙 색 + 노브 위치 + 글자 세 가지로 전달한다.
+ * 터치 타겟: 이 버튼은 .cm-sheet button 규칙(min-height: var(--cm-target)) 을 그대로
+ * 받으므로 모바일에서 44px 를 유지한다 — 이 파일에서 별도로 min-height 를 좁히지 않는다.
+ */
+.cm-sp__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: ${FG.body};
+  cursor: pointer;
+}
+.cm-sp__toggle-text { font-size: 12px; min-width: 26px; text-align: right; }
+.cm-sp__toggle-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  border-radius: ${RADIUS.circular};
+  background: ${BORDER.subtle};
+  transition: background-color 0.15s ease;
+}
+.cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-track { background: ${ACCENT}; }
+.cm-sp__toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: ${RADIUS.circular};
+  background: ${FG.primary};
+  transition: transform 0.15s ease;
+}
+.cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-knob { transform: translateX(16px); }
 
 /*
   설정 패널 맨 아래의 오픈소스 라이선스 진입점.

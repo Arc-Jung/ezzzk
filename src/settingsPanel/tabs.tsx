@@ -137,13 +137,17 @@ export function Toggle({
         <span>{label}</span>
         <button
           type="button"
-          className="cm-sheet__btn"
+          className="cm-sp__toggle"
           role="switch"
           aria-checked={checked}
           aria-label={`${label} ${checked ? '켜짐' : '꺼짐'}`}
           onClick={() => onChange(!checked)}
         >
-          {checked ? '켜기 ●──' : '끄기 ──○'}
+          {/* 색약 사용자는 트랙 색을 구분 못 하므로 켜기/끄기 글자를 스위치 옆에 그대로 둔다. */}
+          <span className="cm-sp__toggle-text">{checked ? '켜기' : '끄기'}</span>
+          <span className="cm-sp__toggle-track">
+            <span className="cm-sp__toggle-knob" />
+          </span>
         </button>
       </div>
       {hint}

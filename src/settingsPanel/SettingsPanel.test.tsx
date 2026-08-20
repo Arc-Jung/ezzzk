@@ -4,7 +4,9 @@
  * Playwright 실브라우저 검증의 몫이다 (요구사항 §8.0).
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { act, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { CHAT_FONT_RANGE, DEFAULT_SETTINGS, LIMITS } from '../constants/storage';
 import { lineHeightForFont, visibleLines } from '../features/chatFont';
 import { computeSlotRects, stripMetrics } from '../features/multiView/slotLayout';
@@ -13,6 +15,7 @@ import {
   SIDE_CHAT_PX,
   TABS,
   TAB_IDS,
+  Toggle,
   chatOccupancyText,
   formatLoss,
   placementTradeOff,
@@ -21,6 +24,36 @@ import {
 import { REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
 import { SETTINGS_PANEL_CSS } from './settingsPanelCss';
 import { SHEET_CSS } from '../ui/Sheet';
+
+declare global {
+  // React 18 이 act 지원 환경임을 알리는 표준 플래그. 없으면 경고가 쏟아진다.
+  // eslint-disable-next-line no-var
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+beforeAll(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+let root: Root | null = null;
+let host: HTMLElement | null = null;
+
+function mount(node: ReactElement) {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  act(() => {
+    root!.render(node);
+  });
+}
+
+afterEach(() => {
+  act(() => root?.unmount());
+  root = null;
+  host?.remove();
+  host = null;
+  document.body.replaceChildren();
+});
 
 /**
  * 🔴 실측 회귀 2026-08-16 (실사이트 모바일 가로 915×412).
@@ -187,5 +220,77 @@ describe('상한', () => {
     expect(LIMITS.optionPresets).toBe(20);
     expect(LIMITS.multiViewSets).toBe(10);
     expect(LIMITS.chatPresets).toBe(50);
+  });
+});
+
+/**
+ * 켜기/끄기 토글 방향·색·글자 회귀 (사용자 보고: "방향이 반대라 헷갈리고 ON/OFF 구별이 안 된다").
+ * 표준 방향은 OFF = 노브 왼쪽 · ON = 노브 오른쪽인데, 예전 글자 그림(켜기 ●──/끄기 ──○)은
+ * 정반대였다. CSS 로 그린 실제 스위치(트랙+노브)로 바꾸면서 방향을 함께 바로잡는다.
+ */
+describe('켜기/끄기 토글', () => {
+  function toggleButton(): HTMLButtonElement {
+    return document.querySelector('button.cm-sp__toggle') as HTMLButtonElement;
+  }
+
+  it('OFF 일 때 aria-checked=false 이고 "끄기" 글자가 남는다', () => {
+    mount(<Toggle label="화질 자동 적용" checked={false} onChange={() => {}} />);
+    const button = toggleButton();
+    expect(button.getAttribute('aria-checked')).toBe('false');
+    expect(button.textContent).toContain('끄기');
+    expect(button.textContent).not.toContain('켜기');
+  });
+
+  it('ON 일 때 aria-checked=true 이고 "켜기" 글자가 남는다', () => {
+    mount(<Toggle label="화질 자동 적용" checked={true} onChange={() => {}} />);
+    const button = toggleButton();
+    expect(button.getAttribute('aria-checked')).toBe('true');
+    expect(button.textContent).toContain('켜기');
+    expect(button.textContent).not.toContain('끄기');
+  });
+
+  it('방향 회귀 방지: CSS 상 OFF 노브는 기본 위치(왼쪽)이고 ON 은 translateX 로 오른쪽이다', () => {
+    // 노브 기본 위치는 left: 2px 로 왼쪽에 고정하고, ON 상태에서만 오른쪽으로 옮긴다.
+    // 이번 버그의 핵심이 "방향이 반대"였으므로, 기본(OFF) 규칙에 translateX 가 없고
+    // ON 전용 규칙(`[aria-checked='true']`)에만 translateX 가 있는지를 확인한다.
+    const knobBase = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {') + 200,
+    );
+    expect(knobBase).toMatch(/left:\s*2px/);
+    const onRule = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf(".cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-knob"),
+    );
+    expect(onRule).toContain('transform: translateX(16px)');
+  });
+
+  it('ON 과 OFF 의 트랙 색이 서로 다르다 — 색만으로 구분하지 않되 색 자체도 달라야 한다', () => {
+    const offTrack = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {') + 200,
+    );
+    const onTrack = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf(".cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-track"),
+    );
+    expect(offTrack).toContain('--color-bg-layer-05');
+    expect(onTrack).toContain('#00ffa3');
+    expect(offTrack).not.toContain('#00ffa3');
+  });
+
+  it('클릭하면 role=switch 상태가 뒤집힌다', () => {
+    let checked = false;
+    mount(
+      <Toggle
+        label="VOD에도 적용"
+        checked={checked}
+        onChange={(next) => {
+          checked = next;
+        }}
+      />,
+    );
+    const button = toggleButton();
+    expect(button.getAttribute('role')).toBe('switch');
+    act(() => button.click());
+    expect(checked).toBe(true);
   });
 });
