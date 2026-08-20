@@ -20,6 +20,7 @@ import { chatFontFeature } from './chatFont';
 import { chatPresetFeature } from './chatPreset';
 import { chatUserFilterFeature } from './chatUserFilter';
 import { chatWidthFeature } from './chatWidth';
+import { chzzkCleanBotFeature } from './chzzkCleanBot';
 import { mobileWebNoticeFeature } from './mobileWebNotice';
 import { multiViewFeature } from './multiView';
 import { powerCollectFeature } from './powerCollect';
@@ -45,6 +46,7 @@ export const FEATURES: Feature[] = [
   chatWidthFeature, // FR-05
   chatPresetFeature, // FR-04
   chatUserFilterFeature, // FR-11
+  chzzkCleanBotFeature, // 치지직 내장 클린봇 기본 끄기
   powerCollectFeature, // FR-06
   settingsPanelFeature, // FR-09.2
   multiViewFeature, // FR-14

@@ -107,6 +107,12 @@ export type Settings = {
   ultraWide: { enabled: boolean; minChatPx: number; overlayFallback: boolean };
   chatUserFilter: { enabled: boolean; persistPerChannel: boolean };
   /**
+   * 치지직 내장 클린봇(욕설 필터)을 우리 확장이 기본으로 꺼 준다. 자체 필터를 만드는 게
+   * 아니다 — 치지직 계정 설정의 클린봇 토글 자체를 끈다. 기본 켜기(=클린봇을 끈다) —
+   * 클린봇이 정상 발언까지 가려 채팅을 읽기 어렵게 만든다는 요청에 따른 기본값이다.
+   */
+  chzzkCleanBot: { disable: boolean };
+  /**
    * FR-16 채팅 영역 부가 요소 숨김. 기본값은 모두 숨김(true).
    * ⚠️ 광고 배너는 대상이 아니다 — 본 확장은 광고를 차단하지 않는다 (FR-13 과 같은 범위 원칙).
    */
@@ -234,6 +240,7 @@ export const DEFAULT_SETTINGS: Settings = {
   powerCollect: { enabled: false },
   ultraWide: { enabled: true, minChatPx: 150, overlayFallback: true },
   chatUserFilter: { enabled: true, persistPerChannel: false },
+  chzzkCleanBot: { disable: true },
   // 요청에 따라 기본으로 숨긴 상태로 시작한다.
   chatClutter: {
     header: true,
