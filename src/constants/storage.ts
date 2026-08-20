@@ -107,6 +107,16 @@ export type Settings = {
   ultraWide: { enabled: boolean; minChatPx: number; overlayFallback: boolean };
   chatUserFilter: { enabled: boolean; persistPerChannel: boolean };
   /**
+   * 클린 채팅 필터 — 욕설·비속어가 섞인 메시지를 채팅 목록에서 가린다.
+   *
+   * 🔴 **기본값은 끄기다** (2026-08-20 요청). 남의 말을 가리는 기능은 사용자가 직접 켜야 한다.
+   * 오탐이 나면 정상 대화가 사라지는데, 켠 적 없는 사람은 그것이 필터 때문인지 알 수 없다.
+   *
+   * `words` 는 사용자가 직접 넣는 추가 단어다. 기본 목록은 코드에 있다
+   * (`features/chatCleanFilter.ts` 의 `DEFAULT_BLOCK_WORDS`).
+   */
+  chatCleanFilter: { enabled: boolean; words: string[] };
+  /**
    * FR-16 채팅 영역 부가 요소 숨김. 기본값은 모두 숨김(true).
    * ⚠️ 광고 배너는 대상이 아니다 — 본 확장은 광고를 차단하지 않는다 (FR-13 과 같은 범위 원칙).
    */
@@ -229,6 +239,8 @@ export const DEFAULT_SETTINGS: Settings = {
   powerCollect: { enabled: false },
   ultraWide: { enabled: true, minChatPx: 150, overlayFallback: true },
   chatUserFilter: { enabled: true, persistPerChannel: false },
+  // 🔴 남의 말을 가리는 기능이라 **기본은 끄기**다 (2026-08-20 요청).
+  chatCleanFilter: { enabled: false, words: [] },
   // 요청에 따라 기본으로 숨긴 상태로 시작한다.
   chatClutter: {
     header: true,

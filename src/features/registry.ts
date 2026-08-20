@@ -15,6 +15,7 @@
 
 import { adBlockNoticeFeature } from './adBlockNotice';
 import { adSkipFeature } from './adSkip';
+import { chatCleanFilterFeature } from './chatCleanFilter';
 import { chatClutterHideFeature } from './chatClutterHide';
 import { chatFontFeature } from './chatFont';
 import { chatPresetFeature } from './chatPreset';
@@ -45,6 +46,7 @@ export const FEATURES: Feature[] = [
   chatWidthFeature, // FR-05
   chatPresetFeature, // FR-04
   chatUserFilterFeature, // FR-11
+  chatCleanFilterFeature, // 클린 채팅 필터 (기본 끄기)
   powerCollectFeature, // FR-06
   settingsPanelFeature, // FR-09.2
   multiViewFeature, // FR-14
