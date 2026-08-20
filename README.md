@@ -128,17 +128,6 @@
 
 > ⚠️ **통나무 자동 수집은 이용약관 위반 소지가 있어 주의해야합니다.** 기본값은 끄기이며, 켜는 것은 사용자 판단이다.
 
-### 광고 관련 범위
-
-- 가리는 것은 **배너·팝업 UI** 다: 치트키 배너·플레이어 툴팁(FR-13), 채팅창 광고 배너(FR-17).
-- 광고 `SKIP` 버튼이 나타나면 **대신 눌러 준다** (FR-18). `광고 페이지 보기` 는 절대 누르지 않는다.
-- `광고 차단 프로그램을 사용 중이신가요?` 안내가 뜨면 **`확인` 만 눌러 닫는다** (FR-18.2).
-  `자세히 보기` 는 외부 페이지로 나가므로 절대 누르지 않는다.
-  ⚠️ 이 팝업은 치지직이 차단을 감지했을 때만 뜨므로 **실측 재현을 하지 못했다.** 해시 클래스에
-  의존하지 않고 문구로만 판정하며, 문구가 바뀌면 아무것도 하지 않는 쪽으로 실패한다.
-- **영상 광고의 삽입·재생에는 일절 개입하지 않고 네트워크 요청도 차단하지 않는다.**
-  권한은 `storage` 하나뿐이며 `declarativeNetRequest` 를 쓰지 않는다.
-
 ---
 
 ## 개발
@@ -202,34 +191,18 @@ yarn build
 
 ---
 
-### 배포본으로 설치 (`.crx` / `.zip`)
+### 배포본으로 설치 (`.zip`)
 
 [Releases](https://github.com/Arc-Jung/ezzzk/releases) 에서 내려받는다.
 `v*` 태그를 push 하면 GitHub Actions 가 자동으로 만들어 첨부한다.
 
-- **`.crx`** — `chrome://extensions`(또는 `edge://extensions`)에 **드래그앤드롭**. 개발자 모드를 먼저 켠다.
-- **`.zip`** — 스토어 외부 설치가 정책으로 막혀 있을 때. 압축을 풀고 **압축해제된 확장 프로그램을 로드**.
-
 #### 데스크톱 설치 절차 — macOS · Windows × Chrome · Edge
 
-> ⚠️ **먼저 읽는다.** 크롬·엣지는 보안 정책상 **스토어 밖에서 배포된 `.crx` 설치를 차단**한다.
-> 드래그앤드롭하면 대부분 다음과 같은 메시지가 뜬다:
-> *"Chrome 웹 스토어에서 제공되지 않는 확장 프로그램은 추가할 수 없습니다"* /
-> `CRX_REQUIRED_PROOF_MISSING`.
-> 이 저장소가 만드는 `.crx` 는 **형식·서명이 유효함을 검증**했지만
-> (`pack:crx` 가 매직·버전·공개키·zip 본문·서명을 모두 확인한다),
-> **브라우저가 실제로 설치를 받아 주는지는 미검증**이다.
-> → **`.zip` + 압축해제된 확장 프로그램 로드**를 권장 경로로 쓴다. 이쪽은 정책 차단이 없다.
+**1단계 — 내려받기**
 
-**공통 1단계 — 내려받기**
+[Releases](https://github.com/Arc-Jung/ezzzk/releases) 에서 최신 버전의 `ezzzk-<version>.zip` 을 내려받는다.
 
-[Releases](https://github.com/Arc-Jung/ezzzk/releases) 에서 최신 버전의 `ezzzk-<version>.zip`
-(그리고 시도해 볼 경우 `.crx`)을 내려받는다.
-
-> ℹ️ 저장소가 **비공개(private)** 인 동안에는 로그인하지 않은 상태로 릴리스 자산을 내려받을 수 없다.
-> GitHub 에 로그인한 브라우저로 접속하거나, 저장소를 공개로 전환해야 한다.
-
-**권장 경로 — `.zip` 압축해제 후 로드 (Chrome · Edge 공통)**
+**2단계 — 압축해제 후 로드 (Chrome · Edge 공통)**
 
 | 단계 | Chrome | Edge |
 |---|---|---|
@@ -242,32 +215,9 @@ yarn build
 압축 해제 위치는 아무 곳이나 되지만, **폴더를 지우거나 옮기면 확장이 비활성화**된다.
 지워지지 않는 경로에 두는 것을 권한다.
 
-```bash
-# macOS — 예: ~/Applications/ezzzk 에 풀기
-mkdir -p ~/Applications/ezzzk
-unzip -o ~/Downloads/ezzzk-*.zip -d ~/Applications/ezzzk
-```
-
-```powershell
-# Windows (PowerShell) — 예: %LOCALAPPDATA%\ezzzk 에 풀기
-$dest = "$env:LOCALAPPDATA\ezzzk"
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-Expand-Archive -Force -Path "$env:USERPROFILE\Downloads\ezzzk-*.zip" -DestinationPath $dest
-```
-
-**대안 경로 — `.crx` 드래그앤드롭 (막힐 수 있다)**
-
-1. `chrome://extensions` / `edge://extensions` 열고 **개발자 모드** 켜기
-2. 파일 관리자(macOS Finder / Windows 탐색기)에서 `.crx` 파일을 **브라우저 창 안으로 끌어다 놓기**
-   - ⚠️ 주소창에 경로를 입력하는 방식으로는 설치되지 않는다. 반드시 확장 관리 페이지 위로 드롭한다
-3. 확인 대화상자에서 **확장 프로그램 추가**
-4. 위 경고 메시지가 뜨면 → 권장 경로(`.zip`)로 진행한다
-
 **설치 후 확인**
 
 - 확장 목록에 **이지직** 와 버전이 보인다
-- 확장 ID 가 `fbejfdmjjaakniijpphfckapfdobaggk` 다 (서명 키가 같으면 항상 이 값이다.
-  `.zip` 압축해제 설치는 키를 쓰지 않아 **ID 가 다르게 잡히는 것이 정상**이다)
 - 치지직 라이브 페이지에서 컨트롤바 우측에 `멀티` · `⚙*` 버튼이 보인다
 
 **업데이트**
@@ -285,25 +235,9 @@ Expand-Archive -Force -Path "$env:USERPROFILE\Downloads\ezzzk-*.zip" -Destinatio
 yarn build && yarn pack:crx      # → release/ezzzk-<version>.crx, .zip
 ```
 
-#### 서명 키 관리
-
-- 개인키는 `.keys/ezzzk.pem` 에 두고 **절대 커밋하지 않는다**(gitignore 됨).
-- 없으면 `pack:crx` 가 새로 만든다. **반드시 백업한다** —
-  키가 바뀌면 **확장 ID 도 바뀌어** 기존 설치가 업데이트되지 않고 별개 확장으로 취급된다.
-- CI/릴리스는 `CRX_PRIVATE_KEY` 시크릿(base64 PEM)을 쓴다:
-  ```bash
-  base64 -i .keys/ezzzk.pem | pbcopy   # macOS
-  ```
-  저장소 **Settings → Secrets and variables → Actions** 에 등록한다.
-  태그 릴리스에서 이 시크릿이 없으면 워크플로가 **실패한다**(조용히 다른 ID 로 배포되는 것을 막기 위함).
-
 ---
 
 ### 수동 설치 — Edge for Android (모바일)
-
-> ⚠️ **이 절차는 실기기에서 미검증이다.** 안드로이드 Edge 의 확장 지원은 채널·버전마다 UI 와
-> 허용 범위가 자주 바뀐다. 아래는 일반적인 흐름이며, 실제 화면과 다르면 그 시점 Edge 문서를 따른다.
-> (요구사항 §11 조사 과제 2번 — 실기기 검증이 아직 남은 항목이다.)
 
 **전제**
 - **Edge for Android 의 Dev 또는 Canary 채널**이 필요하다. 정식(Stable) 채널은 확장을 지원하지 않는다.
@@ -366,17 +300,6 @@ src/
 ├─ constants/           # 셀렉터·스토리지 키·기기 프리셋 (실측일 주석 필수)
 └─ utils/               # dom / log / observe / viewport / reactFiber
 ```
-
-### 문서
-> ℹ️ 아래 문서들은 **개발 저장소의 로컬 문서**다. 공개 저장소에는 포함하지 않으므로 링크를 걸지 않는다.
-
-
-| 문서 | 역할 |
-|---|---|
-| `docs/ezzzk-requirements.md` | 요구사항 정의서 *(개발 저장소 로컬 문서 — 공개본에는 포함하지 않는다)* |
-| `docs/ezzzk-ui-mockups.md` | 모든 화면의 TUI 목업 + 실측 좌표 (기준선 1920×1080) |
-| `docs/chzzk-frontend-analysis.md` | 치지직 프론트엔드 구조 분석·주의사항 |
-| `docs/frontend-dump/` | Playwright 실측 원시 데이터(JSON) |
 
 ### 테스트 방침
 
