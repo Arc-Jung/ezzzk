@@ -1,0 +1,115 @@
+# IDE
+.idea/
+
+# 에이전트 / 툴 상태
+.omc/
+.playwright-mcp/
+
+# 의존성 · 빌드 산출물
+node_modules/
+dist/
+*.zip
+
+# 환경 변수
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# Playwright 검증 임시 프로필
+.playwright-verify/
+
+# 📁 docs/ 는 **저장소에 올리지 않는다** (2026-08-20 결정).
+# 요구사항·목업·실측 덤프·조사 기록은 로컬 작업 문서다. README 가 쓰는 스크린샷만
+# `screenshots/` 로 옮겨 추적한다 — 그래야 공개 저장소에서 이미지가 깨지지 않는다.
+docs/
+
+# 확장 서명용 개인키 — 절대 커밋하지 않는다
+.keys/
+# 패키징 산출물
+release/
+
+# 스모크 리포트·프로필 (CI artifact 로 올린다)
+smoke-report.json
+.playwright-smoke/
+
+# 검증 하네스 산출물 (재생성 가능 — 근거는 report.json 을 확인하고 필요할 때 다시 찍는다)
+.playwright-multiview/
+.playwright-ui-profiles/
+.playwright-probe-overflow/
+.playwright-probe-panel/
+ui-profile-shots/
+multiview-shots/
+
+# Claude Code 프로젝트 설정·스킬 (로컬 도구 설정이라 공유하지 않는다)
+.claude/
+
+# ⚠️ screenshots/ 는 README 가 참조하므로 **커밋한다** (아래 캡처 프로필 디렉터리만 제외)
+.playwright-demo/
+.playwright-fixture/
+# 진단 프로브 스크린샷 (재생성 가능) — 루트에 남는 것은 전부 무시한다
+*-probe.png
+logo-preview.png
+widescreen-live.png
+
+# 외부 확장(애드가드) — 광고차단 감지 팝업 재현용. 30MB 대라 커밋하지 않는다.
+# 다시 받으려면 scripts/fetch-adguard.mjs 를 돌린다.
+.vendor/
+.playwright-adblock/
+.playwright-chat-width/
+.playwright-user-scenarios/
+chat-width-shots/
+user-scenario-shots/
+adblock-shots/
+.playwright-adblock-probe/
+
+# 화질 우회 경로 조사 (2026-08-15) — 프로필·산출물·임시 프로브 확장
+.playwright-quality-click/
+.playwright-quality-bypass/
+.playwright-quality-keyboard/
+.playwright-quality-noui-plain/
+.playwright-quality-noui-ag/
+.playwright-quality-ext-noui/
+.probe-ext-keyboard/
+.probe-ext-noui/
+quality-click-shots/
+quality-bypass-shots/
+quality-keyboard-shots/
+quality-noui-shots/
+quality-ext-noui-shots/
+
+# VOD·모바일 화질 전환 조사 (2026-08-15) — 프로필·산출물
+.playwright-quality-vod/
+.playwright-quality-mobile/
+quality-vod-mobile-shots/
+
+# Playwright 프로필·산출물 — 실행할 때마다 다시 만들어진다.
+.playwright-click-events/
+.playwright-multi-tab/
+.playwright-portrait/
+.playwright-settings-probe/
+.playwright-tools-row/
+.playwright-twotab/
+multi-tab-shots/
+multiview-audio-shots/
+portrait-shots/
+.playwright-adblock-confirm/
+adblock-confirm-shots/
+
+# 프로브·탐색 산출물은 **패턴으로** 한 번에 무시한다.
+# 프로브를 새로 만들 때마다 항목을 추가하는 것을 잊기 쉬워 실제로 두 번 새어 나갔다
+# (한 번은 브라우저 프로필 1301개가 커밋에 딸려 들어갔다).
+probe-*/
+.playwright-*/
+explore-*/
+*-shots/
+*-shots-live/
+
+# 에이전트 세션 상태 (로컬 도구가 만든다 — 공유하지 않는다)
+.gjc/
+
+# 하네스·프로브 산출물은 etc/ 한 곳에 모은다 (2026-08-20). 루트가 이 디렉터리들로 뒤덮였다.
+# ⚠️ 스크립트는 여전히 루트 경로에 쓴다 — 정리는 `mv <dir> etc/` 로 한다.
+etc/

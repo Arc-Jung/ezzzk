@@ -1,0 +1,171 @@
+/**
+ * FR-09.2 설정 패널 순수 로직 검증.
+ * DOM 렌더가 아니라 **패널이 노출하는 상수·계산식**을 검증한다 — 실제 치지직 DOM 결합은
+ * Playwright 실브라우저 검증의 몫이다 (요구사항 §8.0).
+ */
+
+import { describe, expect, it } from 'vitest';
+import { CHAT_FONT_RANGE, DEFAULT_SETTINGS, LIMITS } from '../constants/storage';
+import { lineHeightForFont, visibleLines } from '../features/chatFont';
+import { computeSlotRects, stripMetrics } from '../features/multiView/slotLayout';
+import {
+  REFERENCE_STAGE,
+  SIDE_CHAT_PX,
+  TABS,
+  TAB_IDS,
+  chatOccupancyText,
+  formatLoss,
+  placementTradeOff,
+  sectionsForTab,
+} from './tabs';
+import { REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
+import { SETTINGS_PANEL_CSS } from './settingsPanelCss';
+import { SHEET_CSS } from '../ui/Sheet';
+
+/**
+ * 🔴 실측 회귀 2026-08-16 (실사이트 모바일 가로 915×412).
+ * 시트 높이가 80vh = 330px 로 줄면 본문에 198px 밖에 안 남아 세로 탭 레일에서는 탭 7개 중
+ * 3개만 보였다. 스크롤은 됐지만 레일이 본문과 함께 밀려 올라가 위치를 알 수 없었다.
+ */
+describe('좁은/짧은 화면 대응 CSS', () => {
+  it('세로가 짧은 화면에서도 탭 레일을 가로 줄로 접는다', () => {
+    expect(SETTINGS_PANEL_CSS).toContain('@media (max-height: 560px)');
+    const shortBlock = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('@media (max-height: 560px)'),
+    );
+    expect(shortBlock).toContain('.cm-sp__rail { flex-direction: row;');
+  });
+
+  it('시트 본문은 min-height: 0 이라 푸터를 밀어내지 않는다', () => {
+    expect(SHEET_CSS).toMatch(/\.cm-sheet__body \{[^}]*min-height: 0/);
+    expect(SHEET_CSS).toMatch(/\.cm-sheet__body \{[^}]*overflow-y: auto/);
+  });
+});
+
+describe('탭 구성', () => {
+  it('탭은 7개이며 목업 화면 ⑦ 의 순서를 지킨다', () => {
+    expect(TABS.map((tab) => tab.title)).toEqual([
+      '재생',
+      '소리',
+      '레이아웃',
+      '멀티뷰',
+      '채팅',
+      '기타',
+      '프리셋',
+    ]);
+    expect(TAB_IDS).toHaveLength(7);
+    expect(TABS.map((tab) => tab.id)).toEqual([...TAB_IDS]);
+  });
+
+  it('탭 → 초기화 섹션 매핑이 FR-09.2 표와 일치한다', () => {
+    expect(sectionsForTab('playback')).toEqual(['quality']);
+    expect(sectionsForTab('sound')).toEqual(['volume']);
+    expect(sectionsForTab('layout')).toEqual(['chatWidth', 'wideScreen', 'ultraWide']);
+    expect(sectionsForTab('multiView')).toEqual(['multiView']);
+    expect(sectionsForTab('chat')).toEqual([
+      'chatFont',
+      'chatPresets',
+      'chatPresetBehavior',
+      'chatUserFilter',
+      // FR-16 채팅 부가 요소 숨김도 채팅 탭에서 초기화된다.
+      'chatClutter',
+    ]);
+    expect(sectionsForTab('misc')).toEqual([
+      'powerCollect',
+      'promoHide',
+      // FR-18 광고 SKIP 자동 클릭도 기타 탭에서 초기화된다.
+      'adSkip',
+      'device',
+      'debug',
+    ]);
+    expect(sectionsForTab('preset')).toEqual(['optionPresets', 'activePresetId']);
+  });
+
+  it('모든 탭의 초기화 섹션은 Settings 의 실제 키다', () => {
+    const keys = Object.keys(DEFAULT_SETTINGS);
+    for (const id of TAB_IDS) {
+      for (const section of sectionsForTab(id)) {
+        expect(keys).toContain(section);
+      }
+    }
+  });
+});
+
+describe('레이아웃 탭 점유율 안내', () => {
+  it('353px 는 고정값이고 퍼센트는 뷰포트 폭에서 계산된다', () => {
+    expect(SIDE_CHAT_PX).toBe(353);
+    // 목업의 `└ 현재 353px = 18.4%` 는 1920 기준값이다.
+    expect(chatOccupancyText(1920)).toBe('└ 현재 353px = 18.4%');
+    // 노트북 13인치(1440) 에서는 같은 353px 이 24.5% 다 — 퍼센트를 상수로 박으면 안 된다.
+    expect(chatOccupancyText(1440)).toBe('└ 현재 353px = 24.5%');
+  });
+
+  it('폭을 알 수 없으면 퍼센트를 만들어내지 않는다', () => {
+    expect(chatOccupancyText(0)).toBe('└ 현재 353px');
+  });
+});
+
+describe('멀티뷰 탭 배치 트레이드오프', () => {
+  it('안내 퍼센트는 stripMetrics 계산 결과와 같다', () => {
+    const four = computeSlotRects(4, REFERENCE_STAGE.width, REFERENCE_STAGE.height)[0];
+    const two = computeSlotRects(2, REFERENCE_STAGE.width, REFERENCE_STAGE.height)[0];
+    expect(four).toMatchObject({ width: 959, height: 539 });
+    expect(two).toMatchObject({ width: 959, height: 1080 });
+
+    const fourLoss = stripMetrics(959, 539, 3, 'reserve', CHAT_FONT_RANGE.slot.default).areaLoss;
+    const twoLoss = stripMetrics(959, 1080, 5, 'reserve', CHAT_FONT_RANGE.slot.default).areaLoss;
+    expect(fourLoss * 100).toBeCloseTo(20.0, 1);
+    expect(twoLoss).toBe(0);
+
+    const hints = placementTradeOff(3, CHAT_FONT_RANGE.slot.default);
+    expect(hints.four).toBe(`4분할: 겹침 권장 (밑 배치 시 3줄=−${formatLoss(fourLoss)}%)`);
+    expect(hints.two).toBe(`2분할: 밑 배치 권장 (손실 ${formatLoss(twoLoss)}%)`);
+  });
+
+  it('목업 문구를 그대로 재현한다', () => {
+    const hints = placementTradeOff(3, CHAT_FONT_RANGE.slot.default);
+    expect(hints.four).toBe('4분할: 겹침 권장 (밑 배치 시 3줄=−20.0%)');
+    expect(hints.two).toBe('2분할: 밑 배치 권장 (손실 0%)');
+  });
+
+  it('손실 0 은 0.0% 가 아니라 0% 로 표기한다', () => {
+    expect(formatLoss(0)).toBe('0');
+    expect(formatLoss(0.2)).toBe('20.0');
+  });
+
+  it('줄 수를 늘리면 밑 배치 손실이 커진다', () => {
+    const three = placementTradeOff(3, CHAT_FONT_RANGE.slot.default);
+    const five = placementTradeOff(5, CHAT_FONT_RANGE.slot.default);
+    expect(five.four).toContain('5줄=−30.3%');
+    expect(five.four).not.toBe(three.four);
+    // 2분할은 세로에 여유가 있어 5줄이어도 손실이 없다.
+    expect(five.two).toBe(three.two);
+  });
+});
+
+describe('채팅 탭 글자 크기 안내', () => {
+  it('안정화 후 스크롤 영역 761px 기준 값이 목업 표와 일치한다', () => {
+    expect(REFERENCE_SCROLLER_HEIGHT).toBe(761);
+    expect(lineHeightForFont(14)).toBe(26);
+    expect(visibleLines(REFERENCE_SCROLLER_HEIGHT, 14)).toBe(29);
+  });
+
+  it('목업 표의 다른 폰트 크기도 재현한다', () => {
+    expect(visibleLines(761, 11)).toBe(34);
+    expect(visibleLines(761, 12)).toBe(31);
+    expect(visibleLines(761, 24)).toBe(19);
+  });
+
+  it('스테퍼 범위는 FR-15 범위와 같다', () => {
+    expect(CHAT_FONT_RANGE.side).toMatchObject({ min: 11, max: 24, default: 14 });
+    expect(CHAT_FONT_RANGE.slot).toMatchObject({ min: 10, max: 16, default: 12 });
+  });
+});
+
+describe('상한', () => {
+  it('프리셋·조합 상한은 요구사항 값을 쓴다', () => {
+    expect(LIMITS.optionPresets).toBe(20);
+    expect(LIMITS.multiViewSets).toBe(10);
+    expect(LIMITS.chatPresets).toBe(50);
+  });
+});

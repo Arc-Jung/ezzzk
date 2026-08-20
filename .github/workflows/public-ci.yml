@@ -1,0 +1,54 @@
+# 퍼블릭 저장소 전용 CI.
+#
+# 🔴 프라이빗의 `ci.yml` 을 그대로 쓸 수 없다. 그쪽은 `xvfb-run -a yarn smoke` 로 Playwright 하네스를
+# 돌리는데, 하네스(`scripts/lib/**`·픽스처·`verify-*`)는 **비공개 결정**이라 공개 트리에 없다
+# (`docs/public-repo-plan.md` §3). 남은 것만 돌린다 — 그래도 타입·린트·포맷·유닛·빌드는 전부 검증된다.
+#
+# 이 파일은 프라이빗 저장소에서 관리하고, 동기화가 공개 저장소로 복사한다.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: public-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    # 🔴 이 워크플로 파일은 프라이빗 저장소에도 존재한다(공개본으로 동기화되는 원본이 여기다).
+    # 가드가 없으면 프라이빗에서도 돌면서 "공개 트리 점검"이 CLAUDE.md·하네스를 잡아 **항상 실패**한다
+    # (실제로 CI 가 그렇게 깨졌다). 공개 저장소에서만 돈다.
+    if: github.repository != 'Arc-Jung/chzzk-mate-dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.18.0'
+          cache: yarn
+
+      - name: 의존성 설치
+        run: yarn install --frozen-lockfile
+
+      - name: 타입 검사
+        run: yarn typecheck
+
+      - name: 린트
+        run: yarn lint
+
+      - name: 포맷 검사
+        run: yarn format:check
+
+      - name: 유닛·통합 테스트
+        run: yarn test
+
+      - name: 빌드
+        run: yarn build
+
+      - name: 공개 트리 점검 (2차 방어선)
+        # 1차는 Copybara 허용 목록이다. 여기서 금지 패턴·허용 목록 위반·README 깨진 링크를 다시 본다.
+        run: node scripts/check-public-tree.mjs .

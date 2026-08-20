@@ -1,0 +1,178 @@
+:root {
+  --cm-bg: #141517;
+  --cm-fg: #e9ecef;
+  --cm-muted: #9aa0a6;
+  --cm-accent: #00ffa3;
+  --cm-border: #2a2d31;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 340px;
+  font-family:
+    'Apple SD Gothic Neo',
+    'Malgun Gothic',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  font-size: 13px;
+  background: var(--cm-bg);
+  color: var(--cm-fg);
+}
+
+.cm-popup {
+  padding: 12px 14px 16px;
+}
+
+.cm-popup h1 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cm-section {
+  padding: 10px 0;
+  border-top: 1px solid var(--cm-border);
+}
+
+.cm-section:first-of-type {
+  border-top: none;
+}
+
+.cm-section > h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cm-muted);
+}
+
+.cm-toggle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+}
+
+.cm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.cm-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.cm-hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--cm-muted);
+}
+
+.cm-warn {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #ffb454;
+}
+
+.cm-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cm-stepper button {
+  /* 터치 타겟은 기기 유형에 따라 커진다 (FR-12). 팝업은 데스크톱 기본값. */
+  min-width: 26px;
+  min-height: 26px;
+  border: 1px solid var(--cm-border);
+  border-radius: 5px;
+  background: #1c1f22;
+  color: var(--cm-fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cm-stepper button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.cm-stepper output {
+  min-width: 46px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cm-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cm-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--cm-border);
+  border-radius: 5px;
+  background: #1c1f22;
+  color: var(--cm-fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cm-btn--primary {
+  border-color: var(--cm-accent);
+  color: var(--cm-accent);
+}
+
+.cm-btn--wide {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+}
+
+select,
+input[type='text'] {
+  padding: 4px 6px;
+  border: 1px solid var(--cm-border);
+  border-radius: 5px;
+  background: #1c1f22;
+  color: var(--cm-fg);
+  font-size: 12px;
+}
+
+.cm-shortcuts {
+  font-size: 11px;
+  color: var(--cm-muted);
+  line-height: 1.6;
+}
+
+/* 상표 고지 — 눈에 띄되 기능 UI 를 밀어내지 않도록 최소 크기로 둔다. */
+.cm-disclaimer {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--cm-border);
+  font-size: 10px;
+  color: var(--cm-muted);
+  line-height: 1.5;
+  text-align: center;
+}

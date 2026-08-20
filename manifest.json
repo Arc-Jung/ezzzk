@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "이지직 (비공식) — ezzzk",
+  "description": "네이버·치지직과 무관한 비공식 서드파티 확장. 시청 화면의 화질·볼륨·레이아웃·채팅 표시 설정을 지정한 값으로 자동 적용합니다.",
+  "version": "0.1.20",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "64": "icons/icon64.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["*://chzzk.naver.com/*", "*://m.chzzk.naver.com/*"],
+      "js": ["src/earlyStyle.ts"],
+      "run_at": "document_start",
+      "exclude_globs": ["*://api.chzzk.naver.com/*"]
+    },
+    {
+      "matches": ["*://chzzk.naver.com/*", "*://m.chzzk.naver.com/*"],
+      "js": ["src/content.tsx"],
+      "all_frames": true,
+      "exclude_globs": ["*://api.chzzk.naver.com/*"]
+    }
+  ],
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
+  "action": {
+    "default_icon": "icons/icon128.png",
+    "default_popup": "index.html",
+    "default_title": "이지직 (비공식)"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": ["*://chzzk.naver.com/*", "*://m.chzzk.naver.com/*"],
+      "resources": ["icons/logo.svg"]
+    }
+  ]
+}
