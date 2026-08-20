@@ -406,10 +406,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
  * 라벨 파싱·매칭은 `quality.ts` 의 순수 함수를 그대로 쓴다(복붙 금지 — 복붙하면 한쪽만
  * 고쳤을 때 또 갈라진다, 이번 버그가 정확히 그 결과였다).
  */
-export function pickCappedQualityItem(
-  labels: string[],
-  target: QualityTarget,
-): QualityPick | null {
+export function pickCappedQualityItem(labels: string[], target: QualityTarget): QualityPick | null {
   const unique: { index: number; text: string }[] = [];
   const seen = new Set<string>();
   labels.forEach((raw, index) => {

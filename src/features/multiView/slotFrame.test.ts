@@ -11,7 +11,12 @@
  * "우리 조작 vs 사용자 조작" 구분 자체를 시험할 수 없다.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applySlotQuality, buildSlotModeCss, createSlotAudio, startSlotController } from './slotFrame';
+import {
+  applySlotQuality,
+  buildSlotModeCss,
+  createSlotAudio,
+  startSlotController,
+} from './slotFrame';
 
 function mountVideo(): HTMLVideoElement {
   document.body.innerHTML = '<div id="live_player_layout"><video></video></div>';
@@ -334,10 +339,7 @@ describe('startSlotController — 슬롯 탭을 부모로 넘긴다', () => {
  * 화질 지시가 조용히 무효가 됐다.
  */
 describe('applySlotQuality — 목표가 없을 때의 폴백 (사용자 보고 2026-08-20)', () => {
-  function mountQualityList(
-    labels: string[],
-    checkedIndex: number | null = null,
-  ): HTMLLIElement[] {
+  function mountQualityList(labels: string[], checkedIndex: number | null = null): HTMLLIElement[] {
     document.body.innerHTML = '';
     const container = document.createElement('div');
     const items = labels.map((label, index) => {
@@ -373,10 +375,7 @@ describe('applySlotQuality — 목표가 없을 때의 폴백 (사용자 보고 
   });
 
   it('라벨에 접미사(60fps 등)가 붙어도 접두어로 매칭한다', async () => {
-    const items = mountQualityList([
-      '1080p(원본) \n\t HD \n\t60fps',
-      '720p \n\t HD \n\t60fps',
-    ]);
+    const items = mountQualityList(['1080p(원본) \n\t HD \n\t60fps', '720p \n\t HD \n\t60fps']);
     const clicks = items.map((item) => vi.spyOn(item, 'click'));
     await applySlotQuality('1080p', true);
     expect(clicks[0]).toHaveBeenCalledTimes(1);

@@ -1150,8 +1150,12 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       const css = document.getElementById('cm-chat-width-control-style')?.textContent ?? '';
       // 배경(alpha 명시)과 테두리를 둘 다 요구한다 — 배경만으로는 레터박스(검은 배경)와
       // 대비가 0에 가까워졌던 감사 이슈(#2)가 재발한다.
-      expect(css).toMatch(/#cm-chat-width-control button\s*\{[^}]*border:\s*1px solid rgba\(255, 255, 255, 0\.35\)/);
-      expect(css).toMatch(/#cm-chat-width-control button\s*\{[^}]*background:\s*rgba\(0, 0, 0, 0\.65\)/);
+      expect(css).toMatch(
+        /#cm-chat-width-control button\s*\{[^}]*border:\s*1px solid rgba\(255, 255, 255, 0\.35\)/,
+      );
+      expect(css).toMatch(
+        /#cm-chat-width-control button\s*\{[^}]*background:\s*rgba\(0, 0, 0, 0\.65\)/,
+      );
       dispose?.();
     });
 
