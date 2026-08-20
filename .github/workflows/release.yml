@@ -95,8 +95,25 @@ jobs:
         if: steps.next.outputs.proceed == 'true'
         run: yarn build
 
+      # 🔴 `CRX_PRIVATE_KEY` 가 없으면 `pack:crx` 는 **임시 키를 만들어** 조용히 서명한다.
+      # 그러면 확장 ID 가 릴리스마다 바뀌어 기존 설치와 다른 확장이 된다 — 자동 배포에서 이게
+      # 나가면 되돌릴 수 없으므로 여기서 먼저 끊는다.
+      - name: 서명 키 확인
+        if: steps.next.outputs.proceed == 'true'
+        env:
+          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRX_PRIVATE_KEY}" ]; then
+            echo "::error::CRX_PRIVATE_KEY 시크릿이 없다. 임시 키로 서명하면 확장 ID 가 바뀐다."
+            exit 1
+          fi
+          echo "서명 키 주입 확인"
+
       - name: 패키징
         if: steps.next.outputs.proceed == 'true'
+        env:
+          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
         run: yarn pack:crx
 
       - name: 커밋·태그 push
@@ -114,9 +131,8 @@ jobs:
           git push origin HEAD:main
           git push origin "v$VERSION"
 
-      # `.crx` 는 올리지 않는다. `CRX_PRIVATE_KEY` 시크릿이 없으면 `pack:crx` 가 임시 키를 만들어
-      # 서명하고, 그러면 확장 ID 가 릴리스마다 바뀌어 기존 설치와 다른 확장이 된다.
-      # README 도 `.zip` 압축해제 로드 하나만 안내한다.
+      # `.zip` 과 `.crx` 를 함께 올린다. `.crx` 는 `CRX_PRIVATE_KEY` 로 서명해 확장 ID 가 고정된다
+      # (`fbejfdmjjaakniijpphfckapfdobaggk`). 위 「서명 키 확인」이 통과했을 때만 여기까지 온다.
       - name: 릴리스 생성
         if: steps.next.outputs.proceed == 'true'
         env:
@@ -124,6 +140,56 @@ jobs:
           VERSION: ${{ steps.next.outputs.version }}
         run: |
           set -euo pipefail
-          gh release create "v$VERSION" "release/ezzzk-$VERSION.zip" \
+          # 설치 방법을 릴리스 본문 맨 위에 붙인다 — 받는 사람이 README 로 건너가지 않아도 되게.
+          # `--generate-notes` 는 이 본문 **아래에** 자동 변경 로그를 덧붙인다.
+          cat > release-notes.md <<'NOTES'
+          ## 설치 방법
+
+          > ⚠️ 크롬·엣지는 보안 정책상 **스토어 밖에서 배포된 `.crx` 설치를 차단**하는 경우가 많다.
+          > 막히면 아래 `.zip` 경로로 진행한다. 이쪽은 정책 차단이 없다.
+
+          ### 방법 1 — `.crx` 드래그앤드롭
+
+          1. 위 Assets 에서 `ezzzk-<version>.crx` 를 내려받는다
+          2. 주소창에 `chrome://extensions` (엣지는 `edge://extensions`) 를 열고 **개발자 모드** 켜기
+          3. 파일 관리자(macOS Finder / Windows 탐색기)에서 `.crx` 파일을 **확장 관리 페이지 위로 끌어다 놓기**
+             - ⚠️ 주소창에 파일 경로를 입력하는 방식으로는 설치되지 않는다
+          4. 확인 대화상자에서 **확장 프로그램 추가**
+          5. `"Chrome 웹 스토어에서 제공되지 않는 확장 프로그램은 추가할 수 없습니다"` 또는
+             `CRX_REQUIRED_PROOF_MISSING` 이 뜨면 → 방법 2 로 진행한다
+
+          `.crx` 는 고정된 서명 키로 서명한다. 확장 ID 는 항상 `fbejfdmjjaakniijpphfckapfdobaggk` 이며,
+          같은 ID 를 유지하므로 다음 버전을 같은 방식으로 덮어 설치하면 설정이 그대로 이어진다.
+
+          ### 방법 2 — `.zip` 압축해제 후 로드 (Chrome · Edge 공통, 권장)
+
+          1. 위 Assets 에서 `ezzzk-<version>.zip` 을 내려받아 **압축을 푼다**
+          2. 주소창에 `chrome://extensions` (엣지는 `edge://extensions`)
+          3. **개발자 모드** 켜기 (Chrome 은 우측 상단, Edge 는 좌측 하단)
+          4. **압축해제된 확장 프로그램을 로드** (Edge 는 **압축을 풀린 항목 로드**)
+          5. 압축을 푼 폴더 선택 — `manifest.json` 이 **바로 안에** 있는 폴더여야 한다
+          6. `https://chzzk.naver.com` 접속
+
+          압축 해제 위치는 아무 곳이나 되지만, **폴더를 지우거나 옮기면 확장이 비활성화**된다.
+          지워지지 않는 경로에 둔다. `.zip` 설치는 서명 키를 쓰지 않아 **확장 ID 가 다르게 잡히는 것이 정상**이다.
+
+          ### 설치 후 확인
+
+          - 확장 목록에 **이지직** 과 버전이 보인다
+          - 치지직 라이브 페이지 컨트롤바 우측에 `멀티` · `⚙*` 버튼이 보인다
+
+          ### 업데이트 · 제거
+
+          스토어 밖 설치는 자동 업데이트가 되지 않는다. 새 버전이 나오면 같은 절차를 다시 한다
+          (`.zip` 경로는 **같은 폴더에 덮어쓰고** 확장 관리 페이지에서 **새로 고침**).
+          제거는 확장 관리 페이지에서 **삭제** — `.zip` 으로 설치했다면 압축을 푼 폴더도 함께 지운다.
+
+          ---
+          NOTES
+          gh release create "v$VERSION" \
+            "release/ezzzk-$VERSION.zip" \
+            "release/ezzzk-$VERSION.crx" \
             --title "이지직 $VERSION" \
+            --notes-file release-notes.md \
             --generate-notes
+          rm -f release-notes.md

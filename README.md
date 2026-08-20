@@ -248,19 +248,18 @@ yarn build && yarn pack:crx      # → release/ezzzk-<version>.crx, .zip
 1. Play 스토어에서 **Microsoft Edge Dev** 설치
    - Edge Dev: https://play.google.com/store/apps/details?id=com.microsoft.emmx.dev
    - Edge Canary: https://play.google.com/store/apps/details?id=com.microsoft.emmx.canary
-2. `dist/` 를 zip 으로 묶어 기기 저장소에 넣는다
-   ```bash
-   cd dist && zip -r ../ezzzk.zip . && cd ..
-   ```
-   기기로 옮기는 방법: USB 파일 전송, 클라우드 드라이브, 또는
-   ```bash
-   adb push ezzzk.zip /sdcard/Download/
-   ```
+2. **기기에서 바로** [최신 릴리스](https://github.com/Arc-Jung/ezzzk/releases/latest) 를 열어
+   `ezzzk-<version>.zip` 을 받는다. 이 zip 이 곧 빌드 산출물이라 **직접 빌드할 필요가 없다.**
+   - 안드로이드 Edge 로 위 링크를 열고 자산을 탭하면 `Download/` 에 저장된다
+   - PC 에서 받아 옮기려면 USB 파일 전송·클라우드 드라이브, 또는
+     ```bash
+     adb push ~/Downloads/ezzzk-*.zip /sdcard/Download/
+     ```
 3. Edge 에서 `⋯` 메뉴 → **설정** → **정보**(About) 에서 빌드 번호를 여러 번 탭해
    **개발자 옵션**을 활성화한다 (안드로이드 개발자 모드와 같은 방식)
 4. `⋯` 메뉴 → **확장** → **개발자 모드** 켜기 →
    **압축 파일에서 설치**(또는 `Install from folder` / `Load unpacked`) 선택
-5. `Download/ezzzk.zip` (또는 압축을 푼 폴더) 선택
+5. `Download/ezzzk-<version>.zip` (또는 압축을 푼 폴더) 선택
 6. `https://chzzk.naver.com` 접속
 
 **모바일에서 반드시 함께 할 설정**
