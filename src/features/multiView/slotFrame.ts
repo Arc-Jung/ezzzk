@@ -11,7 +11,7 @@
  */
 
 import { ID, OURS, PLAYER } from '../../constants/class';
-import type { SlotIndex } from '../../constants/storage';
+import type { QualityTarget, SlotIndex } from '../../constants/storage';
 import {
   qs,
   qsa,
@@ -27,6 +27,14 @@ import { findChatClient, readChatMessage } from '../../utils/reactFiber';
 import { slotFromAudioShortcut } from './audioRouter';
 import { MV_CHANNEL, parseMvMessage, type SlotToParent } from './messages';
 import { isUserInitiated } from './userIntent';
+import {
+  matchesTarget,
+  normalizeQualityLabel,
+  parseQualityLabel,
+  pickQualityItem,
+  targetHeightPx,
+  type QualityPick,
+} from '../quality';
 
 const SLOT_STYLE_ID = 'cm-slot-mode-style';
 /** 슬롯 스트립 렌더는 부모가 한다. 여기서는 200ms 배치로 데이터만 넘긴다 (저사양 프레임 예산). */
@@ -332,7 +340,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
         audio.setVolume(message.percent);
         break;
       case 'setQuality':
-        void applySlotQuality(message.target);
+        void applySlotQuality(message.target, message.raiseIfMissing);
         break;
       case 'setChatLines':
         chatLines = message.lines;
@@ -386,21 +394,91 @@ export function startSlotController(slot: SlotIndex): Disposer {
 }
 
 /**
- * 슬롯 안 화질 변경. 비활성 슬롯을 720p 이하로 내려 대역폭을 보호한다.
- * FR-01 의 접두어 매칭 규칙과 같은 방식을 쓴다 — 항목 텍스트에 탭·개행이 섞여 있다.
+ * 비활성 슬롯 하향 목표가 목록에 없을 때 대체 항목을 고른다.
+ *
+ * 🔴 활성 슬롯(`pickQualityItem`, quality.ts)과 **폴백 방향이 정반대**다. 활성 슬롯은
+ * 화질을 최대한 올리는 게 목적이라 목표가 없으면 "최고 화질"로 대체해도 되지만, 이 함수는
+ * 대역폭을 아끼려는 하향 지시(`INACTIVE_SLOT_QUALITY`)를 처리한다 — 목표가 없다고
+ * 최고 화질로 올려버리면 대역폭 절약이라는 원래 목적과 정반대로 움직인다. 그래서
+ * **목표 이하 중 가장 높은 항목**만 고르고, 그런 항목도 없으면(목록에 목표보다 낮은 화질이
+ * 전혀 없음) 아무것도 하지 않는다(`null`) — "올리지 않는다"가 항상 이긴다.
+ *
+ * 라벨 파싱·매칭은 `quality.ts` 의 순수 함수를 그대로 쓴다(복붙 금지 — 복붙하면 한쪽만
+ * 고쳤을 때 또 갈라진다, 이번 버그가 정확히 그 결과였다).
  */
-async function applySlotQuality(target: string): Promise<void> {
+export function pickCappedQualityItem(
+  labels: string[],
+  target: QualityTarget,
+): QualityPick | null {
+  const unique: { index: number; text: string }[] = [];
+  const seen = new Set<string>();
+  labels.forEach((raw, index) => {
+    const text = normalizeQualityLabel(raw);
+    if (text.length === 0 || seen.has(text)) return;
+    seen.add(text);
+    unique.push({ index, text });
+  });
+  if (unique.length === 0) return null;
+
+  const hit = unique.find((item) => matchesTarget(item.text, target));
+  if (hit) return { index: hit.index, reason: `target match "${hit.text}"` };
+
+  // auto/best 는 상한을 특정할 수 없다 — 하향 지시로는 쓰이지 않지만 방어적으로 처리한다.
+  const capPx = targetHeightPx(target);
+  if (capPx === null) return null;
+
+  let best: { index: number; text: string; height: number } | null = null;
+  for (const item of unique) {
+    const { heightPx } = parseQualityLabel(item.text);
+    // 목표보다 높은 화질은 후보에서 제외한다 — 하향 지시에서 올리면 안 된다.
+    if (heightPx === null || heightPx > capPx) continue;
+    if (best === null || heightPx > best.height) {
+      best = { index: item.index, text: item.text, height: heightPx };
+    }
+  }
+  if (best === null) return null;
+
+  return {
+    index: best.index,
+    reason: `target ${target} unavailable, capped fallback to "${best.text}"`,
+  };
+}
+
+/**
+ * 슬롯 안 화질 변경.
+ *
+ * `quality.ts` 와 같은 해석 함수(`pickQualityItem`/`pickCappedQualityItem` 은 둘 다
+ * `parseQualityLabel`/`matchesTarget`/`normalizeQualityLabel` 을 공유한다)를 써서 목표가
+ * 목록에 없을 때도 조용히 포기하지 않는다.
+ *
+ * @param target 목표 화질.
+ * @param raiseIfMissing true(활성 슬롯) 면 목표가 없을 때 최고 화질로 폴백한다.
+ *   false(비활성 슬롯 대역폭 하향) 면 목표 이하 중 가장 높은 것으로만 대체하고,
+ *   그것도 없으면 아무것도 하지 않는다 — `pickCappedQualityItem` 주석 참조.
+ *
+ * 🔴 하위 호환: 확장 리로드 타이밍에 구버전 부모(이 필드를 안 보내는 빌드)가 새 슬롯
+ * 컨트롤러와 만나면 `raiseIfMissing` 이 `undefined` 로 온다. `=== true` 로만 올림을
+ * 허용해 **안전한 쪽(캡 — 절대 올리지 않음)** 으로 떨어지게 한다. 반대로 두면
+ * (기본을 "올림"으로) 방향을 모르는 상태에서 화질을 올려버려 대역폭 절약이 깨질 수 있다.
+ */
+export async function applySlotQuality(target: string, raiseIfMissing: boolean): Promise<void> {
   const items = await ensureQualityList();
   if (items.length === 0) {
-    warning('slot quality list not found; skipping downgrade');
+    warning('slot quality list not found; skipping quality change');
     return;
   }
-  const wanted = items.find((item) => normalizeText(item.textContent).startsWith(target));
-  if (!wanted) {
+  const labels = items.map((item) => item.textContent ?? '');
+  const pick =
+    raiseIfMissing === true
+      ? pickQualityItem(labels, target as QualityTarget)
+      : pickCappedQualityItem(labels, target as QualityTarget);
+  if (!pick) {
     warning(`slot quality "${target}" not in list; leaving as-is`);
     return;
   }
-  if (wanted.classList.contains(PLAYER.qualityItemChecked)) return;
+  const wanted = items[pick.index];
+  if (!wanted || wanted.classList.contains(PLAYER.qualityItemChecked)) return;
+  info(`slot quality: ${pick.reason}`);
   wanted.click();
 }
 

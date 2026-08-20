@@ -11,7 +11,7 @@
  * "우리 조작 vs 사용자 조작" 구분 자체를 시험할 수 없다.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildSlotModeCss, createSlotAudio, startSlotController } from './slotFrame';
+import { applySlotQuality, buildSlotModeCss, createSlotAudio, startSlotController } from './slotFrame';
 
 function mountVideo(): HTMLVideoElement {
   document.body.innerHTML = '<div id="live_player_layout"><video></video></div>';
@@ -321,5 +321,105 @@ describe('startSlotController — 슬롯 탭을 부모로 넘긴다', () => {
       parent.messages.filter((m) => (m as { kind?: string }).kind === 'requestAudio'),
     ).toHaveLength(0);
     parent.restore();
+  });
+});
+
+/**
+ * 🔴 회귀 고정 — 사용자 보고 (2026-08-20): "멀티뷰 상태에서 1080p 화질 옵션이 작동하지 않는다."
+ *
+ * 실측(`etc/probe/slot-quality-labels.json`): 슬롯 iframe 은 일반 시청 페이지와 같은 화질
+ * 목록(`li.pzp-ui-setting-quality-item`)을 쓴다. 근본 원인은 라벨 형식이 아니라 —
+ * `applySlotQuality` 가 목표를 목록에서 못 찾으면 그냥 포기했다는 것이다(`quality.ts` 의
+ * `pickQualityItem` 과 달리 최고 화질 폴백이 없었다). 방송이 1080p 를 제공하지 않는 순간
+ * 화질 지시가 조용히 무효가 됐다.
+ */
+describe('applySlotQuality — 목표가 없을 때의 폴백 (사용자 보고 2026-08-20)', () => {
+  function mountQualityList(
+    labels: string[],
+    checkedIndex: number | null = null,
+  ): HTMLLIElement[] {
+    document.body.innerHTML = '';
+    const container = document.createElement('div');
+    const items = labels.map((label, index) => {
+      const li = document.createElement('li');
+      li.className = 'pzp-ui-setting-quality-item';
+      li.textContent = label;
+      if (index === checkedIndex) li.classList.add('pzp-ui-setting-pane-item--checked');
+      container.appendChild(li);
+      return li;
+    });
+    document.body.appendChild(container);
+    return items;
+  }
+
+  it('목표가 목록에 있으면 그것을 고른다', async () => {
+    const items = mountQualityList(['자동', '1080p(원본)', '720p', '480p']);
+    const clicks = items.map((item) => vi.spyOn(item, 'click'));
+    await applySlotQuality('720p', true);
+    expect(clicks[2]).toHaveBeenCalledTimes(1);
+    expect(clicks[0]).not.toHaveBeenCalled();
+    expect(clicks[1]).not.toHaveBeenCalled();
+    expect(clicks[3]).not.toHaveBeenCalled();
+  });
+
+  it('🔴 활성 슬롯: 목표(1080p)가 없으면 최고 화질로 폴백한다', async () => {
+    const items = mountQualityList(['자동', '720p', '480p']);
+    const clicks = items.map((item) => vi.spyOn(item, 'click'));
+    await applySlotQuality('1080p', true);
+    // '자동' 은 폴백 후보에서 제외된다 — 남은 것 중 가장 높은 720p 를 고른다.
+    expect(clicks[1]).toHaveBeenCalledTimes(1);
+    expect(clicks[0]).not.toHaveBeenCalled();
+    expect(clicks[2]).not.toHaveBeenCalled();
+  });
+
+  it('라벨에 접미사(60fps 등)가 붙어도 접두어로 매칭한다', async () => {
+    const items = mountQualityList([
+      '1080p(원본) \n\t HD \n\t60fps',
+      '720p \n\t HD \n\t60fps',
+    ]);
+    const clicks = items.map((item) => vi.spyOn(item, 'click'));
+    await applySlotQuality('1080p', true);
+    expect(clicks[0]).toHaveBeenCalledTimes(1);
+    expect(clicks[1]).not.toHaveBeenCalled();
+  });
+
+  it('이미 목표가 선택된 상태면 다시 클릭하지 않는다', async () => {
+    const items = mountQualityList(['1080p(원본)', '720p', '480p'], 0);
+    const clicks = items.map((item) => vi.spyOn(item, 'click'));
+    await applySlotQuality('1080p', true);
+    expect(clicks[0]).not.toHaveBeenCalled();
+  });
+
+  it('목록이 비어 있으면 예외 없이 넘어간다', async () => {
+    document.body.innerHTML = '';
+    await expect(applySlotQuality('1080p', true)).resolves.toBeUndefined();
+  });
+
+  it('🔴 비활성 슬롯 하향: 목표(720p)가 없다고 최고 화질로 올리지 않는다', async () => {
+    // 목록에 720p 가 없고 1080p 만 있다 — 하향 목표를 못 찾았다고 1080p 로 "올리면"
+    // 대역폭을 아끼려는 원래 의도와 정반대가 된다. 아무것도 누르지 않아야 한다.
+    const items = mountQualityList(['1080p(원본)']);
+    const clicks = items.map((item) => vi.spyOn(item, 'click'));
+    await applySlotQuality('720p', false);
+    expect(clicks[0]).not.toHaveBeenCalled();
+  });
+
+  it('비활성 슬롯 하향: 목표 이하 중 가장 높은 것으로는 대체한다', async () => {
+    // 720p 가 없지만 480p·360p 는 있다 — 목표 이하에서 가장 높은 480p 로 캡을 적용한다.
+    const items = mountQualityList(['1080p(원본)', '480p', '360p']);
+    const clicks = items.map((item) => vi.spyOn(item, 'click'));
+    await applySlotQuality('720p', false);
+    expect(clicks[1]).toHaveBeenCalledTimes(1);
+    expect(clicks[0]).not.toHaveBeenCalled();
+    expect(clicks[2]).not.toHaveBeenCalled();
+  });
+
+  it('🔴 하위 호환: raiseIfMissing 이 undefined 면 안전한 쪽(캡)으로 떨어진다', async () => {
+    // 확장 리로드 타이밍에 구버전 부모가 이 필드 없이 메시지를 보낼 수 있다 — 방향을
+    // 모르는 채로 최고 화질로 올려버리면 대역폭 절약이 깨지므로, 모르면 "올리지 않는다".
+    const items = mountQualityList(['1080p(원본)']);
+    const clicks = items.map((item) => vi.spyOn(item, 'click'));
+    await applySlotQuality('720p', undefined as unknown as boolean);
+    expect(clicks[0]).not.toHaveBeenCalled();
   });
 });

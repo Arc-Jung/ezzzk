@@ -21,7 +21,20 @@ export type ParentToSlot =
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'exitSlotMode'; slot: SlotIndex }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'setAudio'; slot: SlotIndex; active: boolean }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'setVolume'; slot: SlotIndex; percent: number }
-  | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'setQuality'; slot: SlotIndex; target: string }
+  | {
+      channel: typeof MV_CHANNEL;
+      dir: 'p2s';
+      kind: 'setQuality';
+      slot: SlotIndex;
+      target: string;
+      /**
+       * true(활성 슬롯 지시) 면 목표가 목록에 없을 때 최고 화질로 폴백한다.
+       * false(비활성 슬롯 대역폭 하향 지시) 면 목표 이하 중 가장 높은 것으로만 대체하고,
+       * 그것도 없으면 아무것도 하지 않는다 — 목표를 못 찾았다고 화질을 올리면
+       * 대역폭을 아끼려는 원래 의도와 정반대가 된다.
+       */
+      raiseIfMissing: boolean;
+    }
   | {
       channel: typeof MV_CHANNEL;
       dir: 'p2s';
