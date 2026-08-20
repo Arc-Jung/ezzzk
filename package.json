@@ -31,6 +31,7 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "icons": "node scripts/generate-icons.mjs",
     "pack:crx": "node scripts/pack-crx.mjs",
+    "demo:shots": "yarn build && node scripts/capture-demo.mjs",
     "licenses:gen": "node scripts/generate-licenses.mjs",
     "clean": "rm -rf dist release",
     "typecheck": "tsc -p tsconfig.json --noEmit",
