@@ -397,14 +397,22 @@ function controlCss(touchTargetPx: number): string {
   border: 1px solid #2a2d31;
   border-radius: 8px;
 }
+/*
+  실측 문제 — laptop13 접힘 토글이 영상 레터박스(검은 배경)와 대비가 거의 0 이었다
+  (docs/ui-audit/chat-width-control-collapsed-laptop13.png). 반투명 검은 배경만으로는
+  배경도 검을 때 구분이 안 된다. 치지직 실측 토큰(etc/probe/chzzk-tokens.json)에도
+  --color-bg-overlay-01 #ffffff4d 처럼 반투명 흰색 테두리/오버레이로 임의 배경 위에서
+  대비를 만드는 값이 있다 — 같은 원리로 테두리를 더한다(미검증: 치지직 네이티브 버튼이
+  이 값을 실제로 테두리에 쓰는지는 DOM 캡처로 확인하지 못했다).
+*/
 #${CONTROL_ID} button {
   width: ${size}px;
   height: ${size}px;
   min-width: ${size}px;
   min-height: ${size}px;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.65);
   color: #fff;
   font-size: 16px;
   line-height: 1;
