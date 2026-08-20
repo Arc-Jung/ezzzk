@@ -15,6 +15,7 @@ import { CHAT_WIDTH_RANGE, DEFAULT_SETTINGS, STORAGE_KEY } from '../constants/st
 import type { Settings } from '../constants/storage';
 import { DEVICE_PROFILES } from '../constants/device';
 import { claimWidth, resetLayoutArbiterForTest } from '../layoutArbiter';
+import { CONTROL_ITEM_CLASS } from './controlBar';
 import { OURS } from '../constants/class';
 import { resetAllSettings } from '../storage';
 import type { FeatureContext } from './types';
@@ -1099,6 +1100,82 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       expect(control()?.dataset['anchor']).toBe('floating');
       expect(control()?.parentElement).toBe(document.body);
       dispose?.();
+    });
+  });
+  /**
+   * P2 — 채팅 폭 조절 묶음을 플레이어 좌상단으로 옮긴다 (도구 행·플로팅은 폴백으로만 남는다).
+   */
+  describe('P2 — 플레이어 좌상단 앵커', () => {
+    const control = (): HTMLElement | null => document.getElementById('cm-chat-width-control');
+
+    /** 실측 구조를 본뜬 최소 플레이어 루트 (`PLAYER.rootPc` = `.pzp-pc`). */
+    const mountPlayerRoot = (): HTMLElement => {
+      const root = document.createElement('div');
+      root.className = 'pzp-pc';
+      document.body.appendChild(root);
+      return root;
+    };
+
+    it('플레이어가 있으면 컨트롤이 플레이어의 자식으로 들어간다', () => {
+      const player = mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()?.dataset['anchor']).toBe('player-top-left');
+      expect(control()?.parentElement).toBe(player);
+      // 컨트롤바 자동 숨김과 같은 신호(클래스)를 써야 한다.
+      expect(control()?.classList.contains(CONTROL_ITEM_CLASS)).toBe(true);
+      dispose?.();
+    });
+
+    it('접힌 상태에서도 플레이어가 있으면 자리를 잃지 않는다 (aside 크기와 무관)', () => {
+      const player = mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({ collapsed: true }));
+
+      expect(control()?.dataset['anchor']).toBe('player-top-left');
+      expect(control()?.parentElement).toBe(player);
+      dispose?.();
+    });
+
+    it('플레이어가 없으면 기존 폴백(플로팅) 경로를 탄다', () => {
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()?.dataset['anchor']).toBe('floating');
+      expect(control()?.parentElement).toBe(document.body);
+      expect(control()?.classList.contains(CONTROL_ITEM_CLASS)).toBe(false);
+      dispose?.();
+    });
+
+    it('플레이어가 없으면 도구 행 폴백도 그대로 동작한다', () => {
+      document.body.innerHTML = `
+        <aside id="aside-chatting">
+          <div class="_area_b8csn_49">
+            <textarea class="_input_1k5b6_92"></textarea>
+            <div class="_tools_1k5b6_125">
+              <div class="_donation_1k5b6_132"></div>
+              <button type="button" class="_send_button_1k5b6_176">채팅</button>
+            </div>
+          </div>
+        </aside>`;
+      const tools = document.querySelector('[class*="_tools_"]') as HTMLElement;
+      Object.defineProperty(tools, 'clientWidth', { value: 629, configurable: true });
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()?.dataset['anchor']).toBe('inline');
+      expect(control()?.parentElement?.className).toContain('_tools_');
+      dispose?.();
+    });
+
+    it('dispose 후 노드·스타일이 남지 않는다', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()).not.toBeNull();
+      expect(document.getElementById('cm-chat-width-control-style')).not.toBeNull();
+
+      dispose?.();
+
+      expect(control()).toBeNull();
+      expect(document.getElementById('cm-chat-width-control-style')).toBeNull();
     });
   });
 
