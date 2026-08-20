@@ -3,6 +3,7 @@
  * 공통 UI 규칙: 값이 있는 항목은 현재 값을 항상 숫자로 보여주고,
  * 범위 경계에서 버튼을 **비활성**한다 (클릭해도 아무 일이 없는 상태를 만들지 않는다 — FR-15).
  */
+import { MinusIcon, PlusIcon } from '../ui/icons';
 
 type Props = {
   label: string;
@@ -25,7 +26,7 @@ export function Stepper({ label, value, min, max, step = 1, unit = '', onChange 
         disabled={atMin}
         onClick={() => onChange(Math.max(min, value - step))}
       >
-        −
+        <MinusIcon size={12} />
       </button>
       <output aria-label={`${label} 현재 값`}>
         {value}
@@ -37,7 +38,7 @@ export function Stepper({ label, value, min, max, step = 1, unit = '', onChange 
         disabled={atMax}
         onClick={() => onChange(Math.min(max, value + step))}
       >
-        +
+        <PlusIcon size={12} />
       </button>
     </span>
   );

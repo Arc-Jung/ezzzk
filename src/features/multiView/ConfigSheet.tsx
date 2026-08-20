@@ -18,6 +18,7 @@ import type {
   SplitCount,
 } from '../../constants/storage';
 import { Sheet } from '../../ui/Sheet';
+import { CloseIcon, LiveDotIcon, PlusIcon } from '../../ui/icons';
 import { CONFIG_SHEET_CSS } from './configSheetCss';
 import { upsertStyle } from '../../utils/dom';
 import {
@@ -475,7 +476,17 @@ export function ConfigSheet({
                 <div key={index} className="cm-mv-cell">
                   <div className="cm-mv-cell__head">
                     <span>
-                      {CIRCLED[index - 1]} {slot ? `🔴 ${slot.channelName}` : '＋ 비어 있음'}
+                      {CIRCLED[index - 1]}{' '}
+                      {slot ? (
+                        <>
+                          {/* 배치된 슬롯의 실제 방송 여부는 저장하지 않는다 — 항상 강조색으로 표시 (미검증: 오프라인 배치와 구분 없음). */}
+                          <LiveDotIcon size={10} className="cm-mv-live--on" /> {slot.channelName}
+                        </>
+                      ) : (
+                        <>
+                          <PlusIcon size={12} /> 비어 있음
+                        </>
+                      )}
                     </span>
                     {slot ? (
                       <button
@@ -484,7 +495,7 @@ export function ConfigSheet({
                         aria-label={`슬롯 ${index} 비우기`}
                         onClick={() => clearSlot(index)}
                       >
-                        ✕
+                        <CloseIcon size={12} />
                       </button>
                     ) : null}
                   </div>
@@ -538,8 +549,8 @@ export function ConfigSheet({
                     return (
                       <li key={channel.channelId}>
                         <span>
-                          <span className="cm-sheet__note">{order + 1}</span> 🔴{' '}
-                          {channel.channelName}
+                          <span className="cm-sheet__note">{order + 1}</span>{' '}
+                          <LiveDotIcon size={10} className="cm-mv-live--on" /> {channel.channelName}
                         </span>
                         <span className="cm-sheet__note">
                           {formatViewers(channel.concurrentUserCount)}
@@ -595,7 +606,8 @@ export function ConfigSheet({
                 return (
                   <li key={channel.channelId}>
                     <span>
-                      <span className="cm-sheet__note">{order + 1}</span> 🔴 {channel.channelName}
+                      <span className="cm-sheet__note">{order + 1}</span>{' '}
+                      <LiveDotIcon size={10} className="cm-mv-live--on" /> {channel.channelName}
                     </span>
                     <span className="cm-sheet__note">
                       {formatViewers(channel.concurrentUserCount)}
@@ -652,7 +664,11 @@ export function ConfigSheet({
                     return (
                       <li key={channel.channelId} className={channel.live ? '' : 'cm-offline'}>
                         <span>
-                          {channel.live ? '🔴' : '⚫'} {channel.channelName}
+                          <LiveDotIcon
+                            size={10}
+                            className={channel.live ? 'cm-mv-live--on' : 'cm-mv-live--off'}
+                          />{' '}
+                          {channel.channelName}
                         </span>
                         <span className="cm-sheet__note">
                           {channel.live ? formatViewers(channel.concurrentUserCount) : '오프라인'}
