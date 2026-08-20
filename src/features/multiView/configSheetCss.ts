@@ -1,3 +1,4 @@
+// 치지직 토큰으로 전환 (2026-08-20, docs/chzzk-tone-ui-plan.md P2)
 /**
  * FR-14.1 멀티뷰 구성 시트 전용 스타일.
  *
@@ -23,6 +24,7 @@ const TWO_COLUMN_MIN_PX = 680;
  * ⚠️ **이 CSS 는 템플릿 리터럴 안에 들어간다 — 주석에 백틱을 쓰지 않는다.**
  * 백틱을 넣으면 문자열이 끊겨 빌드가 깨진다 (두 번 겪었다).
  */
+import { BG, BORDER, FG, RADIUS } from '../../ui/tokens';
 
 export const CONFIG_SHEET_CSS = `
 .cm-mv-splits {
@@ -31,10 +33,10 @@ export const CONFIG_SHEET_CSS = `
   gap: 10px;
   margin: 0;
   padding: 6px 10px;
-  border: 1px solid #2a2d31;
-  border-radius: 8px;
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.md};
 }
-.cm-mv-splits legend { padding: 0 4px; font-size: 11px; color: #9aa0a6; }
+.cm-mv-splits legend { padding: 0 4px; font-size: 11px; color: ${FG.muted}; }
 .cm-mv-splits label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .cm-disabled { opacity: 0.4; }
 
@@ -79,7 +81,7 @@ export const CONFIG_SHEET_CSS = `
   .cm-sheet-backdrop:has(.cm-mv-columns) .cm-sheet { height: min(860px, 92vh); }
 }
 .cm-mv-columns > section { min-width: 0; }
-.cm-mv-columns h3 { margin: 0 0 6px; font-size: 12px; color: #9aa0a6; }
+.cm-mv-columns h3 { margin: 0 0 6px; font-size: 12px; color: ${FG.muted}; }
 
 /* 슬롯 미리보기 — 분할 수에 맞춘 그리드 */
 .cm-mv-grid {
@@ -97,9 +99,9 @@ export const CONFIG_SHEET_CSS = `
   gap: 4px;
   min-width: 0;
   padding: 8px;
-  background: #1a1c1f;
-  border: 1px solid #2a2d31;
-  border-radius: 8px;
+  background: ${BG.raised};
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.md};
 }
 .cm-mv-cell__head {
   display: flex;
@@ -156,9 +158,9 @@ export const CONFIG_SHEET_CSS = `
   gap: 6px;
   min-width: 0;
   padding: 3px 6px;
-  border-radius: 6px;
+  border-radius: ${RADIUS.sm};
 }
-.cm-mv-channels > li:hover { background: #1f2226; }
+.cm-mv-channels > li:hover { background: ${BG.raised}; }
 /* 채널명이 남는 폭을 먹고, 시청자 수·배치 버튼은 밀리지 않는다 */
 .cm-mv-channels > li > span:first-child {
   flex: 1 1 auto;
@@ -183,5 +185,5 @@ export const CONFIG_SHEET_CSS = `
   padding: 5px 0;
 }
 .cm-mv-options > label { display: inline-flex; align-items: center; gap: 5px; }
-.cm-mv-options > span:first-child { color: #9aa0a6; }
+.cm-mv-options > span:first-child { color: ${FG.muted}; }
 `.trim();

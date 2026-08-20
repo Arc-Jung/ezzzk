@@ -1,3 +1,4 @@
+// 치지직 토큰으로 전환 (2026-08-20, docs/chzzk-tone-ui-plan.md P2)
 /**
  * 페이지 내 시트 공용 컴포넌트 (화면 ② ⑤ ⑦ ⑨ 공통).
  *
@@ -11,6 +12,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import { BETA_BADGE_TEXT, OURS } from '../constants/class';
+import { BG, BORDER, FG, RADIUS, ACCENT, FONT_FAMILY } from './tokens';
 
 export const SHEET_MAX_W = 920;
 export const SHEET_MAX_H = 600;
@@ -162,20 +164,20 @@ export const SHEET_CSS = `
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
+  background: ${BG.scrim};
+  font-family: ${FONT_FAMILY};
   font-size: 13px;
-  color: #e9ecef;
+  color: ${FG.body};
 }
 .cm-sheet {
   width: min(${SHEET_MAX_W}px, 88vw);
   height: min(${SHEET_MAX_H}px, 80vh);
   display: flex;
   flex-direction: column;
-  background: #16181b;
-  border: 1px solid #2a2d31;
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  background: ${BG.floating};
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.md};
+  box-shadow: 0 12px 40px ${BG.scrim};
   overflow: hidden;
 }
 .cm-sheet__head {
@@ -183,7 +185,7 @@ export const SHEET_CSS = `
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border-bottom: 1px solid #2a2d31;
+  border-bottom: 1px solid ${BORDER.subtle};
 }
 .cm-sheet__head h2 {
   margin: 0;
@@ -209,22 +211,22 @@ export const SHEET_CSS = `
 .cm-sheet__head h2 .${OURS.betaBadgeClass} {
   margin-left: 6px;
   padding: 1px 5px;
-  border: 1px solid #00ffa3;
-  border-radius: 4px;
+  border: 1px solid ${ACCENT};
+  border-radius: ${RADIUS.xs};
   font-size: 9px;
   font-weight: 700;
   line-height: 1.4;
   letter-spacing: 0.04em;
-  color: #00ffa3;
+  color: ${ACCENT};
   vertical-align: middle;
 }
 .cm-sheet__close {
   min-width: var(--cm-target, 32px);
   min-height: var(--cm-target, 32px);
-  border: 1px solid #2a2d31;
-  border-radius: 6px;
-  background: #1c1f22;
-  color: #e9ecef;
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.sm};
+  background: ${BG.raised};
+  color: ${FG.body};
   cursor: pointer;
 }
 /*
@@ -242,22 +244,22 @@ export const SHEET_CSS = `
   justify-content: flex-end;
   gap: 8px;
   padding: 10px 14px;
-  border-top: 1px solid #2a2d31;
+  border-top: 1px solid ${BORDER.subtle};
 }
 .cm-sheet button, .cm-sheet select, .cm-sheet input {
   min-height: var(--cm-target, 32px);
 }
 .cm-sheet__btn {
   padding: 5px 12px;
-  border: 1px solid #2a2d31;
-  border-radius: 6px;
-  background: #1c1f22;
-  color: #e9ecef;
+  border: 1px solid ${BORDER.subtle};
+  border-radius: ${RADIUS.sm};
+  background: ${BG.raised};
+  color: ${FG.body};
   cursor: pointer;
 }
-.cm-sheet__btn--primary { border-color: #00ffa3; color: #00ffa3; }
+.cm-sheet__btn--primary { border-color: ${ACCENT}; color: ${ACCENT}; }
 .cm-sheet__btn:disabled { opacity: 0.35; cursor: default; }
-.cm-sheet__note { margin: 4px 0 0; font-size: 11px; color: #9aa0a6; }
+.cm-sheet__note { margin: 4px 0 0; font-size: 11px; color: ${FG.muted}; }
 .cm-sheet__warn { margin: 4px 0 0; font-size: 11px; color: #ffb454; }
 .cm-sheet__row {
   display: flex;
