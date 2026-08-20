@@ -33,8 +33,10 @@ import {
   applyCompressorParams,
   ensureGraph,
   isBoosted,
+  isClippingRisk,
   resumeGraph,
   setCompressorEnabled,
+  volumeGaugeColor,
 } from './audioPipeline';
 import { CONTROL_ITEM_CLASS, ensureControlBarAutoHideCss } from './controlBar';
 import type { Feature } from './types';
@@ -326,13 +328,19 @@ export const volumeFeature: Feature = {
       if (valueEl.textContent !== label) valueEl.textContent = label;
       node.setAttribute('aria-label', `볼륨 조절, 현재 ${label}`);
       /*
-       * 100% 를 넘으면 **주황색**으로 표시한다 (요청 2026-08-20). 증폭 구간은 원본보다 크게 트는
-       * 상태라 사용자가 한눈에 알아야 한다. 색만으로 정보를 주지 않도록 `aria-label` 에도 남긴다.
+       * 게이지 색은 세 단계다 (2026-08-20 요청으로 빨강 단계 추가).
+       *   ~100%  흰색   기본
+       *   >100%  주황   증폭 — 원본보다 크게 트는 상태
+       *   >150%  빨강   과증폭 — 찢어짐(클리핑) 위험
+       * 색만으로 정보를 주지 않도록 `aria-label` 에도 같은 구분을 남긴다.
        */
       const boosted = isBoosted(percent);
-      valueEl.style.color = boosted ? '#ff9f43' : '#fff';
+      const clipping = isClippingRisk(percent);
+      valueEl.style.color = volumeGaugeColor(percent);
       valueEl.dataset.boosted = boosted ? 'true' : 'false';
-      if (boosted) node.setAttribute('aria-label', `볼륨 조절, 현재 ${label} (증폭)`);
+      valueEl.dataset.clipping = clipping ? 'true' : 'false';
+      if (clipping) node.setAttribute('aria-label', `볼륨 조절, 현재 ${label} (과증폭)`);
+      else if (boosted) node.setAttribute('aria-label', `볼륨 조절, 현재 ${label} (증폭)`);
     };
 
     /**

@@ -12,8 +12,11 @@ import {
   applyBoost,
   boostToGain,
   ensureGraph,
+  CLIPPING_RISK_PERCENT,
   isBoosted,
+  isClippingRisk,
   setCompressorEnabled,
+  volumeGaugeColor,
   type AudioGraph,
 } from './audioPipeline';
 
@@ -37,12 +40,49 @@ describe('boostToGain — 퍼센트를 배율로', () => {
   });
 });
 
-describe('isBoosted — 게이지를 주황으로 칠할 기준', () => {
+describe('isBoosted — 증폭 구간 판정', () => {
   it('100% 이하는 거짓, 100% 초과는 참이다', () => {
     expect(isBoosted(100)).toBe(false);
     expect(isBoosted(101)).toBe(true);
     expect(isBoosted(200)).toBe(true);
     expect(isBoosted(0)).toBe(false);
+  });
+});
+
+describe('isClippingRisk — 과증폭(빨강) 구간 판정', () => {
+  it(`${CLIPPING_RISK_PERCENT}% 는 거짓, 그 초과는 참이다 — 경계는 "넘을 때"다`, () => {
+    expect(isClippingRisk(CLIPPING_RISK_PERCENT)).toBe(false);
+    expect(isClippingRisk(CLIPPING_RISK_PERCENT + 1)).toBe(true);
+  });
+
+  it('증폭 구간이어도 경계 이하면 거짓이다', () => {
+    expect(isBoosted(120)).toBe(true);
+    expect(isClippingRisk(120)).toBe(false);
+  });
+
+  it('상한 200% 는 참이다', () => {
+    expect(isClippingRisk(MAX_BOOST_PERCENT)).toBe(true);
+  });
+
+  it('NaN 은 거짓이다 — 알 수 없는 값을 경고로 칠하지 않는다', () => {
+    expect(isClippingRisk(Number.NaN)).toBe(false);
+  });
+});
+
+describe('volumeGaugeColor — 세 단계 색', () => {
+  it('기본·증폭·과증폭이 서로 다른 색이다', () => {
+    const base = volumeGaugeColor(100);
+    const boosted = volumeGaugeColor(120);
+    const clipping = volumeGaugeColor(180);
+    expect(new Set([base, boosted, clipping]).size).toBe(3);
+  });
+
+  it('경계에서 색이 바뀐다', () => {
+    expect(volumeGaugeColor(100)).toBe(volumeGaugeColor(50));
+    expect(volumeGaugeColor(101)).not.toBe(volumeGaugeColor(100));
+    expect(volumeGaugeColor(CLIPPING_RISK_PERCENT + 1)).not.toBe(
+      volumeGaugeColor(CLIPPING_RISK_PERCENT),
+    );
   });
 });
 
