@@ -163,7 +163,8 @@ jobs:
 
           ### 방법 2 — `.zip` 압축해제 후 로드 (Chrome · Edge 공통, 권장)
 
-          1. 위 Assets 에서 `ezzzk-<version>.zip` 을 내려받아 **압축을 푼다**
+          1. 위 Assets 에서 `ezzzk-<version>.zip` (또는 같은 내용인 `dist.zip`) 을 내려받아 **압축을 푼다**
+             - ⚠️ GitHub 이 자동으로 붙이는 `Source code (zip)` 은 **소스 코드**다. 받아도 설치되지 않는다
           2. 주소창에 `chrome://extensions` (엣지는 `edge://extensions`)
           3. **개발자 모드** 켜기 (Chrome 은 우측 상단, Edge 는 좌측 하단)
           4. **압축해제된 확장 프로그램을 로드** (Edge 는 **압축을 풀린 항목 로드**)
@@ -186,9 +187,14 @@ jobs:
 
           ---
           NOTES
+          # dist.zip 은 `ezzzk-<version>.zip` 과 **같은 내용**이다. GitHub 이 자동으로 붙이는
+          # `Source code (zip)` 과 헷갈려 소스를 받아 가는 일을 막으려고, 무엇을 받아야 하는지
+          # 이름으로 알리는 사본을 하나 더 올린다.
+          cp "release/ezzzk-$VERSION.zip" release/dist.zip
           gh release create "v$VERSION" \
             "release/ezzzk-$VERSION.zip" \
             "release/ezzzk-$VERSION.crx" \
+            "release/dist.zip" \
             --title "이지직 $VERSION" \
             --notes-file release-notes.md \
             --generate-notes
