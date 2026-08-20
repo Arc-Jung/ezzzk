@@ -42,6 +42,26 @@ describe('좁은/짧은 화면 대응 CSS', () => {
   });
 });
 
+/**
+ * 감사 보고서 심각도 높음 #3 — 채팅·소리·기타 탭 하단 컨트롤이 스크롤 없이 안 보이는데
+ * 신호가 없었다. JS 스크롤 리스너 없이 배경 이중 레이어로만 처리했는지 확인한다.
+ */
+describe('설정 패널 하단 스크롤 신호', () => {
+  it(':has() 로 설정 패널 본문에만 적용된다 (다른 시트 스크롤은 건드리지 않는다)', () => {
+    expect(SETTINGS_PANEL_CSS).toContain('.cm-sheet__body:has(.cm-sp)');
+  });
+
+  it('local/scroll 이중 배경 레이어를 쓴다 (JS 스크롤 리스너 없음)', () => {
+    const block = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sheet__body:has(.cm-sp)'),
+    );
+    expect(block).toContain('background-attachment: local, scroll;');
+    // 별도 오버레이 엘리먼트가 없는 배경 트릭이므로 pointer-events 를 걸 대상 자체가 없다 —
+    // 그 이유를 CSS 주석에 남겨 리뷰어가 "왜 pointer-events: none 이 없냐"고 재차 묻지 않게 한다.
+    expect(SETTINGS_PANEL_CSS).toContain('pointer-events');
+  });
+});
+
 describe('탭 구성', () => {
   it('탭은 7개이며 목업 화면 ⑦ 의 순서를 지킨다', () => {
     expect(TABS.map((tab) => tab.title)).toEqual([
