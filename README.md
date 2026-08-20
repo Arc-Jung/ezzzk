@@ -194,7 +194,7 @@ yarn build
 ### 배포본으로 설치 (`.zip`)
 
 [Releases](https://github.com/Arc-Jung/ezzzk/releases) 에서 내려받는다.
-`v*` 태그를 push 하면 GitHub Actions 가 자동으로 만들어 첨부한다.
+`main` 에 머지되어 CI 가 통과하면 패치 버전이 `0.0.1` 오르고 태그·릴리스가 자동으로 만들어진다.
 
 #### 데스크톱 설치 절차 — macOS · Windows × Chrome · Edge
 

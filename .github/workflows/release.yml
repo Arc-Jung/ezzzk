@@ -1,0 +1,129 @@
+# main 에 머지될 때마다 패치 버전을 0.0.1 올리고 태그·릴리스를 만든다.
+#
+# 왜 `push: branches: [main]` 이 아니라 `workflow_run` 인가:
+# 깨진 main 에 태그를 박으면 그 태그로 만들어진 릴리스를 되돌릴 방법이 없다.
+# CI(`ci.yml`)가 **초록불일 때만** 돌게 묶는다.
+#
+# 왜 태그 push 트리거(`push: tags: v*`)로 릴리스를 나누지 않았는가:
+# `GITHUB_TOKEN` 으로 push 한 태그는 다른 워크플로를 **트리거하지 않는다**(GitHub 사양).
+# 나눠 두면 태그만 생기고 릴리스는 영원히 안 만들어진다. 그래서 한 잡에서 끝낸다.
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+# 버전 번호는 순서가 있다. 동시에 돌면 같은 버전을 두 번 만든다.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # 무한 루프 방지 1차: 버전 올림 커밋이 다시 이 워크플로를 부르지 않게 한다.
+    # (2차는 커밋 메시지의 `[skip ci]` — 그러면 CI 가 아예 안 돌아 workflow_run 도 안 뜬다.)
+    if: >-
+      github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event ==
+      'push' && !startsWith(github.event.workflow_run.head_commit.message, 'chore: Bump version')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          # 태그 비교와 릴리스 노트 생성에 전체 히스토리가 필요하다.
+          fetch-depth: 0
+
+      - name: 다음 버전 계산
+        id: next
+        run: |
+          set -euo pipefail
+
+          # 무한 루프 방지 3차 + 중복 릴리스 방지.
+          # 머지가 연달아 일어나면 늦게 시작한 실행이 이미 태그된 커밋을 다시 잡는다.
+          if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+            echo "HEAD 에 이미 태그가 있다 ($(git describe --exact-match --tags HEAD)) — 건너뛴다"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          VERSION=$(node -e 'const p=require("./package.json");const m=/^(\d+)\.(\d+)\.(\d+)$/.exec(p.version);if(!m){console.error("version 이 x.y.z 형식이 아니다: "+p.version);process.exit(1)}console.log(m[1]+"."+m[2]+"."+(Number(m[3])+1))')
+          echo "다음 버전: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 버전 기록
+        if: steps.next.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        # 🔴 JSON 을 통째로 다시 쓰지 않는다 — 들여쓰기·키 순서가 바뀌어 diff 가 더러워진다.
+        # 버전 값만 치환하고, 치환이 안 되면 조용히 넘어가지 않고 실패시킨다.
+        # `manifest.json` 도 함께 올린다. `pack:crx` 가 두 값이 다르면 거부한다.
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const version = process.env.VERSION;
+            for (const file of ["package.json", "manifest.json"]) {
+              const before = fs.readFileSync(file, "utf8");
+              const after = before.replace(/("version"\s*:\s*")\d+\.\d+\.\d+(")/, "$1" + version + "$2");
+              if (after === before) {
+                console.error("[bump] 버전 치환 실패: " + file);
+                process.exit(1);
+              }
+              fs.writeFileSync(file, after);
+            }
+          '
+          git --no-pager diff --stat
+
+      - uses: actions/setup-node@v4
+        if: steps.next.outputs.proceed == 'true'
+        with:
+          node-version: '24.18.0'
+          cache: yarn
+
+      - name: 의존성 설치
+        if: steps.next.outputs.proceed == 'true'
+        run: yarn install --frozen-lockfile
+
+      # 🔴 태그를 밀기 **전에** 빌드한다. 빌드가 깨지면 아무것도 남기지 않고 끝나야 한다.
+      - name: 빌드
+        if: steps.next.outputs.proceed == 'true'
+        run: yarn build
+
+      - name: 패키징
+        if: steps.next.outputs.proceed == 'true'
+        run: yarn pack:crx
+
+      - name: 커밋·태그 push
+        if: steps.next.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        # `[skip ci]` 로 이 커밋에 대한 CI 실행을 막는다 — 그래야 workflow_run 이 다시 뜨지 않는다.
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json manifest.json
+          git commit -m "chore: Bump version to $VERSION [skip ci]"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin HEAD:main
+          git push origin "v$VERSION"
+
+      # `.crx` 는 올리지 않는다. `CRX_PRIVATE_KEY` 시크릿이 없으면 `pack:crx` 가 임시 키를 만들어
+      # 서명하고, 그러면 확장 ID 가 릴리스마다 바뀌어 기존 설치와 다른 확장이 된다.
+      # README 도 `.zip` 압축해제 로드 하나만 안내한다.
+      - name: 릴리스 생성
+        if: steps.next.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "v$VERSION" "release/ezzzk-$VERSION.zip" \
+            --title "이지직 $VERSION" \
+            --generate-notes
