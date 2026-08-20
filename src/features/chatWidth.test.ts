@@ -477,7 +477,52 @@ describe('effectiveChatLayout — 폭 오버라이드와 배치 오버라이드�
     ).toEqual({ placement: 'right', ratio: 50 });
   });
 
-  it('세로용 점유율이 없는 프로필(데스크톱)은 자동 하단 배치를 하지 않는다', () => {
+  /**
+   * 🔴 2026-08-20 요청으로 규칙이 바뀌었다 — **자세만 본다.**
+   * 예전에는 `chatRatioPortrait` 가 없는 프로필(데스크톱)이면 세로여도 오른쪽에 남았다.
+   * 그 결과 창을 세로로 길게 줄이면 영상과 채팅이 둘 다 찌그러졌다.
+   */
+  it('세로용 점유율이 없는 프로필(데스크톱)도 세로 뷰포트면 하단으로 간다', () => {
+    const result = effectiveChatLayout(
+      { ratio: 30, ratioSource: 'auto', placement: 'right' },
+      DEVICE_PROFILES.desktop,
+      portrait,
+      range.min,
+      range.max,
+    );
+    expect(result.placement).toBe('bottom');
+  });
+
+  it('가로로 조금이라도 길면 오른쪽이다 — 정사각도 오른쪽', () => {
+    for (const vp of [
+      { width: 901, height: 900 },
+      { width: 900, height: 900 },
+    ]) {
+      expect(
+        effectiveChatLayout(
+          { ratio: 30, ratioSource: 'auto', placement: 'right' },
+          DEVICE_PROFILES.desktop,
+          vp,
+          range.min,
+          range.max,
+        ).placement,
+      ).toBe('right');
+    }
+  });
+
+  it('세로로 1px 만 길어도 하단이다', () => {
+    expect(
+      effectiveChatLayout(
+        { ratio: 30, ratioSource: 'auto', placement: 'right' },
+        DEVICE_PROFILES.desktop,
+        { width: 900, height: 901 },
+        range.min,
+        range.max,
+      ).placement,
+    ).toBe('bottom');
+  });
+
+  it('토글(배치 오버라이드)은 자세보다 우선한다 — 언제든 바꿀 수 있다', () => {
     expect(
       effectiveChatLayout(
         { ratio: 30, ratioSource: 'auto', placement: 'right' },
@@ -485,8 +530,9 @@ describe('effectiveChatLayout — 폭 오버라이드와 배치 오버라이드�
         portrait,
         range.min,
         range.max,
-      ),
-    ).toEqual({ placement: 'right', ratio: DEVICE_PROFILES.desktop.chatRatioLandscape });
+        { placementOverride: true },
+      ).placement,
+    ).toBe('right');
   });
 
   /**

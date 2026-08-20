@@ -220,8 +220,15 @@ export function effectiveChatLayout(
     placementOverride = false,
   }: { widthOverride?: boolean; placementOverride?: boolean } = {},
 ): { placement: ChatPlacement; ratio: number } {
-  const autoBottom =
-    isPortraitViewport(viewport.width, viewport.height) && profile.chatRatioPortrait !== null;
+  /*
+   * 🔴 자세만 본다 (2026-08-20 요청): **세로로 조금이라도 길면 아래, 가로면 오른쪽.**
+   *
+   * 이전에는 `profile.chatRatioPortrait !== null` 을 함께 요구했다. 그래서 그 값이 없는
+   * 프로필(노트북·데스크톱)은 창을 세로로 길게 줄여도 채팅이 오른쪽에 남아, 폭이 좁아질수록
+   * 영상과 채팅이 둘 다 찌그러졌다. 자동 하단 점유율(`autoBottomChatRatio`)은 뷰포트만으로
+   * 계산되므로 프로필 값이 없어도 하단 배치가 성립한다.
+   */
+  const autoBottom = isPortraitViewport(viewport.width, viewport.height);
 
   const placement: ChatPlacement = placementOverride || !autoBottom ? settings.placement : 'bottom';
 
