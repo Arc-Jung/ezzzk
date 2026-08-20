@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEVICE_PROFILES } from '../constants/device';
-import { DEFAULT_SETTINGS } from '../constants/storage';
+import { DEFAULT_SETTINGS, STORAGE_KEY, type Settings } from '../constants/storage';
+import { resetAllSettings } from '../storage';
 import type { FeatureContext } from './types';
 import {
   VOLUME_STORAGE_KEYS,
@@ -676,6 +677,178 @@ describe('volumeFeature — 막힌 자동재생을 대신 풀어 준다', () => 
     await vi.advanceTimersByTimeAsync(30_000);
 
     expect(clicks).toBeLessThanOrEqual(3);
+    dispose?.();
+  });
+});
+/**
+ * 🔴 컨트롤바 볼륨 UI 에 음량 평탄화(컴프레서) 토글을 SVG 아이콘 버튼으로 넣는다.
+ * `+`/`−` 옆에 렌더되고, 색만이 아니라 `aria-label`·`aria-pressed`·`data-enabled` 로 상태를
+ * 알린다. 저장은 **사용자 클릭에서만** 한다 — 초기 렌더에서 저장하면 무한 재초기화 루프가
+ * 생긴다는 것은 이 파일 상단 주석에 이미 기록된 실측 결함이다.
+ */
+describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () => {
+  /** chrome.storage.local 을 메모리로 대체한다 (chrome API 는 jsdom 에 없다). */
+  function installFakeChrome(): { store: Record<string, unknown> } {
+    const store: Record<string, unknown> = {};
+    const fake = {
+      storage: {
+        local: {
+          get: vi.fn(async (keys: string[] | string) => {
+            const list = Array.isArray(keys) ? keys : [keys];
+            const out: Record<string, unknown> = {};
+            for (const key of list) if (key in store) out[key] = store[key];
+            return out;
+          }),
+          set: vi.fn(async (patch: Record<string, unknown>) => {
+            Object.assign(store, patch);
+          }),
+        },
+        onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+    };
+    (globalThis as unknown as { chrome: unknown }).chrome = fake;
+    return { store };
+  }
+
+  let store: Record<string, unknown>;
+  /** 저장이 fire-and-forget 이라 마이크로태스크를 한 바퀴 돌린다. 가짜 타이머 환경이라 실제
+   *  `setTimeout` 대신 가짜 시계를 진행시켜야 큐에 쌓인 프로미스가 풀린다. */
+  const flush = async (): Promise<void> => {
+    await vi.advanceTimersByTimeAsync(0);
+  };
+
+  const ctx: FeatureContext = {
+    page: { type: 'live', channelId: 'd'.repeat(32), videoNo: null, isSlotFrame: false },
+    device: {
+      deviceClass: 'desktop',
+      profile: DEVICE_PROFILES.desktop,
+      signals: {
+        longSide: 1920,
+        shortSide: 1080,
+        hasTouch: false,
+        canHover: true,
+        coarsePointer: false,
+        devicePixelRatio: 1,
+        uaMobile: null,
+      },
+      reason: 'test fixture',
+    },
+    settings: DEFAULT_SETTINGS,
+  };
+
+  function mountPlayer(): HTMLElement {
+    const layout = document.createElement('div');
+    layout.id = 'live_player_layout';
+    const root = document.createElement('div');
+    root.className = 'pzp-pc';
+    const bar = document.createElement('div');
+    bar.className = 'pzp-pc__bottom-buttons-right';
+    root.appendChild(bar);
+    layout.appendChild(root);
+    document.body.appendChild(layout);
+    return root;
+  }
+
+  function addVideo(root: HTMLElement): HTMLVideoElement {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    root.appendChild(video);
+    return video;
+  }
+
+  // 아이콘은 aria-hidden 이라 자체로는 못 찾는다 — data-enabled 는 이 버튼만 갖는다.
+  const compressorButton = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>('#cm-volume-control button[data-enabled]');
+
+  const savedCompressorEnabled = (): boolean | undefined =>
+    (store[STORAGE_KEY] as Settings | undefined)?.audio?.compressor?.enabled;
+
+  beforeEach(async () => {
+    document.body.innerHTML = '';
+    ({ store } = installFakeChrome());
+    await resetAllSettings();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+    Reflect.deleteProperty(globalThis as unknown as { chrome?: unknown }, 'chrome');
+  });
+
+  it('+/− 옆에 aria-label·aria-pressed 를 가진 토글 버튼이 렌더된다', async () => {
+    vi.useFakeTimers();
+    addVideo(mountPlayer());
+    const dispose = volumeFeature.start(ctx);
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    const button = compressorButton();
+    expect(button).not.toBeNull();
+    expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 켜기');
+    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    expect(button?.dataset.enabled).toBe('false');
+    // "옆에" — +/− 와 같은 컨테이너 안에 있다.
+    const group = document.getElementById('cm-volume-control');
+    expect(group?.contains(button)).toBe(true);
+    expect(group?.querySelector('button[aria-label="볼륨 낮추기"]')).not.toBeNull();
+    expect(group?.querySelector('button[aria-label="볼륨 높이기"]')).not.toBeNull();
+
+    dispose?.();
+  });
+
+  it('초기 렌더만으로는 저장하지 않는다 (무한 재초기화 루프 방지)', async () => {
+    vi.useFakeTimers();
+    addVideo(mountPlayer());
+    const dispose = volumeFeature.start(ctx);
+    // 준비 대기·자동 재확인(800ms)까지 넉넉히 지나도 컴프레서 설정은 그대로여야 한다.
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(savedCompressorEnabled()).toBe(false);
+
+    dispose?.();
+  });
+
+  it('클릭하면 즉시 상태 표시가 뒤집히고 audio.compressor.enabled 를 반전시켜 저장한다', async () => {
+    vi.useFakeTimers();
+    addVideo(mountPlayer());
+    const dispose = volumeFeature.start(ctx);
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    const button = compressorButton();
+    button?.click();
+
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 끄기');
+    expect(button?.dataset.enabled).toBe('true');
+
+    await flush();
+    expect(savedCompressorEnabled()).toBe(true);
+
+    button?.click();
+    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 켜기');
+    expect(button?.dataset.enabled).toBe('false');
+
+    await flush();
+    expect(savedCompressorEnabled()).toBe(false);
+
+    dispose?.();
+  });
+
+  it('색만으로 상태를 전달하지 않는다 — aria-pressed·data-enabled 가 함께 바뀐다', async () => {
+    vi.useFakeTimers();
+    addVideo(mountPlayer());
+    const dispose = volumeFeature.start(ctx);
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    const button = compressorButton();
+    const colorBefore = button?.style.color;
+    button?.click();
+
+    expect(button?.style.color).not.toBe(colorBefore);
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(button?.dataset.enabled).toBe('true');
+
     dispose?.();
   });
 });
