@@ -89,9 +89,18 @@ export function canSendNow(lastSentAt: number, now: number, minIntervalMs: numbe
  *
  * 판정 (순수 함수 — DOM 을 읽기만 하고 바꾸지 않는다)
  * - 입력창(`textarea`) → 그 부모(`_area_` 입력 영역) → 그 안의 도구 행(`_tools_`)
- * - `side: 'left'`(기본) → `_donation_`(후원하기 블록) **앞**. 문구 버튼이 쓴다.
+ * - `side: 'left'`(기본) → `_donation_`(후원 관련 버튼 묶음) **앞**. 문구 버튼이 쓴다.
  * - `side: 'right'` → `_send_button_`(채팅) **앞**. FR-05 폭 조절 묶음이 쓴다 (2026-08-15 요청).
  * - 하나라도 없으면 `null` — 호출부는 기존 플로팅 배치로 **조용히 폴백**한다 (NFR-05).
+ *
+ * 🔴 **왜 이모티콘 버튼 옆이 아닌가** (실측 정정, 2026-08-21, 실사이트 비로그인
+ * mobile-portrait 412×915 · laptop13 1440×900): 이모티콘 버튼은 이 도구 행(`_donation_`/
+ * `_send_button_`) 안에 없다 — 입력창의 **형제**로 입력 컨테이너 안에 있고(`aria-haspopup`
+ * 만 있고 텍스트·aria-label 은 blind 스팬뿐), 그 컨테이너의 실측 여유폭은 26px 로
+ * 최소 터치 타겟(모바일 44px / 랩탑 32px)보다 작다. 거기 넣으면 `freeWidthIn` 게이트가
+ * 거의 항상 플로팅 폴백으로 보내 사용자 눈에는 안 보인다 — 요구 문구를 글자 그대로
+ * 만족시키는 것보다 실제로 보이는 배치가 우선이다. 그래서 문구 버튼은 여전히 이
+ * 도구 행의 `_donation_` 앞에 둔다. 원 자료는 `etc/probe/chat-tools-row.json`.
  */
 /**
  * 입력창이 속한 **입력 영역**(`_area_`)을 찾는다.

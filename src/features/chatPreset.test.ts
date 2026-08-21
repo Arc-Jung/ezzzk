@@ -154,12 +154,26 @@ describe('updatePreset / removePreset', () => {
  * 삽입 위치 판정 (2026-08-15).
  * 마크업은 실측 픽스처 `scripts/fixtures/live-page.html` 의 입력 영역을 그대로 옮긴 것이다
  * (해시 접미사 포함 — 셀렉터가 해시에 의존하지 않는지도 함께 본다).
+ *
+ * 🔴 실측 정정 (2026-08-21, 실사이트 비로그인 mobile-portrait·laptop13): 이모티콘 버튼은
+ * `_donation_`/`_action_` 안이 **아니라** 입력창(textarea)의 형제로 별도 입력 컨테이너에
+ * 있고, `aria-label` 이 없다(blind 텍스트 `이모티콘`만 있다). `_action_` 안의 버튼 2개는
+ * aria-label·텍스트가 둘 다 없는 후원 관련 버튼이다. 근거는 `etc/probe/chat-tools-row.json`.
  */
-function mountChatArea(toolsMarkup: string): HTMLElement {
+function mountChatArea(
+  toolsMarkup: string,
+  opts: { withEmoticonButton?: boolean } = {},
+): HTMLElement {
+  const emoticon = opts.withEmoticonButton
+    ? '<button type="button" aria-haspopup="true"><span class="blind">이모티콘</span></button>'
+    : '';
   document.body.innerHTML = `
     <aside id="aside-chatting">
       <div class="_area_b8csn_49">
-        <textarea class="_input_1k5b6_92"></textarea>
+        <div class="_container_1k5b6_2">
+          <textarea class="_input_1k5b6_92"></textarea>
+          ${emoticon}
+        </div>
         ${toolsMarkup}
       </div>
     </aside>`;
@@ -170,7 +184,10 @@ const TOOLS_ROW = `
   <div class="_tools_1k5b6_125">
     <div class="_donation_1k5b6_132">
       <button type="button" class="_donation_text_1k5b6_137">후원하기</button>
-      <div class="_action_1k5b6_140"><button type="button" aria-label="이모티콘">😀</button></div>
+      <div class="_action_1k5b6_140">
+        <button type="button" aria-haspopup="true"></button>
+        <button type="button" aria-haspopup="true"></button>
+      </div>
     </div>
     <button type="button" class="_send_button_1k5b6_176">채팅</button>
   </div>`;
@@ -257,6 +274,47 @@ describe('resolveToolsSlot', () => {
     document.body.innerHTML = `
       <div class="_area_x"><textarea class="_input_x"></textarea>${TOOLS_ROW}</div>`;
     expect(resolveToolsSlot(document)).toBeNull();
+  });
+
+  /**
+   * 🔴 실측 정정 (2026-08-21): 이모티콘 버튼은 도구 행(`_tools_`) 안이 아니라 입력
+   * 컨테이너(textarea 형제) 안에 있다. 여기 있어도 자리 선택은 여전히 `_donation_` 앞이어야
+   * 한다 — 이모티콘을 도구 행 안에서 찾으려 들면 안 된다는 회귀 방지 테스트다.
+   * (근거: `etc/probe/chat-tools-row.json`, 입력 컨테이너 여유폭 26px < 최소 터치 타겟)
+   */
+  it('이모티콘 버튼이 입력 컨테이너에 있어도(도구 행 밖) 자리 선택에 영향을 주지 않는다', () => {
+    mountChatArea(TOOLS_ROW, { withEmoticonButton: true });
+    const emoticon = document.body.querySelector('[aria-haspopup="true"] .blind');
+    expect(emoticon?.textContent).toBe('이모티콘');
+    expect(document.body.querySelector('.blind')?.closest('[class*="_tools_"]')).toBeNull();
+
+    const slot = resolveToolsSlot(document);
+    expect(slot?.parent.className).toContain('_tools_');
+    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+  });
+
+  it('이모티콘 버튼이 없을 때도 동일하게 `_donation_` 앞으로 폴백한다', () => {
+    mountChatArea(TOOLS_ROW, { withEmoticonButton: false });
+    const slot = resolveToolsSlot(document);
+    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+  });
+
+  it('도구 행을 못 찾으면(치지직 구조 변경 등) 폴백 대상이 없다는 신호로 null 이다', () => {
+    mountChatArea('', { withEmoticonButton: true });
+    expect(resolveToolsSlot(document)).toBeNull();
+  });
+
+  it('고른 자리에 aria-label 있는 버튼을 넣어도 라벨이 그대로 유지된다', () => {
+    mountChatArea(TOOLS_ROW);
+    const slot = resolveToolsSlot(document);
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.textContent = '문구';
+    toggle.setAttribute('aria-label', '채팅 문구 도구 펼치기');
+    slot?.parent.insertBefore(toggle, slot.before);
+
+    expect(toggle.getAttribute('aria-label')).toBe('채팅 문구 도구 펼치기');
+    expect(toggle.nextElementSibling?.className).toBe('_donation_1k5b6_132');
   });
 });
 

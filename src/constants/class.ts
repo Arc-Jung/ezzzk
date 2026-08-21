@@ -100,14 +100,28 @@ export const CHZZK = {
   /**
    * 입력창 아래 **도구 행** (실측 2026-08-15, `scripts/fixtures/live-page.html`).
    * 실측 `div._tools_1k5b6_125` — `display:flex; align-items:center`.
-   * 자식은 왼쪽 `_donation_`(후원하기+이모티콘) / 오른쪽 `_send_button_`(채팅).
+   * 자식은 왼쪽 `_donation_`(후원 관련 버튼 묶음) / 오른쪽 `_send_button_`(채팅).
    * 우리 버튼 묶음(`OURS.toolsSlotClass`)을 여기에 흐름 배치로 끼워 넣는다.
+   *
+   * 🔴 실측 정정 (2026-08-21, 실사이트 비로그인, mobile-portrait 412×915 · laptop13 1440×900):
+   * **이모티콘 버튼은 이 도구 행 안에 없다.** 입력창(`textarea`)의 **형제**로 입력 컨테이너
+   * (`_container_*`, `_area_` 의 다른 자식) 안에 있다 — blind 텍스트 `이모티콘`,
+   * `aria-haspopup="true"`, class `*_input_button_*`. 그 컨테이너의 실측 여유폭은 26px 로
+   * 최소 터치 타겟(모바일 44px / 랩탑 32px)보다 작아 우리 버튼을 넣으면 `freeWidthIn` 게이트가
+   * 거의 항상 플로팅 폴백으로 보낸다 — 그래서 문구 버튼은 여전히 이 도구 행의 `_donation_`
+   * 앞에 둔다 (`resolveToolsSlot` 참고). 근거: `etc/probe/chat-tools-row.json`.
    */
   chatTools: '#aside-chatting [class*="_tools_"]',
   /**
-   * 도구 행 왼쪽의 후원 블록 (실측 `div._donation_1k5b6_132`).
+   * 도구 행 왼쪽의 **후원 관련 버튼 묶음** (실측 `div._donation_1k5b6_132`).
    * ⚠️ 내부 버튼 `_donation_text_` 도 `_donation_` 부분 일치에 걸리지만 문서 순서상
    * 바깥 블록이 먼저 잡힌다 — 반드시 `querySelector`(첫 매칭)로만 쓴다.
+   *
+   * 🔴 실측 정정 (2026-08-21, 실사이트 비로그인, mobile-portrait · laptop13): 내부 `_action_`
+   * 안의 버튼 2개는 **이모티콘이 아니다.** `aria-label` 도 텍스트도 둘 다 없다
+   * (`aria-haspopup="true"` 만 있음) — 후원(슈퍼챗류) 관련으로 보인다.
+   * **`aria-label`·텍스트로 찾으려 하지 마라 — 둘 다 없다.** 이전 주석("_donation_ = 후원하기+
+   * 이모티콘")은 실측 근거 없는 추정이었고 오류였다.
    */
   chatDonation: '#aside-chatting [class*="_donation_"]',
 
