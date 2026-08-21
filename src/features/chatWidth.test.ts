@@ -1107,6 +1107,10 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
    */
   describe('P2 — 플레이어 우측 가운데 앵커', () => {
     const control = (): HTMLElement | null => document.getElementById('cm-chat-width-control');
+    const items = (): HTMLElement | null =>
+      control()?.querySelector<HTMLElement>('.cm-chat-width-items') ?? null;
+    const toggle = (): HTMLButtonElement | null =>
+      control()?.querySelector<HTMLButtonElement>('button[aria-label^="채팅 폭 조절"]') ?? null;
 
     /** 실측 구조를 본뜬 최소 플레이어 루트 (`PLAYER.rootPc` = `.pzp-pc`). */
     const mountPlayerRoot = (): HTMLElement => {
@@ -1126,11 +1130,35 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       expect(control()?.classList.contains(CONTROL_ITEM_CLASS)).toBe(true);
       dispose?.();
     });
+
+    it('토글 없이 버튼 4개가 처음부터 전부 보인다', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()?.dataset['expanded']).toBe('true');
+      expect(items()?.hidden).toBe(false);
+      expect(
+        Array.from(items()?.querySelectorAll('button') ?? []).map((b) =>
+          b.getAttribute('aria-label'),
+        ),
+      ).toEqual(['채팅 폭 늘리기', '채팅 폭 줄이기', '채팅 접기', '채팅 위치를 아래로 옮기기']);
+      dispose?.();
+    });
+
+    it('이 앵커에는 ↔ 토글 버튼이 없다 (누를 것이 없다)', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(toggle()).toBeNull();
+      expect(control()?.querySelector('button[aria-label="채팅 폭 조절 열기"]')).toBeNull();
+      dispose?.();
+    });
+
     /**
-     * 🔴 우측 가운데은 오른쪽 모서리에 고정된다 — `+ − ⟩ ▦` 가 오른쪽(화면 밖)으로 펼쳐지면 잘려
-     * 나간다. 컨테이너·아이템 묶음 모두 row-reverse 여야 왼쪽(영상 안쪽)으로 펼쳐진다.
+     * 세로 공간은 넘친다 (플레이어 오른쪽이라 도구 행처럼 좁지 않다) — 접힘 대신
+     * `flex-direction: column` 으로 상시 세로 배치한다. row-reverse 는 더 필요 없다.
      */
-    it('우측 가운데 앵커는 오른쪽이 아니라 왼쪽으로 펼쳐진다 (row-reverse)', () => {
+    it('우측 가운데 앵커는 세로로 쌓인다 (column, row-reverse 아님)', () => {
       mountPlayerRoot();
       const dispose = chatWidthFeature.start(makeCtx({}));
 
@@ -1138,10 +1166,12 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       const css = style?.textContent ?? '';
       const anchorRule = css.slice(css.indexOf('[data-anchor="player-right-center"] {'));
       expect(anchorRule).toContain('right:');
-      expect(anchorRule.slice(0, anchorRule.indexOf('}'))).toContain('flex-direction: row-reverse');
-      expect(css).toContain(
-        '[data-anchor="player-right-center"] .cm-chat-width-items { flex-direction: row-reverse; }',
+      expect(anchorRule.slice(0, anchorRule.indexOf('}'))).toContain('flex-direction: column');
+      const itemsRule = css.slice(
+        css.indexOf('[data-anchor="player-right-center"] .cm-chat-width-items'),
       );
+      expect(itemsRule.slice(0, itemsRule.indexOf('}'))).toContain('flex-direction: column');
+      expect(css).not.toContain('row-reverse');
       dispose?.();
     });
 
@@ -1200,6 +1230,23 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       expect(control()?.dataset['anchor']).toBe('floating');
       expect(control()?.parentElement).toBe(document.body);
       expect(control()?.classList.contains(CONTROL_ITEM_CLASS)).toBe(false);
+      dispose?.();
+    });
+    it('폴백(플로팅)에서는 토글 접힘/펼침이 그대로 동작한다 — 좁은 자리 전제가 아직 살아 있다', () => {
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()?.dataset['anchor']).toBe('floating');
+      expect(toggle()).not.toBeNull();
+      expect(control()?.dataset['expanded']).toBe('false');
+      expect(items()?.hidden).toBe(true);
+
+      toggle()?.click();
+      expect(control()?.dataset['expanded']).toBe('true');
+      expect(items()?.hidden).toBe(false);
+
+      toggle()?.click();
+      expect(control()?.dataset['expanded']).toBe('false');
+      expect(items()?.hidden).toBe(true);
       dispose?.();
     });
 

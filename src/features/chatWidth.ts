@@ -279,8 +279,21 @@ export function ratioBasisPx(
   return placement === 'bottom' ? viewport.height : viewport.width;
 }
 
-/** 펼쳤을 때 나오는 `+ − ⟩ ▦` 묶음. 접힘이 기본이라 평소에는 토글 하나만 보인다. */
+/**
+ * 펼쳤을 때 나오는 `+ − ⟩ ▦` 묶음. 도구 행 폴백(inline/popover/floating)은 접힘이 기본이라
+ * 평소에는 토글 하나만 보인다. `player-right-center` 는 토글 없이 이 묶음이 항상 보인다.
+ */
 const ITEMS_CLASS = 'cm-chat-width-items';
+
+/**
+ * 플레이어 우측 가운데에서 세로로 쌓을 때 버튼 사이 간격(px, 컨테이너 안쪽 여백도 같은 값을 쓴다).
+ *
+ * 실측 2026-08-21 (`etc/probe/chat-width-vertical.json`) — mobile-portrait(412×915)에서 플레이어
+ * 세로 높이가 232px 밖에 안 된다(16:9 상한). 간격 6px 로는 묶음 높이가 206px 라 위아래 여백이
+ * 13px 씩만 남는다. 4px 로 줄이면 196px 로 줄어 여백이 18px 씩 남는다 — 아이콘 크기(터치 타겟)는
+ * 그대로 두고 간격만 줄인다(요청: 아이콘 축소가 아니라 간격 축소).
+ */
+const PLAYER_RIGHT_GAP_PX = 4;
 
 /** 버튼 사이 간격(px). 여유 폭 판정과 CSS 가 **같은 값**을 써야 판정이 어긋나지 않는다. */
 const CONTROL_GAP_PX = 4;
@@ -305,12 +318,14 @@ const OVERLAY_SIDE_MIN_PX = 160;
  *
  * - `player-right-center` — **기본.** 플레이어(`PLAYER.rootPc`) 우측 가운데에 절대배치로 얹는다.
  *   도구 행·aside 크기와 무관하므로 접힘 상태에서도 자리를 잃지 않는다. 플레이어를 못 찾으면
- *   아래 폴백으로 내려간다. 오른쪽 모서리에 고정되므로 펼쳤을 때 화면 밖으로 나가지 않게
- *   컨테이너와 아이템 묶음 모두 `flex-direction: row-reverse` 로 왼쪽으로 펼친다
- *   (토글은 모서리에 그대로, `+ − ⟩ ▦` 는 영상 쪽으로 펼쳐진다).
+ *   아래 폴백으로 내려간다. 세로 공간이 넉넉하므로 토글로 접지 않고 `flex-direction: column` 으로
+ *   `+ − ⟩ ▦` 를 상시 세로 배치한다 — 토글(`↔`) 자체를 렌더하지 않는다.
  * - `inline` — 플레이어를 못 찾았을 때의 폴백. 도구 행에 4개까지 그대로 펼친다.
  * - `popover` — 도구 행에는 토글만 두고, 펼치면 **위로 열리는 팝오버**로 띄운다.
  * - `floating` — 토글 하나조차 못 들어가면 도구 행을 쓰지 않고 화면 오른쪽 플로팅으로 폴백한다.
+ *
+ * `inline` / `popover` / `floating` 은 도구 행이 좁다는 전제가 그대로 남아 있으므로 접힘(토글)을
+ * 유지한다 — `player-right-center` 로 넘어와 세로 공간이 생긴 것과는 별개다.
  */
 export type ControlAnchor = 'inline' | 'popover' | 'floating' | 'player-right-center';
 
@@ -372,11 +387,11 @@ function controlCss(touchTargetPx: number): string {
   읽는 방식이 실측에서 실패한 이력이 있다(컨트롤바 자동 숨김 주석 참조).
   플레이어 루트가 위치 기준(position: relative)을 이미 갖고 있다고 본다 (미검증 — 네이티브
   컨트롤도 같은 방식으로 얹히므로 근거는 있으나 이 저장소에 DOM 캡처 증거는 없다).
-  🔴 오른쪽 모서리(right)에 고정된다 — 펼쳤을 때 '+ − ⟩ ▦' 가 오른쪽(화면 밖)으로 나가면
-  안 되므로 컨테이너 자체를 row-reverse 로 뒤집는다: 토글(마지막 자식)이 모서리 쪽(오른쪽)에
-  남고, 아이템 묶음(첫 자식)이 그 왼쪽(영상 안쪽)으로 펼쳐진다. 아이템 묶음 내부도 row-reverse
-  로 뒤집어야 모서리에서 먼 쪽으로 갈수록 '+ − ⟩ ▦' 순서가 유지된다(이전 좌상단 배치와 같은
-  순서 — 토글에서 멀어지는 방향으로 +, −, ⟩, ▦).
+  🔴 세로 공간은 넘친다 (플레이어 오른쪽이라 도구 행처럼 좁지 않다) — 그래서 토글로 접지
+  않고 '+ − ⟩ ▦' 를 column 으로 상시 세로 배치한다. 토글은 이 앵커에서 렌더되지 않는다
+  (anchorControl 이 앵커 전환 시 토글 버튼 자체를 붙이거나 뗀다).
+  버튼 각각에 이미 배경·테두리가 있지만(아래 button 규칙) 세로로 흩어지면 하나의 묶음으로
+  안 보인다 — 묶음 전체에도 낮은 대비의 배경을 줘 하나의 컨트롤로 묶여 보이게 한다.
   ⚠️ 이 문자열은 템플릿 리터럴이다 — 주석에 백틱을 쓰지 않는다 (빌드가 깨진다).
 */
 #${CONTROL_ID}[data-anchor="player-right-center"] {
@@ -391,9 +406,17 @@ function controlCss(touchTargetPx: number): string {
   transform: translateY(-50%);
   right: ${PLAYER_RIGHT_INSET_PX}px;
   z-index: ${OURS.topZIndex - 2};
-  flex-direction: row-reverse;
+  flex-direction: column;
+  gap: ${PLAYER_RIGHT_GAP_PX}px;
+  padding: ${PLAYER_RIGHT_GAP_PX}px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
 }
-#${CONTROL_ID}[data-anchor="player-right-center"] .${ITEMS_CLASS} { flex-direction: row-reverse; }
+#${CONTROL_ID}[data-anchor="player-right-center"] .${ITEMS_CLASS} {
+  display: flex;
+  flex-direction: column;
+  gap: ${PLAYER_RIGHT_GAP_PX}px;
+}
 /*
   도구 행에 4개를 펼칠 자리가 없으면 **채팅 영역 바깥(영상 위)** 에 띄운다.
   🔴 예전에는 컨트롤 바로 위(bottom: 100%)로 열었는데, 그 자리가 정확히 치지직 입력창이라
@@ -673,10 +696,15 @@ export const chatWidthFeature: Feature = {
       target.style.top = `${FLOATING_TOP_PX}px`;
     };
 
-    /** 펼침 상태를 DOM 에 반영한다. `hidden` 을 함께 세워 CSS 없이도 접힘이 성립한다. */
+    /**
+     * 펼침 상태를 DOM 에 반영한다. `hidden` 을 함께 세워 CSS 없이도 접힘이 성립한다.
+     * `player-right-center` 는 토글이 없다 — 언제나 펼쳐진 것으로 본다(`expanded` 값과 무관).
+     */
     function updateToggleButton(): void {
-      if (controlEl) controlEl.dataset['expanded'] = expanded ? 'true' : 'false';
-      if (itemsEl) itemsEl.hidden = !expanded;
+      const showAll = controlEl?.dataset['anchor'] === 'player-right-center';
+      const visible = showAll || expanded;
+      if (controlEl) controlEl.dataset['expanded'] = visible ? 'true' : 'false';
+      if (itemsEl) itemsEl.hidden = !visible;
       placeOverlay();
       if (!toggleButton) return;
       toggleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
@@ -720,6 +748,29 @@ export const chatWidthFeature: Feature = {
       collapseButton.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
       collapseButton.textContent = collapsed ? '⟨' : '⟩';
     }
+
+    /**
+     * 앵커에 맞게 토글 버튼의 존재를 맞춘다.
+     *
+     * `player-right-center` 는 세로 공간이 넉넉해 접을 필요가 없다 — 토글 버튼 자체를 DOM 에서
+     * 뗀다(누를 것이 없으므로). 도구 행 폴백(inline/popover/floating)은 여전히 좁으므로 토글이
+     * 있어야 한다 — 없으면 만들어 컨테이너 맨 앞(아이템 묶음보다 앞)에 붙인다.
+     */
+    const syncToggleForAnchor = (anchor: ControlAnchor): void => {
+      if (!controlEl) return;
+      const showAll = anchor === 'player-right-center';
+      if (showAll) {
+        toggleButton?.remove();
+        toggleButton = null;
+      } else if (!toggleButton) {
+        toggleButton = makeButton('채팅 폭 조절 열기', '↔', () => {
+          expanded = !expanded;
+          updateToggleButton();
+        });
+        controlEl.insertBefore(toggleButton, controlEl.firstChild);
+      }
+      updateToggleButton();
+    };
 
     /**
      * 묶음을 도구 행(채팅 버튼 왼쪽)에 넣거나, 자리가 없으면 화면 오른쪽 플로팅으로 폴백한다.
@@ -782,6 +833,7 @@ export const chatWidthFeature: Feature = {
       // 컨트롤바 자동 숨김과 같은 신호를 쓰는 곳은 플레이어 우측 가운데뿐이다 — 도구 행·플로팅은
       // 자체적으로 항상 보인다.
       container.classList.toggle(CONTROL_ITEM_CLASS, anchor === 'player-right-center');
+      syncToggleForAnchor(anchor);
 
       if (!before) {
         container.classList.remove(OURS.toolsSlotClass);
@@ -806,15 +858,13 @@ export const chatWidthFeature: Feature = {
       controlEl = container;
 
       /**
-       * 🔴 **접힘이 기본**이다 (2026-08-15 요청). 도구 행에는 토글 하나만 나간다 —
+       * 🔴 도구 행 폴백(inline/popover/floating)에서는 **접힘이 기본**이다 (2026-08-15 요청) —
        * 채팅 폭이 좁으면 후원하기·이모티콘·채팅만으로 이미 행이 꽉 차기 때문이다.
        * 펼침 상태는 **저장하지 않는다** (세션·창 안에서만 유지).
+       *
+       * 토글 버튼은 여기서 만들지 않는다 — 앵커가 정해진 뒤(`anchorControl` →
+       * `syncToggleForAnchor`) 필요한 자리에만 붙인다 (`player-right-center` 는 토글이 없다).
        */
-      toggleButton = makeButton('채팅 폭 조절 열기', '↔', () => {
-        expanded = !expanded;
-        updateToggleButton();
-      });
-      container.appendChild(toggleButton);
 
       const items = document.createElement('div');
       items.className = ITEMS_CLASS;
@@ -833,7 +883,6 @@ export const chatWidthFeature: Feature = {
       items.appendChild(placementButton);
 
       container.appendChild(items);
-      updateToggleButton();
       placeControl(container);
     };
 
