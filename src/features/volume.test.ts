@@ -390,7 +390,7 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     dispose?.();
   });
 
-  it('볼륨 −/+ 버튼은 문자가 아니라 aria-hidden svg 아이콘이다 (NFR-10 전수 검사)', async () => {
+  it('볼륨 조작 버튼은 전부 문자가 아니라 aria-hidden svg 아이콘이다 (NFR-10 전수 검사)', async () => {
     vi.useFakeTimers();
     const dispose = volumeFeature.start(ctx);
 
@@ -399,7 +399,9 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     await vi.advanceTimersByTimeAsync(5_000);
 
     const buttons = control()?.querySelectorAll<HTMLButtonElement>('.cm-volume-button');
-    expect(buttons?.length).toBe(2);
+    // `−` · `+` · 음량 평탄화 토글 셋이다.
+    // 🔴 버튼이 늘면 이 수도 함께 올려 **전수 검사**를 유지한다 — 숫자를 지우면 새 버튼이 검사를 빠져나간다.
+    expect(buttons?.length).toBe(3);
     for (const button of Array.from(buttons ?? [])) {
       expect(button.getAttribute('aria-label')).toBeTruthy();
       expect(button.textContent).toBe('');

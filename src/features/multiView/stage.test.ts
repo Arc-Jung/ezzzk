@@ -190,7 +190,11 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     deviceClass,
     chatMode,
     lowerInactiveQuality,
-  }: { deviceClass?: 'mobile'; chatMode?: 'active' | 'none'; lowerInactiveQuality?: boolean } = {}) {
+  }: {
+    deviceClass?: 'mobile';
+    chatMode?: 'active' | 'none';
+    lowerInactiveQuality?: boolean;
+  } = {}) {
     const onActiveSlotChange = vi.fn();
     const settings =
       chatMode || lowerInactiveQuality
