@@ -92,6 +92,30 @@ export async function openLiveContext(profile, { profileDir, freshProfile = true
   if (freshProfile) rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
 
+  /*
+   * 🔴 창을 **항상 같은 자리**에 띄운다 (2026-08-21 요청).
+   *
+   * 위치를 안 주면 OS 가 알아서 배치해 실행할 때마다 창이 다른 모니터·다른 자리에 뜬다.
+   * 프로필 3종을 병렬로 돌리면 어느 창이 무엇인지 매번 다시 찾아야 한다.
+   *
+   * Chrome 의 `--window-position` 은 **주 디스플레이 좌상단이 (0,0)** 인 가상 좌표계를 쓴다.
+   * 이 기기는 내장 디스플레이가 주 디스플레이라(실측 2026-08-21 `system_profiler`:
+   * `Color LCD / Built-in Liquid Retina XDR / Main Display: Yes`) (0,0) 기준이면 노트북 화면에 뜬다.
+   * 외부 모니터를 주 디스플레이로 바꿔 쓰는 경우를 위해 `EZZZK_WINDOW_ORIGIN=x,y` 로 덮을 수 있다.
+   *
+   * 프로필마다 고정 오프셋을 줘 **같은 프로필은 늘 같은 자리**에 뜨게 한다 — 완전히 겹치면
+   * 병렬 실행에서 뒤 창이 안 보이고, 무작위로 흩으면 지금 문제가 그대로 남는다.
+   */
+  const origin = (process.env['EZZZK_WINDOW_ORIGIN'] ?? '0,0').split(',').map(Number);
+  const originX = Number.isFinite(origin[0]) ? origin[0] : 0;
+  const originY = Number.isFinite(origin[1]) ? origin[1] : 0;
+  const slot = Math.max(
+    0,
+    PROFILES.findIndex((p) => p.key === profile.key),
+  );
+  const windowX = originX + slot * 48;
+  const windowY = originY + slot * 48;
+
   return chromium.launchPersistentContext(dir, {
     // ⚠️ 확장 로드에는 표시 가능한 브라우저가 필요하다. 리눅스에서는 xvfb-run 으로 감싼다.
     headless: false,
@@ -100,6 +124,7 @@ export async function openLiveContext(profile, { profileDir, freshProfile = true
       `--load-extension=${DIST}`,
       '--autoplay-policy=no-user-gesture-required',
       '--mute-audio',
+      `--window-position=${windowX},${windowY}`,
     ],
     viewport: profile.viewport,
     deviceScaleFactor: profile.deviceScaleFactor,

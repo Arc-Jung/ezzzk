@@ -25,6 +25,7 @@ const TWO_COLUMN_MIN_PX = 680;
  * 백틱을 넣으면 문자열이 끊겨 빌드가 깨진다 (두 번 겪었다).
  */
 import { ACCENT, BG, BORDER, FG, RADIUS } from '../../ui/tokens';
+import { OURS } from '../../constants/class';
 
 export const CONFIG_SHEET_CSS = `
 .cm-mv-splits {
@@ -122,7 +123,6 @@ export const CONFIG_SHEET_CSS = `
   white-space: nowrap;
 }
 .cm-mv-cell__head button { flex: 0 0 auto; }
-.cm-mv-audio { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
 /* 채널 목록 */
 .cm-mv-list { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -182,6 +182,18 @@ export const CONFIG_SHEET_CSS = `
 /* 텍스트와 나란히 놓이는 아이콘(빈 슬롯 +, 방송 상태 점) 은 글자 기준선에 맞춰 살짝 내린다. */
 .cm-mv-cell__head svg,
 .cm-mv-channels svg { vertical-align: -1px; }
+/* 방송 상태 점의 접근성 이름 — 아이콘은 aria-hidden 이라 색만으로 상태를 전달하지 않는다. */
+.${OURS.srOnlyClass} {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 
 .cm-stepper { display: inline-flex; align-items: center; gap: 4px; }
 .cm-stepper output { min-width: 24px; text-align: center; }

@@ -19,6 +19,7 @@ import type {
 } from '../../constants/storage';
 import { Sheet } from '../../ui/Sheet';
 import { CloseIcon, LiveDotIcon, PlusIcon } from '../../ui/icons';
+import { OURS } from '../../constants/class';
 import { CONFIG_SHEET_CSS } from './configSheetCss';
 import { upsertStyle } from '../../utils/dom';
 import {
@@ -82,7 +83,11 @@ export function ConfigSheet({
     }
     return base;
   });
-  const [activeSlot, setActiveSlot] = useState<SlotIndex>(settings.multiView.activeSlot);
+  /**
+   * 초점 슬롯(오디오 아님) — 사이드 채팅 대상·화질 우선순위용. 2026-08-20 정책 변경으로
+   * 모든 슬롯이 소리를 내므로 여기서 고를 UI(오디오 라디오)는 없앴고, 배치된 첫 슬롯을 그대로 쓴다.
+   */
+  const activeSlot = settings.multiView.activeSlot;
   const [slotChatLines, setSlotChatLines] = useState<SlotLines>(settings.multiView.slotChatLines);
   const [placement, setPlacement] = useState(settings.multiView.slotChatPlacement);
   const [lowerQuality, setLowerQuality] = useState(settings.multiView.lowerInactiveQuality);
@@ -471,7 +476,6 @@ export function ConfigSheet({
           <div className="cm-mv-grid" data-split={split}>
             {usableSlots.map((index) => {
               const slot = slots.find((s) => s.index === index);
-              const isActive = activeSlot === index;
               return (
                 <div key={index} className="cm-mv-cell">
                   <div className="cm-mv-cell__head">
@@ -500,20 +504,9 @@ export function ConfigSheet({
                     ) : null}
                   </div>
                   {slot ? (
-                    <>
-                      {index === 1 && slot.channelId === currentChannel?.channelId ? (
-                        <p className="cm-sheet__note">(현재 시청)</p>
-                      ) : null}
-                      <label className="cm-mv-audio">
-                        <input
-                          type="radio"
-                          name="cm-active-slot"
-                          checked={isActive}
-                          onChange={() => setActiveSlot(index)}
-                        />
-                        {isActive ? '🔊 소리 활성' : '🔇 음소거'}
-                      </label>
-                    </>
+                    index === 1 && slot.channelId === currentChannel?.channelId ? (
+                      <p className="cm-sheet__note">(현재 시청)</p>
+                    ) : null
                   ) : (
                     <p className="cm-sheet__note">오른쪽 목록에서 고르세요</p>
                   )}
@@ -558,11 +551,15 @@ export function ConfigSheet({
                     const placedAt = placedIndexOf(channel.channelId);
                     return (
                       <li key={channel.channelId} className={channel.live ? '' : 'cm-offline'}>
-                        <span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           <LiveDotIcon
                             size={10}
                             className={channel.live ? 'cm-mv-live--on' : 'cm-mv-live--off'}
-                          />{' '}
+                          />
+                          {/* 🔴 색만으로 상태를 전달하지 않는다 — 색약 사용자를 위해 텍스트를 남긴다. */}
+                          <span className={OURS.srOnlyClass}>
+                            {channel.live ? '방송중' : '오프라인'}
+                          </span>
                           {channel.channelName}
                         </span>
                         <span className="cm-sheet__note">

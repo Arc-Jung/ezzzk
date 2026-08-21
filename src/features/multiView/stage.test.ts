@@ -173,8 +173,12 @@ describe('비활성 슬롯 화질 기본값 (2026-08-12 요청)', () => {
 
 /**
  * 🔴 사용자 보고 (2026-08-15) 회귀 고정 — 사용자가 비활성 슬롯의 음소거를 직접 풀면
- * 슬롯이 `requestAudio` 를 올리고, 스테이지가 **기존 활성 슬롯 전환 경로를 그대로 재사용해**
- * 그 슬롯을 활성으로 올린다. 이전 활성 슬롯은 음소거되므로 FR-14("오디오는 한 슬롯만")는 유지된다.
+ * 슬롯이 `requestAudio` 를 올리고, 스테이지가 **기존 초점 전환 경로를 그대로 재사용해**
+ * 그 슬롯을 초점으로 올린다(사이드채팅 대상·화질 우선순위용).
+ *
+ * 🔴 정책 변경 (요청 2026-08-20) — **모든 슬롯이 항상 소리를 낸다.** 예전에는 활성 슬롯
+ * 하나만 소리를 내고 나머지를 강제 음소거했다. 초록 아웃라인 표시도 그 흔적이라 함께
+ * 제거했다 — 초점 개념 자체(사이드채팅·화질 우선순위·나가기 버튼)는 남아 있다.
  */
 describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   const SLOTS = [
@@ -185,14 +189,20 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   function openStage({
     deviceClass,
     chatMode,
-  }: { deviceClass?: 'mobile'; chatMode?: 'active' | 'none' } = {}) {
+    lowerInactiveQuality,
+  }: { deviceClass?: 'mobile'; chatMode?: 'active' | 'none'; lowerInactiveQuality?: boolean } = {}) {
     const onActiveSlotChange = vi.fn();
-    const settings = chatMode
-      ? {
-          ...DEFAULT_SETTINGS,
-          multiView: { ...DEFAULT_SETTINGS.multiView, chatMode },
-        }
-      : DEFAULT_SETTINGS;
+    const settings =
+      chatMode || lowerInactiveQuality
+        ? {
+            ...DEFAULT_SETTINGS,
+            multiView: {
+              ...DEFAULT_SETTINGS.multiView,
+              ...(chatMode ? { chatMode } : {}),
+              ...(lowerInactiveQuality ? { lowerInactiveQuality } : {}),
+            },
+          }
+        : DEFAULT_SETTINGS;
     const stage = new MultiViewStage(settings, decideDevice(deviceClass ?? 'auto'), {
       onRequestConfig: vi.fn(),
       onExit: vi.fn(),
@@ -216,13 +226,11 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     slot,
   });
 
-  /** 지금 활성 표시가 붙은 슬롯 번호. 없으면 null. */
-  const activeSlotFromDom = (): number | null => {
-    const cells = [...document.querySelectorAll('.cm-slot')];
-    const index = cells.findIndex((cell) => cell.classList.contains('cm-slot--active'));
-    return index < 0 ? null : index + 1;
-  };
-
+  /** 슬롯 iframe 에 실제로 나간 postMessage 를 가로챈다 (음소거 지시가 없는지 검증용). */
+  const spyOnSlotPosts = () =>
+    [...document.querySelectorAll('#cm-multiview-stage .cm-slot iframe')].map((frame) =>
+      vi.spyOn((frame as HTMLIFrameElement).contentWindow!, 'postMessage'),
+    );
   const requestAudio = (slot: number) => ({
     channel: MV_CHANNEL,
     dir: 's2p' as const,
@@ -235,28 +243,58 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   /**
-   * 🔴 2026-08-16 실측 결함 (`probe-multiview-beta` 03-stage): 스테이지를 열자마자는
-   * **어느 슬롯에도 `cm-slot--active` 가 없어** 지금 어느 방송의 소리가 나는지 화면에서
-   * 알 수 없었다 — 클래스 토글이 `setActiveSlot()` 안에만 있었기 때문이다.
+   * 🔴 회귀 고정 (2026-08-20 정책 변경) — 강제 음소거 프로토콜 자체를 지웠다. 누가
+   * 나중에 되살리더라도 슬롯에 실제로 나가는 메시지를 검사하면 잡힌다.
    */
-  it('열자마자 저장된 활성 슬롯에 활성 표시가 붙는다', () => {
+  it('어느 슬롯에도 음소거 지시를 보내지 않는다 — 강제 음소거 프로토콜은 완전히 사라졌다', () => {
     const { stage } = openStage();
+    const posts = spyOnSlotPosts();
 
-    const active = document.querySelector(
-      `#cm-multiview-stage .cm-slot[data-slot="${DEFAULT_SETTINGS.multiView.activeSlot}"]`,
-    );
-    expect(active?.classList.contains('cm-slot--active')).toBe(true);
-    // 활성 표시는 정확히 하나다 (소리가 나는 슬롯도 하나다).
-    expect(document.querySelectorAll('#cm-multiview-stage .cm-slot--active').length).toBe(1);
+    document
+      .querySelectorAll('#cm-multiview-stage .cm-slot iframe')
+      .forEach((frame) => frame.dispatchEvent(new Event('load')));
+    sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
+    sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 2 });
+    sendFromSlot(requestAudio(2));
+    sendFromSlot(audioShortcut(1));
+
+    for (const post of posts) {
+      // 강제 음소거 지시는 `active: boolean` 필드가 있는 메시지뿐이었다 — 이제 없다.
+      for (const call of post.mock.calls) {
+        expect(call[0]).not.toHaveProperty('active');
+      }
+    }
     stage.close();
   });
 
   /**
-   * 🔴 2026-08-16 실측 결함 (`probe-multiview-slot-failure`): 슬롯 문서가 네트워크 오류로
-   * 뜨지 않아도 크롬은 오류 페이지를 커밋하며 iframe 에 `load` 를 발화시킨다.
-   * 그때 `loaded` 로 성공을 판정하면 **22초가 지나도 안내가 뜨지 않고 검은 칸만 남았다.**
-   * 살아 있음의 신호는 슬롯 컨트롤러의 `ready` 하나뿐이다.
+   * 초점(오디오 아님) 개념 자체는 남아 있다는 걸 확인한다 — 비활성 슬롯 화질 하향은
+   * 초록 아웃라인이 없어져도 여전히 초점 슬롯 기준으로 동작해야 한다.
    */
+  it('열자마자 저장된 초점 슬롯 기준으로 화질 우선순위가 적용된다 (초록 아웃라인은 제거됐다)', () => {
+    const { stage } = openStage({ lowerInactiveQuality: true });
+    const posts = spyOnSlotPosts();
+
+    document
+      .querySelectorAll('#cm-multiview-stage .cm-slot iframe')
+      .forEach((frame) => frame.dispatchEvent(new Event('load')));
+    sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
+    sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 2 });
+
+    const qualityOf = (post: ReturnType<typeof vi.spyOn>) =>
+      post.mock.calls
+        .map((call) => call[0] as { kind?: string; target?: string })
+        .filter((m) => m.kind === 'setQuality')
+        .at(-1)?.target;
+
+    // 초점 슬롯(기본값 1) 은 목표 화질 그대로, 나머지는 하향된다.
+    expect(qualityOf(posts[0]!)).toBe('1080p');
+    expect(qualityOf(posts[1]!)).toBe('720p');
+    // 초록 아웃라인 클래스는 더 이상 존재하지 않는다.
+    expect(document.querySelectorAll('[class*="slot--active"]').length).toBe(0);
+    stage.close();
+  });
+
   describe('슬롯 로드 실패 표시', () => {
     afterEach(() => {
       vi.useRealTimers();
@@ -296,21 +334,16 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     });
   });
 
-  it('requestAudio 를 받으면 그 슬롯을 활성 오디오 슬롯으로 승격한다', () => {
+  it('requestAudio 를 받으면 그 슬롯을 초점으로 승격한다 (오디오는 건드리지 않는다)', () => {
     const { stage, onActiveSlotChange } = openStage();
 
     sendFromSlot(requestAudio(2));
 
     expect(onActiveSlotChange).toHaveBeenCalledWith(2);
-    const cell = document.querySelector('#cm-multiview-stage .cm-slot[data-slot="2"]');
-    expect(cell?.classList.contains('cm-slot--active')).toBe(true);
-    // 이전 활성 슬롯은 활성 표시를 잃는다 (= 음소거 지시를 받는다).
-    const previous = document.querySelector('#cm-multiview-stage .cm-slot[data-slot="1"]');
-    expect(previous?.classList.contains('cm-slot--active')).toBe(false);
     stage.close();
   });
 
-  it('이미 활성인 슬롯의 요청은 무시한다 (불필요한 재배치·핑퐁 방지)', () => {
+  it('이미 초점인 슬롯의 요청은 무시한다 (불필요한 재배치·핑퐁 방지)', () => {
     const { stage, onActiveSlotChange } = openStage();
 
     sendFromSlot(requestAudio(1));
@@ -332,34 +365,33 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
    * `document.activeElement` 가 **iframe** 이 되어 부모 `window` keydown 이 죽는다. 그 뒤로
    * `Alt+Shift+N` 이 3개 프로필 전부에서 먹지 않았다 → 프레임이 넘겨 준 단축키를 부모가 받는다.
    */
-  it('프레임이 넘긴 오디오 단축키로 활성 슬롯을 옮긴다', () => {
+  it('프레임이 넘긴 오디오 단축키로 초점을 옮긴다', () => {
     const { stage, onActiveSlotChange } = openStage();
-    expect(activeSlotFromDom()).toBe(1);
 
     sendFromSlot(audioShortcut(2));
 
-    expect(activeSlotFromDom()).toBe(2);
     expect(onActiveSlotChange).toHaveBeenCalledWith(2);
     stage.close();
   });
 
   it('단축키가 꺼진 기기(모바일)에서는 넘겨받아도 무시한다 (설계)', () => {
-    const { stage } = openStage({ deviceClass: 'mobile' });
+    const { stage, onActiveSlotChange } = openStage({ deviceClass: 'mobile' });
 
     sendFromSlot(audioShortcut(2));
 
-    expect(activeSlotFromDom()).toBe(1);
+    expect(onActiveSlotChange).not.toHaveBeenCalled();
     stage.close();
   });
 
   it('이번 구성에 없는 슬롯 번호는 무시한다', () => {
-    const { stage } = openStage();
+    const { stage, onActiveSlotChange } = openStage();
 
     sendFromSlot(audioShortcut(4));
 
-    expect(activeSlotFromDom()).toBe(1);
+    expect(onActiveSlotChange).not.toHaveBeenCalled();
     stage.close();
   });
+
   /**
    * 사이드 채팅(BETA) — 요청 2026-08-18 "멀티뷰일 때 채팅은 비효율적일 수 있는데 일단 구현하고
    * BETA 뱃지를 붙이자". 원본 aside(호스트 채널 채팅) 대신 **활성 슬롯 채팅**을 흘린다.
@@ -432,7 +464,21 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     toggle()?.click();
     expect(panel()).not.toBeNull();
     expect(toggle()?.getAttribute('aria-label')).toBe('채팅 끄기');
+    expect(toggle()?.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
+    stage.close();
+  });
 
+  it('조작 바·슬롯 헤더의 +/− 버튼은 문자가 아니라 aria-hidden svg 아이콘이다', () => {
+    const { stage } = openStage();
+    const bar = document.querySelector('.cm-stage-bar');
+    expect(bar?.textContent).not.toMatch(/[+−]/);
+    for (const label of ['볼륨 줄이기', '볼륨 늘리기']) {
+      const button = bar?.querySelector(`[aria-label="${label}"]`);
+      const svg = button?.querySelector('svg');
+      expect(svg).toBeTruthy();
+      expect(svg?.getAttribute('aria-hidden')).toBe('true');
+      expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
+    }
     stage.close();
   });
 

@@ -1,14 +1,13 @@
 /**
  * FR-14 슬롯 오디오 상태기 테스트.
  *
- * 🔴 회귀 고정 — 사용자 보고 (2026-08-15): "멀티뷰일 때 자동 음소거가 되고, 수동으로 볼륨을
- * 켜도 다시 음소거로 돌아간다." 실브라우저 하네스(`scripts/verify-multiview-audio.mjs`)로
- * 재현했다: 비활성 슬롯의 음소거를 풀면 스타일 가드(500ms)가 다시 음소거했다.
- * 이제는 다시 걸지 않고 **부모에 활성 슬롯 승격을 요청**한다.
+ * 🔴 정책 변경 (요청 2026-08-20): **모든 슬롯이 소리를 낸다.** 예전에는 활성 슬롯 하나만
+ * 소리를 내고 나머지를 강제 음소거했다 — 이제 `createSlotAudio` 는 **어느 슬롯의 음소거도
+ * 건드리지 않는다.** 남은 역할은 마스터 볼륨 적용과, 사용자가 직접 음소거를 풀면 초점(오디오
+ * 아님) 승격을 요청하는 것뿐이다.
  *
  * ⚠️ jsdom 은 `video.muted` 를 바꿔도 `volumechange` 를 쏘지 않는다. 실제 브라우저는
- * **값이 바뀔 때만** 쏘므로 `setMuted` 헬퍼가 그 동작을 흉내낸다. 흉내를 내지 않으면
- * "우리 조작 vs 사용자 조작" 구분 자체를 시험할 수 없다.
+ * **값이 바뀔 때만** 쏘므로 `setMuted` 헬퍼가 그 동작을 흉내낸다.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -27,11 +26,6 @@ function mountVideo(): HTMLVideoElement {
 function setMuted(video: HTMLVideoElement, next: boolean): void {
   if (video.muted === next) return;
   video.muted = next;
-  video.dispatchEvent(new Event('volumechange'));
-}
-
-/** 우리 코드가 쓴 뒤 브라우저가 뒤늦게 쏘는 `volumechange` 를 흉내낸다. */
-function flushOurWrite(video: HTMLVideoElement): void {
   video.dispatchEvent(new Event('volumechange'));
 }
 
@@ -84,24 +78,11 @@ describe('buildSlotModeCss — 되살리기 범위', () => {
   });
 });
 
-describe('createSlotAudio — 부모 지시 반영', () => {
-  it('비활성 슬롯을 음소거하고 활성 슬롯의 소리를 켠다', () => {
+describe('createSlotAudio — 음소거는 건드리지 않는다 (2026-08-20 정책 변경)', () => {
+  it('마스터 볼륨을 0~1 로 클램프해 적용한다', () => {
     const video = mountVideo();
     const audio = createSlotAudio(() => video, vi.fn());
 
-    audio.setActive(false);
-    expect(video.muted).toBe(true);
-
-    audio.setActive(true);
-    expect(video.muted).toBe(false);
-    audio.dispose();
-  });
-
-  it('활성 슬롯에만 볼륨을 적용하고 0~1 로 클램프한다', () => {
-    const video = mountVideo();
-    const audio = createSlotAudio(() => video, vi.fn());
-
-    audio.setActive(true);
     audio.setVolume(40);
     expect(video.volume).toBeCloseTo(0.4);
 
@@ -110,25 +91,52 @@ describe('createSlotAudio — 부모 지시 반영', () => {
     audio.dispose();
   });
 
+  it('어느 슬롯도 우리가 음소거하지 않는다 — 음소거 상태였던 슬롯은 그대로 음소거로 남는다', () => {
+    const video = mountVideo();
+    setMuted(video, true);
+    const audio = createSlotAudio(() => video, vi.fn());
+
+    audio.setVolume(70);
+    audio.reattach();
+    audio.reattach();
+
+    expect(video.muted).toBe(true);
+    audio.dispose();
+  });
+
+  it('어느 슬롯도 우리가 음소거하지 않는다 — 사용자가 푼 음소거를 재확인이 다시 걸지 않는다', () => {
+    const video = mountVideo();
+    const audio = createSlotAudio(() => video, vi.fn());
+
+    setUserActivation(true);
+    setMuted(video, false);
+
+    // 스타일 가드가 500ms 마다 부르는 경로. 예전 버전(활성 슬롯 개념)에서는 여기서 다시 음소거했다.
+    audio.reattach();
+    audio.reattach();
+
+    expect(video.muted).toBe(false);
+    audio.dispose();
+  });
+
   it('비디오가 아직 없으면 조용히 넘어간다', () => {
     document.body.innerHTML = '';
     const audio = createSlotAudio(() => null, vi.fn());
     expect(() => {
-      audio.setActive(true);
-      audio.reassert();
+      audio.setVolume(50);
+      audio.reattach();
     }).not.toThrow();
     audio.dispose();
   });
 });
 
 describe('createSlotAudio — 사용자 조작 구분 (사용자 보고 2026-08-15)', () => {
-  it('(a) 사용자가 비활성 슬롯의 음소거를 풀면 승격을 요청한다', () => {
+  it('(a) 사용자가 이 슬롯의 음소거를 풀면 초점 승격을 요청한다', () => {
     const video = mountVideo();
     const promote = vi.fn();
     const audio = createSlotAudio(() => video, promote);
-
-    audio.setActive(false);
-    expect(video.muted).toBe(true);
+    setMuted(video, true);
+    audio.reattach();
 
     setUserActivation(true);
     setMuted(video, false);
@@ -137,86 +145,31 @@ describe('createSlotAudio — 사용자 조작 구분 (사용자 보고 2026-08-
     audio.dispose();
   });
 
-  it('(b) 우리가 건 음소거는 사용자 조작으로 오해되지 않는다', () => {
+  it('(b) 우리가 볼륨만 바꾼 것은 승격 요청을 트리거하지 않는다', () => {
     const video = mountVideo();
     const promote = vi.fn();
     const audio = createSlotAudio(() => video, promote);
 
-    // 사용자 활성화가 살아 있어도(직전에 다른 버튼을 눌렀어도) 우리 조작은 우리 조작이다.
+    // 이미 소리 나는 슬롯에서 마스터 볼륨을 바꾼 상황 — `volumechange` 는 오지만 음소거는
+    // 그대로 풀린 상태다(음소거→해제 전환이 아니다).
     setUserActivation(true);
-    audio.setActive(true);
-    flushOurWrite(video);
-    audio.setActive(false);
-    flushOurWrite(video);
+    audio.setVolume(70);
 
     expect(promote).not.toHaveBeenCalled();
-    expect(video.muted).toBe(true);
     audio.dispose();
   });
 
-  it('(c) 사용자가 푼 음소거를 재확인이 다시 걸지 않는다 — 핵심 회귀', () => {
+  it('(c) 플레이어가 스스로 음소거를 풀면(사용자 활성화 없음) 승격을 요청하지 않는다', () => {
     const video = mountVideo();
-    const audio = createSlotAudio(() => video, vi.fn());
-
-    audio.setActive(false);
-    setUserActivation(true);
-    setMuted(video, false);
-
-    // 스타일 가드가 500ms 마다 부르는 경로. 예전에는 여기서 다시 음소거했다.
-    audio.reassert();
-    audio.reassert();
-
-    expect(video.muted).toBe(false);
-    audio.dispose();
-  });
-
-  it('사용자가 활성 슬롯을 직접 음소거하면 재확인이 되돌리지 않는다', () => {
-    const video = mountVideo();
-    const audio = createSlotAudio(() => video, vi.fn());
-
-    audio.setActive(true);
-    setUserActivation(true);
+    const promote = vi.fn();
+    const audio = createSlotAudio(() => video, promote);
     setMuted(video, true);
+    audio.reattach();
 
-    audio.reassert();
-    expect(video.muted).toBe(true);
-    audio.dispose();
-  });
-
-  it('플레이어가 스스로 음소거를 되돌리면(사용자 활성화 없음) 다시 음소거한다', () => {
-    const video = mountVideo();
-    const promote = vi.fn();
-    const audio = createSlotAudio(() => video, promote);
-
-    audio.setActive(false);
     setUserActivation(false);
-    // 치지직 플레이어 초기화가 muted 를 되돌린 상황.
     setMuted(video, false);
 
     expect(promote).not.toHaveBeenCalled();
-    audio.reassert();
-    expect(video.muted).toBe(true);
-    audio.dispose();
-  });
-
-  it('부모가 승격을 승인하면 소리가 나고, 거절하면 다시 음소거된다', () => {
-    const video = mountVideo();
-    const audio = createSlotAudio(() => video, vi.fn());
-
-    audio.setActive(false);
-    setUserActivation(true);
-    setMuted(video, false);
-
-    // 승인 — 사용자 조작 표시가 지워지고 활성 상태가 굳는다.
-    audio.setActive(true);
-    audio.reassert();
-    expect(video.muted).toBe(false);
-
-    // 다른 슬롯이 승격되면 이 슬롯은 다시 음소거된다 (오디오는 한 슬롯만).
-    audio.setActive(false);
-    flushOurWrite(video);
-    audio.reassert();
-    expect(video.muted).toBe(true);
     audio.dispose();
   });
 
@@ -224,9 +177,10 @@ describe('createSlotAudio — 사용자 조작 구분 (사용자 보고 2026-08-
     const video = mountVideo();
     const promote = vi.fn();
     const audio = createSlotAudio(() => video, promote);
-
-    audio.setActive(false);
+    setMuted(video, true);
+    audio.reattach();
     setUserActivation(true);
+
     for (let i = 0; i < 5; i += 1) {
       setMuted(video, false);
       setMuted(video, true);
@@ -240,8 +194,8 @@ describe('createSlotAudio — 사용자 조작 구분 (사용자 보고 2026-08-
     const video = mountVideo();
     const promote = vi.fn();
     const audio = createSlotAudio(() => video, promote);
-
-    audio.setActive(false);
+    setMuted(video, true);
+    audio.reattach();
     audio.dispose();
 
     setUserActivation(true);
@@ -255,18 +209,25 @@ describe('createSlotAudio — 사용자 조작 구분 (사용자 보고 2026-08-
       () => document.querySelector('video') as HTMLVideoElement | null,
       vi.fn(),
     );
-    audio.setActive(false);
-    expect(first.muted).toBe(true);
+    setMuted(first, true);
+    audio.reattach();
 
     // 플레이어 리렌더로 video 가 통째로 갈린 상황.
     first.remove();
     const layout = document.getElementById('live_player_layout') as HTMLElement;
     const second = document.createElement('video');
+    second.muted = true;
     layout.appendChild(second);
+    audio.reattach();
 
-    audio.reassert();
-    expect(second.muted).toBe(true);
+    const promote = vi.fn();
+    const audio2 = createSlotAudio(() => second, promote);
+    audio2.reattach();
+    setUserActivation(true);
+    setMuted(second, false);
+    expect(promote).toHaveBeenCalledTimes(1);
     audio.dispose();
+    audio2.dispose();
   });
 });
 
