@@ -147,7 +147,17 @@ describe('createIconElement — 바닐라 DOM 헬퍼', () => {
       expect(svg.getAttribute('stroke')).toBe('currentColor');
       expect(svg.getAttribute('aria-hidden')).toBe('true');
       expect(svg.getAttribute('focusable')).toBe('false');
-      expect(svg.querySelector('path')?.getAttribute('d')).toBe(ICON_PATHS[name]);
+      // `ICON_PATHS[name]` 은 단일 path 문자열이거나 `{ tag, ... }` 목록이다(예: rect 를 곁들이는
+      // layoutRight/layoutBottom). 둘 다 같은 개수·순서의 자식 엘리먼트로 그려지는지 본다.
+      const spec = ICON_PATHS[name];
+      if (typeof spec === 'string') {
+        expect(svg.querySelector('path')?.getAttribute('d')).toBe(spec);
+        return;
+      }
+      expect(svg.children).toHaveLength(spec.length);
+      spec.forEach((shape, index) => {
+        expect(svg.children[index]?.tagName.toLowerCase()).toBe(shape.tag);
+      });
     },
   );
 
