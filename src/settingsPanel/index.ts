@@ -47,7 +47,7 @@ export const settingsPanelFeature: Feature = {
     const stopButton = mountControlBarButton({
       id: OURS.settingsButtonId,
       ariaLabel: '이지직 설정',
-      content: '⚙',
+      icon: 'gear',
       badge: true,
       minTargetPx: ctx.device.profile.touchTargetPx,
       onClick: toggle,

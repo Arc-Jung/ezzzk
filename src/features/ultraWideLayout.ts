@@ -38,6 +38,7 @@ import {
 import { guardAsync, info } from '../utils/log';
 import { isScrolledToBottom } from './chatFont';
 import { ensureWideScreen } from './wideScreen';
+import { createIconElement } from '../ui/icons';
 import type { Feature } from './types';
 
 // TODO(consolidate into constants/class.ts OURS)
@@ -243,7 +244,7 @@ export const ultraWideFeature: Feature = {
       const button = document.createElement('button');
       button.id = CHAT_INPUT_TOGGLE_ID;
       button.type = 'button';
-      button.textContent = '💬';
+      button.appendChild(createIconElement('chatBubble'));
       button.setAttribute('aria-label', '채팅 입력창 펼치기');
       button.setAttribute('aria-expanded', 'false');
       button.addEventListener('click', (event) => {

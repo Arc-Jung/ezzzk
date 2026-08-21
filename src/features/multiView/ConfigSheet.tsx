@@ -18,7 +18,7 @@ import type {
   SplitCount,
 } from '../../constants/storage';
 import { Sheet } from '../../ui/Sheet';
-import { CloseIcon, LiveDotIcon, PlusIcon } from '../../ui/icons';
+import { CloseIcon, LiveDotIcon, MinusIcon, PlusIcon } from '../../ui/icons';
 import { OURS } from '../../constants/class';
 import { CONFIG_SHEET_CSS } from './configSheetCss';
 import { upsertStyle } from '../../utils/dom';
@@ -417,7 +417,7 @@ export function ConfigSheet({
             disabled={slotChatLines <= 0}
             onClick={() => setSlotChatLines((n) => Math.max(0, n - 1) as SlotLines)}
           >
-            −
+            <MinusIcon />
           </button>
           <output>{slotChatLines}</output>
           <button
@@ -426,7 +426,7 @@ export function ConfigSheet({
             disabled={slotChatLines >= 5}
             onClick={() => setSlotChatLines((n) => Math.min(5, n + 1) as SlotLines)}
           >
-            +
+            <PlusIcon />
           </button>
         </span>
         <label>
