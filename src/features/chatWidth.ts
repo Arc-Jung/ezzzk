@@ -13,6 +13,7 @@
  */
 
 import { CHZZK, ID, OURS, PLAYER } from '../constants/class';
+import { createIconElement, type IconName } from '../ui/icons';
 import { hasSideChat } from '../pageType';
 import { freeWidthIn, resolveToolsSlot } from './chatPreset';
 import { CONTROL_ITEM_CLASS, ensureControlBarAutoHideCss } from './controlBar';
@@ -302,6 +303,35 @@ const CONTROL_GAP_PX = 4;
 const ITEM_COUNT = 4;
 
 /**
+ * `player-right-center` 에서 4개를 세로 한 줄로 쌓았을 때, 그 높이가 플레이어 높이의 이 비율을
+ * 넘으면 2×2 로 접는다. **플레이어 높이로 판정한다** (프로필 이름이 아니다) — 회전·창 크기 변화를
+ * 그대로 따라가야 한다 (FR-12.1, 캐시하지 않는다).
+ *
+ * 근거 (2026-08-21 실측, `etc/probe/chat-width-vertical.json`):
+ * - laptop13: 세로 한 줄 148px / 플레이어 900px = 16.4% → 유지해도 된다.
+ * - mobile-portrait: 세로 한 줄 196px / 플레이어 232px = 84.5% → 영상 오른쪽 한 줄을 통째로 먹는다.
+ * 0.5 는 이 둘 사이 — laptop13(16%) 을 건드리지 않으면서 mobile-portrait(85%) 를 잡는다.
+ */
+export const PLAYER_RIGHT_COMPACT_RATIO = 0.5;
+
+/**
+ * `player-right-center` 세로 한 줄 높이(px). 버튼 `size`개(`ITEM_COUNT`) + 사이 간격 + 위아래 패딩.
+ * `controlCss` 의 `.${ITEMS_CLASS}` gap·컨테이너 padding 과 **같은 공식**이어야 실측과 어긋나지 않는다.
+ */
+export function playerRightColumnHeightPx(size: number): number {
+  return ITEM_COUNT * size + (ITEM_COUNT - 1) * PLAYER_RIGHT_GAP_PX + 2 * PLAYER_RIGHT_GAP_PX;
+}
+
+/**
+ * 2×2 로 접었을 때의 높이(px, 폭도 같다 — 2열 2행이라 정사각 그리드). 접힌 뒤에도 넘치면
+ * (매우 좁은 플레이어) 더 줄이지 않는다 — 요구사항은 간격까지만 줄이라고 했고, 간격은 이미
+ * `PLAYER_RIGHT_GAP_PX` 로 최소치다. 아이콘 크기(`size`)는 터치 타겟 하한이라 더 줄이면 안 된다.
+ */
+export function playerRightGridHeightPx(size: number): number {
+  return 2 * size + PLAYER_RIGHT_GAP_PX + 2 * PLAYER_RIGHT_GAP_PX;
+}
+
+/**
  * 떠 있는 묶음을 영상 위에 놓을 때 쓰는 값들.
  *
  * - `FLOATING_TOP_PX` 96 — 치지직 헤더(60px)와 채팅 헤더 아래. 컨트롤바는 영상 **아래쪽**이라
@@ -418,6 +448,21 @@ function controlCss(touchTargetPx: number): string {
   gap: ${PLAYER_RIGHT_GAP_PX}px;
 }
 /*
+  🔴 2×2 접힘 — 세로 한 줄(playerRightColumnHeightPx)이 플레이어 높이의 절반을 넘을 때만
+  JS(updatePlayerRightCompact)가 data-compact="true" 를 세운다.
+  실측(etc/probe/chat-width-vertical.json) 기준 mobile-portrait(44px 터치 타겟, 4px 간격):
+  - 1열 196px / 플레이어 232px = 84.5% → 영상 오른쪽 한 줄을 통째로 먹었다.
+  - 2×2(playerRightGridHeightPx) 100px / 플레이어 232px = 43.1% → 절반 이하로 내려간다.
+  🔴 터치 타겟은 줄이지 않는다 — grid 칸도 버튼과 같은 ${size}px 다(간격만 좁아진다).
+  ⚠️ 이 문자열은 템플릿 리터럴이다 — 주석에 백틱을 쓰지 않는다 (빌드가 깨진다).
+*/
+#${CONTROL_ID}[data-anchor="player-right-center"][data-compact="true"] .${ITEMS_CLASS} {
+  display: grid;
+  grid-template-columns: repeat(2, ${size}px);
+  grid-auto-rows: ${size}px;
+  gap: ${PLAYER_RIGHT_GAP_PX}px;
+}
+/*
   도구 행에 4개를 펼칠 자리가 없으면 **채팅 영역 바깥(영상 위)** 에 띄운다.
   🔴 예전에는 컨트롤 바로 위(bottom: 100%)로 열었는데, 그 자리가 정확히 치지직 입력창이라
   1180x820 · 1440x900 · 1920x950 · 915x412 전부에서 textarea 중앙을 덮었고 태블릿10 가로에서는
@@ -528,18 +573,20 @@ export const chatWidthFeature: Feature = {
       if (collapsed) {
         // 접기는 언제나 명시적 조작이다 — 자동 계산값에 지면 버튼이 죽은 것으로 보인다.
         claimWidth('chatWidth', 0, 'collapsed by user', 'flex', { userOverride: true });
-        return;
+      } else {
+        const viewport = readViewport();
+        // 하단 배치에서는 claim 값이 **높이**로 해석되므로 기준 변도 높이여야 한다.
+        const widthPx = ratioToPx(ratio, ratioBasisPx(placement, viewport));
+        claimWidth(
+          'chatWidth',
+          widthPx,
+          `ratio ${ratio}% (${placement})`,
+          placement === 'bottom' ? 'bottom' : 'flex',
+          { userOverride: userOverride() },
+        );
       }
-      const viewport = readViewport();
-      // 하단 배치에서는 claim 값이 **높이**로 해석되므로 기준 변도 높이여야 한다.
-      const widthPx = ratioToPx(ratio, ratioBasisPx(placement, viewport));
-      claimWidth(
-        'chatWidth',
-        widthPx,
-        `ratio ${ratio}% (${placement})`,
-        placement === 'bottom' ? 'bottom' : 'flex',
-        { userOverride: userOverride() },
-      );
+      // 폭·배치·접힘 중 무엇이 바뀌었든 플레이어 높이가 달라질 수 있다 — 매번 다시 판정한다.
+      updatePlayerRightCompact();
     };
 
     /**
@@ -633,11 +680,17 @@ export const chatWidthFeature: Feature = {
       info(`chat width collapsed: ${String(collapsed)}`);
     };
 
-    const makeButton = (label: string, text: string, onClick: () => void): HTMLButtonElement => {
+    /**
+     * 🔴 문자·이모지 대신 `createIconElement` 로 SVG 를 붙인다 — 접기/펼치기·위치 전환처럼
+     * 상태에 따라 아이콘이 바뀌는 버튼이 있는데, `textContent` 로 갈아치우면 SVG 자식 노드가
+     * 통째로 날아간다. 그래서 아이콘은 `appendChild`/`replaceChildren` 으로만 바꾼다
+     * (`updateCollapseButton`·`updatePlacementButton` 참조). `aria-label` 은 그대로 둔다.
+     */
+    const makeButton = (label: string, icon: IconName, onClick: () => void): HTMLButtonElement => {
       const button = document.createElement('button');
       button.type = 'button';
       button.setAttribute('aria-label', label);
-      button.textContent = text;
+      button.appendChild(createIconElement(icon));
       button.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -725,7 +778,10 @@ export const chatWidthFeature: Feature = {
       placementButton.setAttribute('aria-label', `채팅 위치를 ${next}로 옮기기`);
       placementButton.title = `채팅 위치: ${placement === 'right' ? '오른쪽' : '아래'} (누르면 ${next})`;
       // 현재 배치를 아이콘으로 보여 준다 — 다음 상태가 아니라 현재 상태다(혼동 방지).
-      placementButton.textContent = placement === 'right' ? '▦' : '▤';
+      // `textContent` 를 쓰면 SVG 자식이 통째로 사라진다 — `replaceChildren` 으로만 갈아치운다.
+      placementButton.replaceChildren(
+        createIconElement(placement === 'right' ? 'layoutRight' : 'layoutBottom'),
+      );
     }
 
     const togglePlacement = (): void => {
@@ -746,7 +802,8 @@ export const chatWidthFeature: Feature = {
       if (!collapseButton) return;
       collapseButton.setAttribute('aria-label', collapsed ? '채팅 펼치기' : '채팅 접기');
       collapseButton.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
-      collapseButton.textContent = collapsed ? '⟨' : '⟩';
+      // `textContent` 를 쓰면 SVG 자식이 통째로 사라진다 — `replaceChildren` 으로만 갈아치운다.
+      collapseButton.replaceChildren(createIconElement(collapsed ? 'chevronLeft' : 'chevronRight'));
     }
 
     /**
@@ -763,13 +820,26 @@ export const chatWidthFeature: Feature = {
         toggleButton?.remove();
         toggleButton = null;
       } else if (!toggleButton) {
-        toggleButton = makeButton('채팅 폭 조절 열기', '↔', () => {
+        toggleButton = makeButton('채팅 폭 조절 열기', 'resizeHorizontal', () => {
           expanded = !expanded;
           updateToggleButton();
         });
         controlEl.insertBefore(toggleButton, controlEl.firstChild);
       }
       updateToggleButton();
+    };
+    /**
+     * `player-right-center` 세로 한 줄이 플레이어 높이의 절반을 넘으면 2×2 로 접는다.
+     * 플레이어 실측 높이를 **매번 다시 읽는다** (캐시하지 않는다, FR-12.1) — 회전·하단 배치
+     * 전환으로 aside 가 커지면 `PLAYER.rootPc` 자체의 높이가 줄어들기 때문이다.
+     */
+    const updatePlayerRightCompact = (): void => {
+      if (!controlEl?.isConnected || controlEl.dataset['anchor'] !== 'player-right-center') return;
+      const playerHeight = qs<HTMLElement>(PLAYER.rootPc)?.getBoundingClientRect().height;
+      if (!playerHeight) return; // 못 재면 기존 1열을 유지한다 — 잘못된 접힘보다 안전하다.
+      const size = Math.max(28, Math.round(ctx.device.profile.touchTargetPx));
+      const compact = playerRightColumnHeightPx(size) / playerHeight > PLAYER_RIGHT_COMPACT_RATIO;
+      controlEl.dataset['compact'] = compact ? 'true' : 'false';
     };
 
     /**
@@ -780,6 +850,8 @@ export const chatWidthFeature: Feature = {
       anchorControl(container);
       // 자리(인라인/팝오버/플로팅)가 바뀌면 팝오버를 띄울 높이도 다시 재야 한다.
       placeOverlay();
+      // 앵커가 그대로여도(예: 창 크기만 바뀜) 플레이어 높이가 바뀔 수 있다 — 매번 다시 판정한다.
+      updatePlayerRightCompact();
     };
 
     const anchorControl = (container: HTMLElement): void => {
@@ -870,15 +942,15 @@ export const chatWidthFeature: Feature = {
       items.className = ITEMS_CLASS;
       itemsEl = items;
 
-      items.appendChild(makeButton('채팅 폭 늘리기', '+', () => changeRatio(1)));
-      items.appendChild(makeButton('채팅 폭 줄이기', '−', () => changeRatio(-1)));
+      items.appendChild(makeButton('채팅 폭 늘리기', 'plus', () => changeRatio(1)));
+      items.appendChild(makeButton('채팅 폭 줄이기', 'minus', () => changeRatio(-1)));
 
-      collapseButton = makeButton('채팅 접기', '⟩', toggleCollapse);
+      collapseButton = makeButton('채팅 접기', 'chevronRight', toggleCollapse);
       updateCollapseButton();
       items.appendChild(collapseButton);
 
       // `+ − ⟩` 다음에 위치 전환 버튼을 둔다 (요청).
-      placementButton = makeButton('채팅 위치 바꾸기', '▦', togglePlacement);
+      placementButton = makeButton('채팅 위치 바꾸기', 'layoutRight', togglePlacement);
       updatePlacementButton();
       items.appendChild(placementButton);
 
