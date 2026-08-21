@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEVICE_PROFILES } from '../constants/device';
 import { DEFAULT_SETTINGS, STORAGE_KEY, type Settings } from '../constants/storage';
 import { resetAllSettings } from '../storage';
+import { auditIconButtons } from '../ui/iconButtonAudit.test-utils';
 import type { FeatureContext } from './types';
 import {
   VOLUME_STORAGE_KEYS,
@@ -816,6 +817,28 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
     expect(group?.contains(button)).toBe(true);
     expect(group?.querySelector('button[aria-label="볼륨 낮추기"]')).not.toBeNull();
     expect(group?.querySelector('button[aria-label="볼륨 높이기"]')).not.toBeNull();
+
+    dispose?.();
+  });
+
+  /**
+   * P3 아이콘 치환 회귀 — 볼륨 컨트롤의 `−`·`+`·평탄화 셋 다 아이콘 전용이 됐다.
+   * 개별 `aria-label` 검사(위 테스트)는 이름을 아는 버튼만 본다. 여기서는 반대로
+   * **컨트롤 안의 모든 버튼**을 훑어 새 버튼이 라벨 없이 끼어드는 것을 막는다.
+   */
+  it('볼륨 컨트롤의 모든 아이콘 버튼에 접근성 이름이 있다', async () => {
+    vi.useFakeTimers();
+    addVideo(mountPlayer());
+    const dispose = volumeFeature.start(ctx);
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    const group = document.getElementById('cm-volume-control');
+    expect(group).not.toBeNull();
+    const audit = auditIconButtons(group as HTMLElement, {
+      expectAtLeast: 3,
+      context: 'volume control',
+    });
+    expect(audit.auditedIconButtons).toBe(audit.totalButtons);
 
     dispose?.();
   });
