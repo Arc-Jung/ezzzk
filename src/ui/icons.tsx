@@ -35,11 +35,49 @@ function strokeSvgProps(size: number, className: string | undefined): SVGProps<S
   };
 }
 
+/**
+ * `stage.ts`·`volume.ts` 는 바닐라 DOM 코드라 React 컴포넌트를 그대로 쓸 수 없다.
+ * 이 path 데이터를 React 컴포넌트와 `createIconElement` DOM 헬퍼가 함께 참조한다 —
+ * 복붙하면 한쪽만 고쳐져 갈라진다(이 저장소에서 화질 폴백이 정확히 그렇게 재발했다).
+ */
+export const ICON_PATHS = {
+  plus: 'M8 3v10M3 8h10',
+  minus: 'M3 8h10',
+  close: 'M3.5 3.5l9 9M12.5 3.5l-9 9',
+} as const;
+
+export type IconName = keyof typeof ICON_PATHS;
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * `stage.ts`·`volume.ts` 전용 DOM 아이콘 생성기.
+ * `document.createElement` 로 SVG 를 만들면 렌더되지 않으므로 반드시
+ * `createElementNS` 를 쓴다. React 컴포넌트와 같은 `ICON_PATHS` 를 참조한다.
+ */
+export function createIconElement(name: IconName, size = 16): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', ICON_PATHS[name]);
+  svg.appendChild(path);
+  return svg;
+}
+
 /** `+` 대체 — 가로선 + 세로선 십자. */
 export function PlusIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...strokeSvgProps(size, className)}>
-      <path d="M8 3v10M3 8h10" />
+      <path d={ICON_PATHS.plus} />
     </svg>
   );
 }
@@ -48,7 +86,7 @@ export function PlusIcon({ size = 16, className }: IconProps) {
 export function MinusIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...strokeSvgProps(size, className)}>
-      <path d="M3 8h10" />
+      <path d={ICON_PATHS.minus} />
     </svg>
   );
 }
@@ -57,7 +95,7 @@ export function MinusIcon({ size = 16, className }: IconProps) {
 export function CloseIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...strokeSvgProps(size, className)}>
-      <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+      <path d={ICON_PATHS.close} />
     </svg>
   );
 }

@@ -390,6 +390,28 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     dispose?.();
   });
 
+  it('볼륨 −/+ 버튼은 문자가 아니라 aria-hidden svg 아이콘이다 (NFR-10 전수 검사)', async () => {
+    vi.useFakeTimers();
+    const dispose = volumeFeature.start(ctx);
+
+    const root = mountPlayer();
+    addVideo(root);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    const buttons = control()?.querySelectorAll<HTMLButtonElement>('.cm-volume-button');
+    expect(buttons?.length).toBe(2);
+    for (const button of Array.from(buttons ?? [])) {
+      expect(button.getAttribute('aria-label')).toBeTruthy();
+      expect(button.textContent).toBe('');
+      const svg = button.querySelector('svg');
+      expect(svg).toBeTruthy();
+      expect(svg?.getAttribute('aria-hidden')).toBe('true');
+      expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
+    }
+
+    dispose?.();
+  });
+
   it('플레이어가 늦게 붙어도 성공하면 대기 타이머가 남지 않는다', async () => {
     vi.useFakeTimers();
 
