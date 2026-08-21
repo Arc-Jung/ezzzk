@@ -4,7 +4,9 @@
  * Playwright 실브라우저 검증의 몫이다 (요구사항 §8.0).
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { act, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { CHAT_FONT_RANGE, DEFAULT_SETTINGS, LIMITS } from '../constants/storage';
 import { lineHeightForFont, visibleLines } from '../features/chatFont';
 import { computeSlotRects, stripMetrics } from '../features/multiView/slotLayout';
@@ -13,6 +15,7 @@ import {
   SIDE_CHAT_PX,
   TABS,
   TAB_IDS,
+  Toggle,
   chatOccupancyText,
   formatLoss,
   placementTradeOff,
@@ -21,6 +24,36 @@ import {
 import { REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
 import { SETTINGS_PANEL_CSS } from './settingsPanelCss';
 import { SHEET_CSS } from '../ui/Sheet';
+
+declare global {
+  // React 18 이 act 지원 환경임을 알리는 표준 플래그. 없으면 경고가 쏟아진다.
+  // eslint-disable-next-line no-var
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+beforeAll(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+let root: Root | null = null;
+let host: HTMLElement | null = null;
+
+function mount(node: ReactElement) {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  act(() => {
+    root!.render(node);
+  });
+}
+
+afterEach(() => {
+  act(() => root?.unmount());
+  root = null;
+  host?.remove();
+  host = null;
+  document.body.replaceChildren();
+});
 
 /**
  * 🔴 실측 회귀 2026-08-16 (실사이트 모바일 가로 915×412).
@@ -39,6 +72,26 @@ describe('좁은/짧은 화면 대응 CSS', () => {
   it('시트 본문은 min-height: 0 이라 푸터를 밀어내지 않는다', () => {
     expect(SHEET_CSS).toMatch(/\.cm-sheet__body \{[^}]*min-height: 0/);
     expect(SHEET_CSS).toMatch(/\.cm-sheet__body \{[^}]*overflow-y: auto/);
+  });
+});
+
+/**
+ * 감사 보고서 심각도 높음 #3 — 채팅·소리·기타 탭 하단 컨트롤이 스크롤 없이 안 보이는데
+ * 신호가 없었다. JS 스크롤 리스너 없이 배경 이중 레이어로만 처리했는지 확인한다.
+ */
+describe('설정 패널 하단 스크롤 신호', () => {
+  it(':has() 로 설정 패널 본문에만 적용된다 (다른 시트 스크롤은 건드리지 않는다)', () => {
+    expect(SETTINGS_PANEL_CSS).toContain('.cm-sheet__body:has(.cm-sp)');
+  });
+
+  it('local/scroll 이중 배경 레이어를 쓴다 (JS 스크롤 리스너 없음)', () => {
+    const block = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sheet__body:has(.cm-sp)'),
+    );
+    expect(block).toContain('background-attachment: local, scroll;');
+    // 별도 오버레이 엘리먼트가 없는 배경 트릭이므로 pointer-events 를 걸 대상 자체가 없다 —
+    // 그 이유를 CSS 주석에 남겨 리뷰어가 "왜 pointer-events: none 이 없냐"고 재차 묻지 않게 한다.
+    expect(SETTINGS_PANEL_CSS).toContain('pointer-events');
   });
 });
 
@@ -167,5 +220,110 @@ describe('상한', () => {
     expect(LIMITS.optionPresets).toBe(20);
     expect(LIMITS.multiViewSets).toBe(10);
     expect(LIMITS.chatPresets).toBe(50);
+  });
+});
+
+/**
+ * 켜기/끄기 토글 방향·색·글자 회귀 (사용자 보고: "방향이 반대라 헷갈리고 ON/OFF 구별이 안 된다").
+ * 표준 방향은 OFF = 노브 왼쪽 · ON = 노브 오른쪽인데, 예전 글자 그림(켜기 ●──/끄기 ──○)은
+ * 정반대였다. CSS 로 그린 실제 스위치(트랙+노브)로 바꾸면서 방향을 함께 바로잡는다.
+ */
+describe('켜기/끄기 토글', () => {
+  function toggleButton(): HTMLButtonElement {
+    return document.querySelector('button.cm-sp__toggle') as HTMLButtonElement;
+  }
+
+  it('OFF 일 때 aria-checked=false 이고 "끄기" 글자가 남는다', () => {
+    mount(<Toggle label="화질 자동 적용" checked={false} onChange={() => {}} />);
+    const button = toggleButton();
+    expect(button.getAttribute('aria-checked')).toBe('false');
+    expect(button.textContent).toContain('끄기');
+    expect(button.textContent).not.toContain('켜기');
+  });
+
+  it('ON 일 때 aria-checked=true 이고 "켜기" 글자가 남는다', () => {
+    mount(<Toggle label="화질 자동 적용" checked={true} onChange={() => {}} />);
+    const button = toggleButton();
+    expect(button.getAttribute('aria-checked')).toBe('true');
+    expect(button.textContent).toContain('켜기');
+    expect(button.textContent).not.toContain('끄기');
+  });
+
+  it('방향 회귀 방지: CSS 상 OFF 노브는 기본 위치(왼쪽)이고 ON 은 translateX 로 오른쪽이다', () => {
+    // 노브 기본 위치는 left: 2px 로 왼쪽에 고정하고, ON 상태에서만 오른쪽으로 옮긴다.
+    // 이번 버그의 핵심이 "방향이 반대"였으므로, 기본(OFF) 규칙에 translateX 가 없고
+    // ON 전용 규칙(`[aria-checked='true']`)에만 translateX 가 있는지를 확인한다.
+    const knobBase = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {') + 200,
+    );
+    expect(knobBase).toMatch(/left:\s*2px/);
+    const onRule = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf(".cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-knob"),
+    );
+    expect(onRule).toContain('transform: translateX(16px)');
+  });
+
+  it('ON 과 OFF 의 트랙 색이 서로 다르다 — 색만으로 구분하지 않되 색 자체도 달라야 한다', () => {
+    const offTrack = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {') + 320,
+    );
+    const onTrack = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf(".cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-track"),
+    );
+    expect(onTrack).toContain('#00ffa3');
+    expect(offTrack).not.toContain('#00ffa3');
+
+    /*
+     * 🔴 꺼짐 트랙은 **배경 레이어 색을 쓰면 안 된다** (2026-08-21 회귀 방지).
+     * 예전에 `--color-bg-layer-05`(#24272b) 를 썼는데 패널 배경(#2e3033)과 밝기가 거의 같아
+     * 트랙이 있는지조차 안 보였다 — "켜져 있는지 꺼져 있는지 불명확하다"는 보고의 원인이다.
+     * 반투명 흰색 오버레이라야 어떤 배경 위에서도 한 단 밝게 떠 형태가 읽힌다.
+     */
+    for (const layer of ['--color-bg-layer-01', '--color-bg-layer-04', '--color-bg-layer-05']) {
+      expect(offTrack, `꺼짐 트랙이 배경 레이어(${layer})를 쓰면 배경에 묻힌다`).not.toContain(
+        layer,
+      );
+    }
+    expect(offTrack).toContain('--color-bg-overlay-01');
+  });
+
+  it('꺼짐/켜짐은 노브 밝기로도 갈린다 — 트랙 색 하나에만 기대지 않는다', () => {
+    const offKnob = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {') + 400,
+    );
+    const onKnob = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf(".cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-knob"),
+    );
+    // 꺼짐은 보조색(muted), 켜짐은 최상위 흰색 — 두 값이 실제로 달라야 한다.
+    expect(offKnob).toContain('--color-content-04');
+    expect(onKnob).toContain('--color-content-01');
+  });
+
+  it('꺼짐 트랙에 경계 링이 있다 — 형태가 항상 읽혀야 한다', () => {
+    const offTrack = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {') + 320,
+    );
+    expect(offTrack).toContain('inset 0 0 0 1px');
+  });
+
+  it('클릭하면 role=switch 상태가 뒤집힌다', () => {
+    let checked = false;
+    mount(
+      <Toggle
+        label="VOD에도 적용"
+        checked={checked}
+        onChange={(next) => {
+          checked = next;
+        }}
+      />,
+    );
+    const button = toggleButton();
+    expect(button.getAttribute('role')).toBe('switch');
+    act(() => button.click());
+    expect(checked).toBe(true);
   });
 });

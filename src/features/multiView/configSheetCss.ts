@@ -24,7 +24,7 @@ const TWO_COLUMN_MIN_PX = 680;
  * ⚠️ **이 CSS 는 템플릿 리터럴 안에 들어간다 — 주석에 백틱을 쓰지 않는다.**
  * 백틱을 넣으면 문자열이 끊겨 빌드가 깨진다 (두 번 겪었다).
  */
-import { BG, BORDER, FG, RADIUS } from '../../ui/tokens';
+import { ACCENT, BG, BORDER, FG, RADIUS } from '../../ui/tokens';
 
 export const CONFIG_SHEET_CSS = `
 .cm-mv-splits {
@@ -70,16 +70,20 @@ export const CONFIG_SHEET_CSS = `
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
-  /*
-    🔴 좁은 화면에서는 시트를 더 높게 쓴다 (실측 2026-08-15, mobile-portrait 412×915).
-    공용 시트 높이 min(600px, 80vh) 로는 본문 가시 높이가 468px 뿐인데 위쪽 옵션만 354px,
-    슬롯 배치 99px 이라 목록을 넣기 전에 이미 넘쳤다 (본문 넘침 156px). 그 결과 슬롯 ① 의
-    "소리 활성" 라디오가 본문 바닥(692px)에 걸쳐 하단 푸터에 가렸다.
-    옵션을 줄이는 대신(기능을 없애지 않는다) 세로를 더 준다 — 92vh 로도 목록은 2행뿐이다.
-    멀티뷰 시트에만 적용한다(:has). 다른 시트는 목업 실측값 그대로 둔다.
-  */
-  .cm-sheet-backdrop:has(.cm-mv-columns) .cm-sheet { height: min(860px, 92vh); }
 }
+/*
+  🔴 시트 높이를 넓혀야 채널 10행이 들어간다 (사용자 보고 2026-08-20 "10개씩 보여야 한다", 실측).
+  - 공용 시트 높이 min(600px, 80vh) 에서는 laptop13(1440×900) 본문 가시 영역이 492px 인데
+    위쪽 옵션이 207px 를 먹어 채널 목록엔 285px 밖에 안 남는다 — 행 높이 40px 기준 4행이 한도다.
+  - mobile-portrait(412×915) 는 더 나쁘다: 본문 708px 중 옵션이 343px 를 먹어 목록엔 365px 뿐이라
+    행 높이 52px(터치) 기준 1행도 겨우 채운다(실측 스크린샷 etc/shots/config-sheet-mobile-portrait.png).
+  → 좁은 화면 전용이던 min(860px, 92vh) 오버라이드를 **모든 폭**에 적용한다. 이 프로젝트는
+    모바일 우선이지만 "데스크톱에서만 10개 보이면 안 된다" — 두 화면 다 시트를 키워야 한다.
+    옵션을 줄이는 대신(기능을 없애지 않는다) 세로를 더 준다 — 그래도 10행이 물리적으로
+    안 들어가는 화면(짧은 세로 뷰포트)은 들어갈 만큼만 보여 준다(스크롤로 이어진다).
+    멀티뷰 시트에만 적용한다(:has). 다른 시트는 목업 실측값 그대로 둔다.
+*/
+.cm-sheet-backdrop:has(.cm-mv-columns) .cm-sheet { height: min(900px, 96vh); }
 .cm-mv-columns > section { min-width: 0; }
 .cm-mv-columns h3 { margin: 0 0 6px; font-size: 12px; color: ${FG.muted}; }
 
@@ -172,6 +176,12 @@ export const CONFIG_SHEET_CSS = `
 .cm-mv-channels > li > span:not(:first-child) { flex: 0 0 auto; }
 .cm-mv-channels .cm-sheet__btn { padding: 2px 7px; }
 .cm-offline { opacity: 0.55; }
+/* 방송 상태 점(LiveDotIcon) 색 — currentColor 라 부모에서 color 만 정한다. 빨강은 볼륨 과증폭 경고에 이미 쓰여 의미가 충돌하므로 우리 강조색(ACCENT)을 쓴다. */
+.cm-mv-live--on { color: ${ACCENT}; }
+.cm-mv-live--off { color: ${FG.disabled}; }
+/* 텍스트와 나란히 놓이는 아이콘(빈 슬롯 +, 방송 상태 점) 은 글자 기준선에 맞춰 살짝 내린다. */
+.cm-mv-cell__head svg,
+.cm-mv-channels svg { vertical-align: -1px; }
 
 .cm-stepper { display: inline-flex; align-items: center; gap: 4px; }
 .cm-stepper output { min-width: 24px; text-align: center; }

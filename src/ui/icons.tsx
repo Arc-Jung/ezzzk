@@ -119,6 +119,19 @@ export function GearIcon({ size = 16, className }: IconProps) {
   );
 }
 
+/** 음량 평탄화(컴프레서) 토글 — 높낮이가 제각각인 막대와 그 위 수평 상한선. 큰 소리를 눌러 고르게 만드는 모양. */
+export function CompressorIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...strokeSvgProps(size, className)}>
+      <path d="M2 3.5h12" />
+      <rect x="2.5" y="8" width="2" height="5" />
+      <rect x="5.5" y="5.5" width="2" height="7.5" />
+      <rect x="8.5" y="4" width="2" height="9" />
+      <rect x="11.5" y="7" width="2" height="6" />
+    </svg>
+  );
+}
+
 /** `🔴`/`⚫` 대체 — 방송 상태 점. 유일한 예외로 `fill="currentColor"` 를 쓴다. 색은 CSS 가 정한다. */
 export function LiveDotIcon({ size = 16, className }: IconProps) {
   return (

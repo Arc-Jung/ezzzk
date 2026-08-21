@@ -20,10 +20,15 @@
  * - 치지직 네이티브 단축키 `space` `k` `m` `f` 는 절대 쓰지 않는다 → `Shift+↑` / `Shift+↓`.
  */
 
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+
 import { ID, OURS, PLAYER } from '../constants/class';
 import { MOBILE_PLAYER } from '../constants/classMobile';
 import { hasPlayer, type PageType } from '../pageType';
 import { updateSection } from '../storage';
+import { CompressorIcon } from '../ui/icons';
+import { ACCENT } from '../ui/tokens';
 import { normalizeText, qs, qsVisible, sleep } from '../utils/dom';
 import { guard, guardAsync, info, warning } from '../utils/log';
 import { debounce, observe, type Disposer } from '../utils/observe';
@@ -40,6 +45,9 @@ import {
 } from './audioPipeline';
 import { CONTROL_ITEM_CLASS, ensureControlBarAutoHideCss } from './controlBar';
 import type { Feature } from './types';
+
+/** 컴프레서 토글 아이콘 — 정적 SVG 문자열로 미리 렌더한다 (매 버튼 생성 시 재계산할 필요가 없다). */
+const COMPRESSOR_ICON_MARKUP = renderToStaticMarkup(createElement(CompressorIcon, { size: 14 }));
 
 /** 치지직/PrismPlayer 가 볼륨을 복원하는 localStorage 키 (실측). */
 export const VOLUME_STORAGE_KEYS = {
@@ -289,6 +297,14 @@ export const volumeFeature: Feature = {
      * 같은 취급). 아직 없을 수도 있으므로 모든 사용처에서 null 을 허용한다.
      */
     let video: HTMLVideoElement | null = null;
+    /**
+     * 컴프레서 켜짐 여부의 로컬 사본. `ctx.settings` 는 시작 시점 스냅샷이라 사용자가 방금
+     * 누른 토글을 반영하지 못한다 — `applyAudioGraph` 는 항상 이 값을 읽는다.
+     * 저장은 별도(`toggleCompressor`)로 하고, 그래프 반영은 이 값으로 즉시 한다.
+     */
+    let compressorEnabled = ctx.settings.audio?.compressor?.enabled === true;
+    /** 컴프레서 토글 버튼. `aria-pressed`·`aria-label`·색을 함께 갱신한다. */
+    let compressorButtonEl: HTMLElement | null = null;
 
     const volumeButton = (): HTMLElement | null => qsVisible<HTMLElement>(dom.volumeButton);
     /** ⚠️ `volume === 0` 으로 판별하면 틀린다 (VOD 실측). */
@@ -351,7 +367,9 @@ export const volumeFeature: Feature = {
       const el = video;
       if (!el) return;
       const compressor = ctx.settings.audio?.compressor;
-      const needsGraph = percent > 100 || compressor?.enabled === true;
+      // 🔴 켜짐 여부는 설정 스냅샷이 아니라 로컬 상태(`compressorEnabled`)로 판단한다 —
+      // 컨트롤바 토글은 재시작 없이 즉시 반영돼야 한다 (아래 `toggleCompressor` 참조).
+      const needsGraph = percent > 100 || compressorEnabled;
       if (!needsGraph) return;
 
       const graph = ensureGraph(el);
@@ -360,8 +378,40 @@ export const volumeFeature: Feature = {
       applyBoost(graph, percent);
       if (compressor) {
         applyCompressorParams(graph, compressor);
-        setCompressorEnabled(graph, compressor.enabled);
+        setCompressorEnabled(graph, compressorEnabled);
       }
+    };
+
+    /** 컴프레서 버튼의 `aria-label`·`aria-pressed`·색·`data-*` 를 지금 상태로 맞춘다. */
+    const updateCompressorButton = () => {
+      if (!compressorButtonEl) return;
+      compressorButtonEl.setAttribute('aria-pressed', compressorEnabled ? 'true' : 'false');
+      compressorButtonEl.setAttribute(
+        'aria-label',
+        compressorEnabled ? '음량 평탄화 끄기' : '음량 평탄화 켜기',
+      );
+      // 🔴 색만으로 상태를 전달하지 않는다 — `aria-pressed` 와 `data-enabled` 를 함께 남긴다.
+      compressorButtonEl.dataset.enabled = compressorEnabled ? 'true' : 'false';
+      compressorButtonEl.style.color = compressorEnabled ? ACCENT : '#fff';
+    };
+
+    /**
+     * 사용자가 컴프레서 토글을 눌렀을 때만 호출한다 (버튼 클릭 핸들러 전용).
+     * 그래프에는 즉시 반영하고, 저장은 `origin: 'volume'` 으로 해 자기 자신의 재시작을 막는다
+     * (`volume` 은 `audio` 섹션을 `watches` 하지 않아 재시작되지도 않지만, 다른 창에는
+     * 이 값이 그대로 전파돼야 하므로 저장 자체는 반드시 한다).
+     */
+    const toggleCompressor = () => {
+      const current = ctx.settings.audio?.compressor;
+      if (!current) return;
+      compressorEnabled = !compressorEnabled;
+      updateCompressorButton();
+      applyAudioGraph();
+      void updateSection(
+        'audio',
+        { compressor: { ...current, enabled: compressorEnabled } },
+        { origin: 'volume' },
+      ).catch((e: unknown) => warning('failed to persist compressor toggle', e));
     };
 
     /**
@@ -420,6 +470,38 @@ export const volumeFeature: Feature = {
       });
       return button;
     };
+    /** SVG 아이콘을 담는 토글 버튼. `makeButton` 과 달리 텍스트가 아니라 마크업을 넣는다. */
+    const makeIconButton = (
+      markup: string,
+      ariaLabel: string,
+      onPress: () => void,
+    ): HTMLElement => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'cm-volume-button';
+      // NFR-10 — 삽입한 모든 조작 요소에 aria-label 을 준다. 아이콘은 aria-hidden 이라
+      // 이 라벨이 유일한 접근성 이름이다.
+      button.setAttribute('aria-label', ariaLabel);
+      button.innerHTML = markup;
+      button.style.cssText = [
+        `min-width:${touchSize}px`,
+        `min-height:${touchSize}px`,
+        'display:inline-flex',
+        'align-items:center',
+        'justify-content:center',
+        'background:transparent',
+        'border:0',
+        'padding:0',
+        'color:#fff',
+        'cursor:pointer',
+      ].join(';');
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        guard('volume:button', onPress);
+      });
+      return button;
+    };
 
     const buildNode = (): HTMLElement => {
       const el = document.createElement('div');
@@ -445,9 +527,14 @@ export const volumeFeature: Feature = {
         'font-variant-numeric:tabular-nums',
       ].join(';');
       const plus = makeButton('+', '볼륨 높이기', () => setPercent(stepVolume(percent, 1, step)));
+      const compressorButton = makeIconButton(COMPRESSOR_ICON_MARKUP, '음량 평탄화 켜기', () =>
+        toggleCompressor(),
+      );
+      compressorButtonEl = compressorButton;
 
-      el.append(minus, value, plus);
+      el.append(minus, value, plus, compressorButton);
       valueEl = value;
+      updateCompressorButton();
       return el;
     };
 
@@ -790,6 +877,7 @@ export const volumeFeature: Feature = {
       node?.remove();
       node = null;
       valueEl = null;
+      compressorButtonEl = null;
       // 셀렉터 실패는 이 기능만 조용히 비활성으로 끝낸다 (NFR-05).
       warning(`volume feature disabled: video element not found (${reason})`);
     };
@@ -854,6 +942,7 @@ export const volumeFeature: Feature = {
       node?.remove();
       node = null;
       valueEl = null;
+      compressorButtonEl = null;
     };
   },
 };

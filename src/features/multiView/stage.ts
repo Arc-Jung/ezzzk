@@ -960,13 +960,22 @@ export class MultiViewStage {
   /** 비활성 슬롯 화질 하향 — 대역폭 보호. 기본 켜기이며 설정에서 끌 수 있다. */
   private applyQuality(slot: SlotIndex): void {
     const isActive = slot === this.router.getActive();
-    const target =
-      !isActive && this.settings.multiView.lowerInactiveQuality
-        ? INACTIVE_SLOT_QUALITY
-        : this.settings.quality.target === 'auto'
-          ? '1080p'
-          : this.settings.quality.target;
-    this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'setQuality', slot, target });
+    const isDowngrade = !isActive && this.settings.multiView.lowerInactiveQuality;
+    const target = isDowngrade
+      ? INACTIVE_SLOT_QUALITY
+      : this.settings.quality.target === 'auto'
+        ? '1080p'
+        : this.settings.quality.target;
+    // 🔴 활성 슬롯은 목표가 없으면 최고 화질로 올려도 되지만, 비활성 하향 지시는
+    // 반대로 올리면 안 된다(대역폭 보호가 목적이므로) — slotFrame.ts 의 applySlotQuality 참조.
+    this.post({
+      channel: MV_CHANNEL,
+      dir: 'p2s',
+      kind: 'setQuality',
+      slot,
+      target,
+      raiseIfMissing: !isDowngrade,
+    });
   }
 
   private bindMessages(): void {

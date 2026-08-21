@@ -18,6 +18,7 @@ import type {
   SplitCount,
 } from '../../constants/storage';
 import { Sheet } from '../../ui/Sheet';
+import { CloseIcon, LiveDotIcon, PlusIcon } from '../../ui/icons';
 import { CONFIG_SHEET_CSS } from './configSheetCss';
 import { upsertStyle } from '../../utils/dom';
 import {
@@ -475,7 +476,17 @@ export function ConfigSheet({
                 <div key={index} className="cm-mv-cell">
                   <div className="cm-mv-cell__head">
                     <span>
-                      {CIRCLED[index - 1]} {slot ? `🔴 ${slot.channelName}` : '＋ 비어 있음'}
+                      {CIRCLED[index - 1]}{' '}
+                      {slot ? (
+                        <>
+                          {/* 배치된 슬롯의 실제 방송 여부는 저장하지 않는다 — 항상 강조색으로 표시 (미검증: 오프라인 배치와 구분 없음). */}
+                          <LiveDotIcon size={10} className="cm-mv-live--on" /> {slot.channelName}
+                        </>
+                      ) : (
+                        <>
+                          <PlusIcon size={12} /> 비어 있음
+                        </>
+                      )}
                     </span>
                     {slot ? (
                       <button
@@ -484,7 +495,7 @@ export function ConfigSheet({
                         aria-label={`슬롯 ${index} 비우기`}
                         onClick={() => clearSlot(index)}
                       >
-                        ✕
+                        <CloseIcon size={12} />
                       </button>
                     ) : null}
                   </div>
@@ -515,118 +526,14 @@ export function ConfigSheet({
         <section className="cm-mv-list">
           <div className="cm-mv-scroll" ref={scrollRef}>
             {/*
-            시청자 수 순 인기 방송. 팔로우 목록과 무관하게 항상 보여 준다 —
-            비로그인이면 팔로우 목록이 비어 고를 대상이 없다.
-            10개로 시작해 아래로 스크롤하면 10개씩 더 불러온다.
-          */}
-            {/*
-              🔴 순서 (요청 2026-08-20): **팔로우 → 인기 방송.** 팔로우가 남아 있는 동안에는
-              인기 방송을 보여 주지 않는다 — 스크롤로 팔로우를 다 본 뒤 이어서 나온다.
+              🔴 팔로우 우선 (사용자 보고 2026-08-20): 팔로우한 채널을 먼저 보여 주고,
+              다 보여 준 뒤에만 인기 방송을 이어 붙인다. 비로그인·조회 실패(fallback)면
+              팔로우 목록이 아예 없어 `followExhausted` 가 곧바로 true 가 되므로
+              인기 방송이 바로 나온다 — 목록이 통째로 비는 일이 없다.
+              이 섹션은 하나뿐이다 — `scrollRef`·`sentinelRef` 도 각각 한 번만 붙는다
+              (예전에는 인기 방송 블록이 두 벌 있어 같은 ref 를 두 번 달았고, 나중에
+              마운트된 쪽만 살아남아 앞쪽 높이 계산이 죽었다).
             */}
-            {followExhausted ? (
-              <>
-                <h3>시청자 수 많은 방송 ({popular.length})</h3>
-                {popular.length === 0 && popularLoading ? (
-                  <p className="cm-sheet__note">불러오는 중…</p>
-                ) : null}
-                {popular.length === 0 && !popularLoading ? (
-                  <p className="cm-sheet__note">목록을 가져올 수 없습니다.</p>
-                ) : null}
-                <ul className="cm-mv-channels">
-                  {popular.map((channel, order) => {
-                    const placedAt = placedIndexOf(channel.channelId);
-                    return (
-                      <li key={channel.channelId}>
-                        <span>
-                          <span className="cm-sheet__note">{order + 1}</span> 🔴{' '}
-                          {channel.channelName}
-                        </span>
-                        <span className="cm-sheet__note">
-                          {formatViewers(channel.concurrentUserCount)}
-                        </span>
-                        {placedAt !== null ? (
-                          <span className="cm-sheet__note">· 배치됨 {CIRCLED[placedAt - 1]}</span>
-                        ) : (
-                          <span>{slotButtons(channel)}</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {/* 이 지점이 보이면 다음 10개를 불러온다 (상한까지). */}
-                <div ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />
-                {popularLoading && popular.length > 0 ? (
-                  <p className="cm-sheet__note">더 불러오는 중…</p>
-                ) : null}
-                {popularDone && popular.length > 0 ? (
-                  <p className="cm-sheet__note">목록의 끝입니다.</p>
-                ) : null}
-                {!popularDone && !popularLoading && popularPages >= AUTO_LOAD_PAGE_LIMIT ? (
-                  <button
-                    type="button"
-                    className="cm-sheet__btn"
-                    onClick={() => void loadMorePopular()}
-                  >
-                    더 보기 (10개)
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="cm-mv-list">
-          <div className="cm-mv-scroll" ref={scrollRef}>
-            {/*
-            시청자 수 순 인기 방송. 팔로우 목록과 무관하게 항상 보여 준다 —
-            비로그인이면 팔로우 목록이 비어 고를 대상이 없다.
-            10개로 시작해 아래로 스크롤하면 10개씩 더 불러온다.
-          */}
-            <h3>시청자 수 많은 방송 ({popular.length})</h3>
-            {popular.length === 0 && popularLoading ? (
-              <p className="cm-sheet__note">불러오는 중…</p>
-            ) : null}
-            {popular.length === 0 && !popularLoading ? (
-              <p className="cm-sheet__note">목록을 가져올 수 없습니다.</p>
-            ) : null}
-            <ul className="cm-mv-channels">
-              {popular.map((channel, order) => {
-                const placedAt = placedIndexOf(channel.channelId);
-                return (
-                  <li key={channel.channelId}>
-                    <span>
-                      <span className="cm-sheet__note">{order + 1}</span> 🔴 {channel.channelName}
-                    </span>
-                    <span className="cm-sheet__note">
-                      {formatViewers(channel.concurrentUserCount)}
-                    </span>
-                    {placedAt !== null ? (
-                      <span className="cm-sheet__note">· 배치됨 {CIRCLED[placedAt - 1]}</span>
-                    ) : (
-                      <span>{slotButtons(channel)}</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            {/* 이 지점이 보이면 다음 10개를 불러온다 (상한까지). */}
-            <div ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />
-            {popularLoading && popular.length > 0 ? (
-              <p className="cm-sheet__note">더 불러오는 중…</p>
-            ) : null}
-            {popularDone && popular.length > 0 ? (
-              <p className="cm-sheet__note">목록의 끝입니다.</p>
-            ) : null}
-            {!popularDone && !popularLoading && popularPages >= AUTO_LOAD_PAGE_LIMIT ? (
-              <button
-                type="button"
-                className="cm-sheet__btn"
-                onClick={() => void loadMorePopular()}
-              >
-                더 보기 (10개)
-              </button>
-            ) : null}
-
             {list.kind === 'loading' ? (
               <p className="cm-sheet__note">팔로우 목록을 읽는 중…</p>
             ) : null}
@@ -652,7 +559,11 @@ export function ConfigSheet({
                     return (
                       <li key={channel.channelId} className={channel.live ? '' : 'cm-offline'}>
                         <span>
-                          {channel.live ? '🔴' : '⚫'} {channel.channelName}
+                          <LiveDotIcon
+                            size={10}
+                            className={channel.live ? 'cm-mv-live--on' : 'cm-mv-live--off'}
+                          />{' '}
+                          {channel.channelName}
                         </span>
                         <span className="cm-sheet__note">
                           {channel.live ? formatViewers(channel.concurrentUserCount) : '오프라인'}
@@ -707,6 +618,62 @@ export function ConfigSheet({
                 )}
               </>
             ) : null}
+
+            {/*
+              🔴 순서 (요청 2026-08-20): **팔로우 → 인기 방송.** 팔로우가 남아 있는 동안에는
+              인기 방송을 보여 주지 않는다 — 스크롤로 팔로우를 다 본 뒤 이어서 나온다.
+              비로그인·fallback 이면 `followExhausted` 가 처음부터 true 라 여기로 바로 진입한다.
+            */}
+            {followExhausted ? (
+              <>
+                <h3>시청자 수 많은 방송 ({popular.length})</h3>
+                {popular.length === 0 && popularLoading ? (
+                  <p className="cm-sheet__note">불러오는 중…</p>
+                ) : null}
+                {popular.length === 0 && !popularLoading ? (
+                  <p className="cm-sheet__note">목록을 가져올 수 없습니다.</p>
+                ) : null}
+                <ul className="cm-mv-channels">
+                  {popular.map((channel, order) => {
+                    const placedAt = placedIndexOf(channel.channelId);
+                    return (
+                      <li key={channel.channelId}>
+                        <span>
+                          <span className="cm-sheet__note">{order + 1}</span>{' '}
+                          <LiveDotIcon size={10} className="cm-mv-live--on" /> {channel.channelName}
+                        </span>
+                        <span className="cm-sheet__note">
+                          {formatViewers(channel.concurrentUserCount)}
+                        </span>
+                        {placedAt !== null ? (
+                          <span className="cm-sheet__note">· 배치됨 {CIRCLED[placedAt - 1]}</span>
+                        ) : (
+                          <span>{slotButtons(channel)}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {popularLoading && popular.length > 0 ? (
+                  <p className="cm-sheet__note">더 불러오는 중…</p>
+                ) : null}
+                {popularDone && popular.length > 0 ? (
+                  <p className="cm-sheet__note">목록의 끝입니다.</p>
+                ) : null}
+                {!popularDone && !popularLoading && popularPages >= AUTO_LOAD_PAGE_LIMIT ? (
+                  <button
+                    type="button"
+                    className="cm-sheet__btn"
+                    onClick={() => void loadMorePopular()}
+                  >
+                    더 보기 (10개)
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+
+            {/* 센티널은 섹션 전체에 하나만 둔다 — 팔로우가 남아 있으면 팔로우를, 다 보여 줬으면 인기 방송을 이어서 불러온다. */}
+            <div ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />
           </div>
         </section>
       </div>
