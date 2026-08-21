@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../constants/storage';
 import { decideDevice } from '../../device';
 import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
+import { auditIconButtons } from '../../ui/iconButtonAudit.test-utils';
 import { MV_CHANNEL } from './messages';
 import { INACTIVE_SLOT_QUALITY } from './slotLayout';
 import {
@@ -116,6 +117,35 @@ describe('buildStageCss', () => {
 
   it('터치 타겟 크기를 프로필 값으로 넣는다', () => {
     expect(buildStageCss(48, true)).toContain('min-width: 48px');
+  });
+
+  /**
+   * 🔴 사용자 보고 — 좁은 화면에서 조작 바가 라벨 때문에 3줄로 접혀 무대를 잡아먹었다
+   * (`docs/ui-audit/multiview-stage-mobile-portrait.png`). 버튼 크기는 그대로 두고
+   * 라벨만 숨겨 1줄로 압축한다. 데스크톱(이 미디어쿼리 밖)에서는 라벨이 그대로 남아야 한다.
+   */
+  it('좁은 화면에서만 조작 바 라벨을 숨긴다 — 터치 타겟은 그대로다', () => {
+    const css = buildStageCss(44, true);
+    const compactBlock = /@media \(max-width:\s*\d+px\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    expect(compactBlock).not.toBe('');
+    expect(compactBlock).toMatch(/\.cm-stage-bar__label\s*\{[^}]*display:\s*none/);
+    // 압축 블록 안에서도 버튼 크기(터치 타겟)는 건드리지 않는다 — 라벨만 숨긴다.
+    expect(compactBlock).not.toMatch(/min-width:\s*\d+px/);
+    expect(compactBlock).not.toMatch(/min-height:\s*\d+px/);
+    // 압축 블록 밖(기본 규칙)에는 버튼 터치 타겟이 그대로 있다 — 데스크톱도 같은 규칙을 쓴다.
+    expect(css).toContain('min-width: 44px');
+    expect(css).toContain('min-height: 44px');
+  });
+
+  it('좁은 화면 압축 시 버튼 사이 간격을 줄이지 않는다 — 오히려 넓힌다', () => {
+    const css = buildStageCss(44, true);
+    const baseGap = Number(/\.cm-stage-bar\s*\{[^}]*gap:\s*(\d+)px/.exec(css)?.[1] ?? '0');
+    const compactBlock = /@media \(max-width:\s*\d+px\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    const compactGap = Number(
+      /\.cm-stage-bar\s*\{[^}]*gap:\s*(\d+)px/.exec(compactBlock)?.[1] ?? '0',
+    );
+    expect(baseGap).toBeGreaterThan(0);
+    expect(compactGap).toBeGreaterThanOrEqual(baseGap);
   });
 });
 
@@ -483,6 +513,76 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       expect(svg?.getAttribute('aria-hidden')).toBe('true');
       expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
     }
+    stage.close();
+  });
+
+  /**
+   * 좁은 화면에서 라벨을 숨겨도(CSS) 스크린리더용 접근성 이름은 항상 있어야 한다 —
+   * 전수 검사. 하나라도 빠지면 압축 시 빈 버튼이 남는다.
+   *
+   * 판정은 다른 UI 와 **같은 규칙**(`auditIconButtons`)으로 한다 — 접근성 이름뿐 아니라
+   * 버튼 속 SVG 의 `aria-hidden`, `aria-pressed` 값 유효성까지 한 번에 본다.
+   */
+  it('조작 바·슬롯 헤더의 모든 버튼에 접근성 이름이 있다 (전수 검사)', () => {
+    const { stage } = openStage({ chatMode: 'active' });
+    const stageRoot = document.getElementById('cm-multiview-stage');
+    expect(stageRoot).not.toBeNull();
+
+    // 텍스트 라벨을 가진 버튼(`구성`·`해제`)이 섞여 있으므로 전체 수와 같지 않다.
+    auditIconButtons(stageRoot as HTMLElement, { expectAtLeast: 1, context: 'multiview stage' });
+    for (const button of stageRoot?.querySelectorAll('button') ?? []) {
+      expect(button.getAttribute('aria-label')?.length ?? 0).toBeGreaterThan(0);
+    }
+    stage.close();
+  });
+
+  /**
+   * 압축은 CSS 미디어쿼리(`buildStageCss`)가 하고, DOM 은 항상 라벨 `<span>` 을 그대로
+   * 둔다 — 넓은 화면(데스크톱·`laptop13`)에서는 미디어쿼리가 적용되지 않아 라벨이 보인다.
+   */
+  it('데스크톱 폭에서는 라벨이 그대로 남는다 (라벨은 DOM에 항상 있고 좁을 때만 CSS로 숨긴다)', () => {
+    const { stage } = openStage({ chatMode: 'active' });
+    const bar = document.querySelector('.cm-stage-bar');
+    const configLabel = bar
+      ?.querySelector('[aria-label="멀티뷰 구성 열기"]')
+      ?.querySelector('.cm-stage-bar__label');
+    const exitLabel = bar
+      ?.querySelector('[aria-label="멀티뷰 해제"]')
+      ?.querySelector('.cm-stage-bar__label');
+    expect(configLabel?.textContent).toBe('구성');
+    expect(exitLabel?.textContent).toBe('해제');
+    stage.close();
+  });
+
+  /**
+   * `stage.ts` 는 문자·이모지 아이콘을 0개 써야 한다 (🎯·⛶·💬 전량 SVG 로 치환).
+   */
+  it('초점·전체화면·채팅켜기 버튼은 이모지가 아니라 aria-hidden svg 다', () => {
+    const { stage } = openStage({ chatMode: 'active' });
+    const stageRoot = document.getElementById('cm-multiview-stage');
+    expect(stageRoot?.textContent).not.toMatch(/[🎯⛶💬]/u);
+
+    const audioButton = document.querySelector('.cm-slot__head button[aria-label$="초점"]');
+    const fullscreenButton = document.querySelector('.cm-stage-bar [aria-label^="전체 화면"]');
+    for (const button of [audioButton, fullscreenButton]) {
+      const svg = button?.querySelector('svg');
+      expect(svg).toBeTruthy();
+      expect(svg?.getAttribute('aria-hidden')).toBe('true');
+      expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
+    }
+    stage.close();
+  });
+
+  /** 터치 타겟 하한(44px 모바일) — `ctx.device.profile.touchTargetPx` 를 그대로 CSS 에 넣는다. */
+  it('모바일에서는 조작 바 버튼 터치 타겟이 44px 이상이다', () => {
+    const { stage } = openStage({ deviceClass: 'mobile' });
+    const button = document.querySelector<HTMLButtonElement>(
+      '.cm-stage-bar [aria-label="멀티뷰 구성 열기"]',
+    );
+    expect(button).not.toBeNull();
+    const style = getComputedStyle(button!);
+    expect(Number.parseFloat(style.minWidth)).toBeGreaterThanOrEqual(44);
+    expect(Number.parseFloat(style.minHeight)).toBeGreaterThanOrEqual(44);
     stage.close();
   });
 

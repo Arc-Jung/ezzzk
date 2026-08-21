@@ -47,6 +47,14 @@ const FRAME_LOAD_TIMEOUT_MS = 15_000;
  * 480px(슬롯 하나 약 240px) 미만이 되면 채팅을 아예 켜지 않는다 — 모바일·분할 화면·세로가 여기 걸린다.
  */
 const MIN_STAGE_WIDTH_PX = 480;
+/**
+ * 조작 바를 1줄로 압축하는 폭 경계. 실측(`docs/ui-audit/multiview-stage-mobile-portrait.png`,
+ * `mobile-portrait` 412×915)에서 라벨("구성"·"해제"·"채팅") 때문에 조작 바가 3줄로 접혀
+ * 무대를 잡아먹었다 — 라벨만 숨기면 1줄에 들어간다. `laptop13`(1440) 은 이 경계 밖이라
+ * 라벨이 그대로 남는다. `tablet7Min`(600, `SIZE_TIERS`)과 같은 값을 쓴다 — 그 아래 기기부터
+ * 손가락 위주 UI 라는 판단이 이미 있으니 새 경계를 또 만들지 않는다.
+ */
+const STAGE_BAR_COMPACT_MAX_PX = 600;
 
 /**
  * 사이드 채팅에 담을 줄 수. 슬롯 스트립(0~5줄)과 **같은 `chat` 메시지를 공유**하므로,
@@ -119,7 +127,6 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   background: #000;
   outline: 1px solid #1c1f22;
 }
-#${OURS.multiViewStageId} .cm-slot iframe {
 #${OURS.multiViewStageId} .cm-slot iframe {
   display: block;
   border: 0;
@@ -199,13 +206,23 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   슬롯 배치 띠로 환산하므로 슬롯과 겹치지 않는다.
 */
 #${OURS.multiViewStageId} .cm-stage-bar {
+  /*
+   * 실측 회귀 — left: 50% + transform: translateX(-50%) 로 가운데를 맞추면, width 를
+   * fit-content 로 줘도 그 계산의 "가용 폭" 자체가 "컨테이너 폭 − left" 로 반토막난다
+   * (412px 뷰포트에서 206px). CSS 절대 위치 스펙상 inset 한쪽(left)만 정해지면 shrink-to-fit
+   * 계산이 그 한쪽만 기준으로 잡히기 때문이다 — 라벨을 다 숨겨도 그 반쪽 폭 안에서 계속
+   * 줄바꿈되던 원인이 이것이었다. left·right 를 둘 다 0 으로 고정하고 margin: 0 auto 로
+   * 가운데를 맞추면 가용 폭이 컨테이너 전체 폭이 된다 — 표준적인 "shrink-to-fit 가운데" 기법.
+   */
+  width: fit-content;
   max-width: calc(100vw - 8px);
   flex-wrap: wrap;
   justify-content: center;
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   top: 6px;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -216,13 +233,22 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   z-index: 3;
 }
 #${OURS.multiViewStageId} .cm-stage-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   min-width: ${touchTargetPx}px;
   min-height: ${touchTargetPx}px;
+  padding: 0 8px;
   border: 1px solid #2a2d31;
   border-radius: 5px;
   background: #1c1f22;
   color: #e9ecef;
   cursor: pointer;
+}
+#${OURS.multiViewStageId} .cm-stage-bar__label {
+  font-size: 11px;
+  white-space: nowrap;
 }
 #${OURS.multiViewStageId} .cm-stage-bar output { min-width: 40px; text-align: center; }
 /*
@@ -310,6 +336,21 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   border-left: 1px solid #2a2d31;
 }
 #${OURS.multiViewStageId} .cm-stage-chat-controls output { min-width: 48px; }
+/*
+  🔴 좁은 화면에서 조작 바 1줄 압축 (사용자 보고: 3줄로 접혀 무대를 잡아먹음).
+  버튼 크기(터치 타겟)는 절대 줄이지 않는다 — 라벨 글자만 숨기고 아이콘만 남긴다.
+  간격은 오히려 넓힌다: 촘촘해 보이는 건 버튼이 커서가 아니라 간격이 부족해서다.
+  라벨을 숨겨도 버튼의 aria-label 이 그대로 접근성 이름을 맡는다 (createBar 참고).
+  laptop13(1440) 처럼 이 경계보다 넓은 화면은 그대로 라벨이 보인다.
+*/
+@media (max-width: ${STAGE_BAR_COMPACT_MAX_PX}px) {
+  #${OURS.multiViewStageId} .cm-stage-bar {
+    gap: 12px;
+  }
+  #${OURS.multiViewStageId} .cm-stage-bar__label {
+    display: none;
+  }
+}
 `.trim();
 }
 
@@ -408,6 +449,18 @@ export function effectiveActiveSlot(registered: SlotIndex[], desired: SlotIndex)
 export function nextActiveSlot(slots: SlotIndex[], current: SlotIndex): SlotIndex {
   if (slots.includes(current)) return current;
   return [...slots].sort((a, b) => a - b)[0] ?? 1;
+}
+
+/**
+ * 조작 바 버튼의 텍스트 라벨. 좁은 화면(`STAGE_BAR_COMPACT_MAX_PX` 이하)에서는
+ * `buildStageCss` 의 미디어쿼리가 이 클래스를 숨겨 아이콘만 남긴다 — 그때도
+ * 접근성 이름은 버튼의 `aria-label` 이 그대로 맡으므로 스크린리더에는 문제가 없다.
+ */
+function barLabel(text: string): HTMLSpanElement {
+  const label = document.createElement('span');
+  label.className = 'cm-stage-bar__label';
+  label.textContent = text;
+  return label;
 }
 
 export class MultiViewStage {
@@ -598,7 +651,7 @@ export class MultiViewStage {
     if (this.chatToggle) {
       this.chatToggle.setAttribute('aria-label', this.chatOpen ? '채팅 끄기' : '채팅 켜기');
       this.chatToggle.replaceChildren(
-        this.chatOpen ? createIconElement('close') : document.createTextNode('💬'),
+        this.chatOpen ? createIconElement('close') : createIconElement('chatBubble'),
       );
     }
   }
@@ -728,7 +781,7 @@ export class MultiViewStage {
     // ⚠️ 2026-08-20 정책 변경: 오디오는 모든 슬롯이 항상 낸다 — 이 버튼은 초점(사이드채팅
     // 대상·화질 우선순위)만 옮긴다. "소리" 문구를 없애 오해를 막는다.
     audioButton.setAttribute('aria-label', `슬롯 ${slot.index} 초점`);
-    audioButton.textContent = '🎯';
+    audioButton.appendChild(createIconElement('target'));
     audioButton.addEventListener('click', (event) => {
       event.stopPropagation();
       this.setActiveSlot(slot.index);
@@ -852,7 +905,8 @@ export class MultiViewStage {
     const configButton = document.createElement('button');
     configButton.type = 'button';
     configButton.setAttribute('aria-label', '멀티뷰 구성 열기');
-    configButton.textContent = '구성';
+    configButton.appendChild(createIconElement('slots'));
+    configButton.appendChild(barLabel('구성'));
     configButton.addEventListener('click', () => this.callbacks.onRequestConfig());
     bar.appendChild(configButton);
 
@@ -899,7 +953,7 @@ export class MultiViewStage {
       this.syncChatWidth();
     });
 
-    chatControls.append(document.createTextNode('채팅'), narrow, chatLabel, widen, chatOff);
+    chatControls.append(barLabel('채팅'), narrow, chatLabel, widen, chatOff);
     bar.appendChild(chatControls);
     this.chatControls = chatControls;
     this.chatLabel = chatLabel;
@@ -915,7 +969,7 @@ export class MultiViewStage {
     const fullscreenButton = document.createElement('button');
     fullscreenButton.type = 'button';
     fullscreenButton.setAttribute('aria-label', '전체 화면 전환 (주소창 숨김)');
-    fullscreenButton.textContent = '⛶';
+    fullscreenButton.appendChild(createIconElement('fullscreen'));
     fullscreenButton.addEventListener('click', () => {
       void this.toggleFullscreen();
     });
@@ -924,7 +978,8 @@ export class MultiViewStage {
     const exitButton = document.createElement('button');
     exitButton.type = 'button';
     exitButton.setAttribute('aria-label', '멀티뷰 해제');
-    exitButton.textContent = '해제';
+    exitButton.appendChild(createIconElement('close'));
+    exitButton.appendChild(barLabel('해제'));
     exitButton.addEventListener('click', () => {
       const active = this.runtimes.get(this.getFocusedSlot());
       this.callbacks.onExit(active?.channelId ?? null);
