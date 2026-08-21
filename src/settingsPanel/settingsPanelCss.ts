@@ -5,7 +5,7 @@
  * `.css` 파일이 아니라 문자열 모듈인 이유: content script 는 `upsertStyle` 로 스타일을 주입하며
  * (`SHEET_CSS` 와 동일한 방식), 별도 CSS 파일은 확장 번들에서 자동으로 페이지에 붙지 않는다.
  */
-import { BG, BORDER, FG, RADIUS, ACCENT } from '../ui/tokens';
+import { BG, BORDER, FG, OVERLAY, RADIUS, ACCENT } from '../ui/tokens';
 
 export const SETTINGS_PANEL_CSS = `
 .cm-sp { display: flex; gap: 14px; align-items: flex-start; }
@@ -67,16 +67,37 @@ export const SETTINGS_PANEL_CSS = `
   cursor: pointer;
 }
 .cm-sp__toggle-text { font-size: 12px; min-width: 26px; text-align: right; }
+/*
+  🔴 켜짐/꺼짐 구분감 (2026-08-21 사용자 보고: "다른 앱 대비 구분이 약하다").
+
+  원인은 **꺼짐 트랙이 배경과 거의 같은 밝기**였다는 것이다. 불투명 회색 #24272b 를 썼는데
+  패널 배경이 #2e3033 이라 트랙이 있는지조차 안 보였고 흰 노브만 허공에 뜬 것처럼 보였다.
+  꺼짐 상태에서 "스위치"라는 형태가 읽히지 않으니 켜짐과 비교할 대상이 없었다.
+
+  세 가지로 고친다.
+  1) 꺼짐 트랙을 **반투명 흰색**(OVERLAY.strong)으로 바꾼다. 어떤 배경 위에서도 한 단 밝게 떠
+     트랙 형태가 항상 보인다. 불투명 색은 배경이 바뀌면 다시 묻힌다.
+  2) 트랙 안쪽에 **테두리 링**을 넣어 경계를 못 박는다.
+  3) 꺼짐 노브를 흰색에서 한 단 어둡게 내린다 — 켜짐과 **노브 밝기까지** 달라진다.
+
+  이제 구분 신호가 다섯이다: 트랙 색 · 트랙 밝기 · 노브 위치 · 노브 밝기 · 켜기/끄기 글자.
+*/
 .cm-sp__toggle-track {
   position: relative;
   flex: 0 0 auto;
   width: 36px;
   height: 20px;
   border-radius: ${RADIUS.circular};
-  background: ${BORDER.subtle};
-  transition: background-color 0.15s ease;
+  background: ${OVERLAY.strong};
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
-.cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-track { background: ${ACCENT}; }
+.cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-track {
+  background: ${ACCENT};
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
 .cm-sp__toggle-knob {
   position: absolute;
   top: 2px;
@@ -84,10 +105,17 @@ export const SETTINGS_PANEL_CSS = `
   width: 16px;
   height: 16px;
   border-radius: ${RADIUS.circular};
-  background: ${FG.primary};
-  transition: transform 0.15s ease;
+  /* 꺼짐 노브는 흰색이 아니다 — 켜짐과 밝기로도 갈린다. */
+  background: ${FG.muted};
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
 }
-.cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-knob { transform: translateX(16px); }
+.cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-knob {
+  transform: translateX(16px);
+  background: ${FG.primary};
+}
 
 /*
   설정 패널 맨 아래의 오픈소스 라이선스 진입점.

@@ -267,14 +267,47 @@ describe('켜기/끄기 토글', () => {
   it('ON 과 OFF 의 트랙 색이 서로 다르다 — 색만으로 구분하지 않되 색 자체도 달라야 한다', () => {
     const offTrack = SETTINGS_PANEL_CSS.slice(
       SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {'),
-      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {') + 200,
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {') + 320,
     );
     const onTrack = SETTINGS_PANEL_CSS.slice(
       SETTINGS_PANEL_CSS.indexOf(".cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-track"),
     );
-    expect(offTrack).toContain('--color-bg-layer-05');
     expect(onTrack).toContain('#00ffa3');
     expect(offTrack).not.toContain('#00ffa3');
+
+    /*
+     * 🔴 꺼짐 트랙은 **배경 레이어 색을 쓰면 안 된다** (2026-08-21 회귀 방지).
+     * 예전에 `--color-bg-layer-05`(#24272b) 를 썼는데 패널 배경(#2e3033)과 밝기가 거의 같아
+     * 트랙이 있는지조차 안 보였다 — "켜져 있는지 꺼져 있는지 불명확하다"는 보고의 원인이다.
+     * 반투명 흰색 오버레이라야 어떤 배경 위에서도 한 단 밝게 떠 형태가 읽힌다.
+     */
+    for (const layer of ['--color-bg-layer-01', '--color-bg-layer-04', '--color-bg-layer-05']) {
+      expect(offTrack, `꺼짐 트랙이 배경 레이어(${layer})를 쓰면 배경에 묻힌다`).not.toContain(
+        layer,
+      );
+    }
+    expect(offTrack).toContain('--color-bg-overlay-01');
+  });
+
+  it('꺼짐/켜짐은 노브 밝기로도 갈린다 — 트랙 색 하나에만 기대지 않는다', () => {
+    const offKnob = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-knob {') + 400,
+    );
+    const onKnob = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf(".cm-sp__toggle[aria-checked='true'] .cm-sp__toggle-knob"),
+    );
+    // 꺼짐은 보조색(muted), 켜짐은 최상위 흰색 — 두 값이 실제로 달라야 한다.
+    expect(offKnob).toContain('--color-content-04');
+    expect(onKnob).toContain('--color-content-01');
+  });
+
+  it('꺼짐 트랙에 경계 링이 있다 — 형태가 항상 읽혀야 한다', () => {
+    const offTrack = SETTINGS_PANEL_CSS.slice(
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {'),
+      SETTINGS_PANEL_CSS.indexOf('.cm-sp__toggle-track {') + 320,
+    );
+    expect(offTrack).toContain('inset 0 0 0 1px');
   });
 
   it('클릭하면 role=switch 상태가 뒤집힌다', () => {
