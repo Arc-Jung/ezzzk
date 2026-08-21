@@ -15,6 +15,8 @@
  */
 
 import { CHZZK, ID, OURS } from '../constants/class';
+import { createIconElement } from '../ui/icons';
+import { RADIUS } from '../ui/tokens';
 import { LIMITS, type ChatPreset, type Settings } from '../constants/storage';
 import { hasSideChat } from '../pageType';
 import { saveSettings } from '../storage';
@@ -34,10 +36,13 @@ export const FALLBACK_TEXT_LIMIT = 400;
 const LABEL_MAX = 12;
 
 /**
- * 개수·화살표까지 붙인 토글 버튼의 실측 폭(2026-08-15, 픽스처 `문구 3 ▾` = 62px) + 여유.
+ * 개수·화살표까지 붙인 토글 버튼의 실측 폭 + 여유.
+ * 2026-08-21 재실측(실사이트, laptop13·mobile-portrait 동일): font-size 13px·padding 6px
+ * 로 줄인 뒤 픽스처 `문구 3 ▾` = 57.79px(부동소수는 서브픽셀 렌더링). 예전 62px(2026-08-15,
+ * 폰트 크기 미지정 상태) 대비 축소분을 반영해 68 → 64 로 낮춘다.
  * 도구 행에 이만큼 여유가 없으면 라벨만 남겨 44px(최소 터치 타겟)로 줄인다.
  */
-const FULL_LABEL_PX = 68;
+const FULL_LABEL_PX = 64;
 
 /** 패널과 채팅 영역 위 끝 사이에 남기는 여백(px). 경계에 딱 붙으면 1px 반올림에 걸린다. */
 const PANEL_EDGE_GAP = 4;
@@ -318,17 +323,23 @@ ${bar}[data-mode="chips-2rows"] .cm-preset-chips { max-height: ${touchTargetPx *
   그대로다 — 패널 자체가 접히면 숨으므로 이전과 보이는 시점이 같다.
 */
 ${bar} .cm-preset-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+/*
+  치지직 도구 행 네이티브 버튼 실측(2026-08-21, etc/probe/chat-tools-row.json 의
+  nativeButtonSizes): _donation_text_·_send_button_ font-size 13px, _send_button_
+  border-radius 8px. 옆에서 튀어 보이지 않게 폰트·라운드를 그 톤에 맞춘다.
+  🔴 히트 영역(min-height/min-width)은 그대로 ${touchTargetPx}px 다 — 보이는 글자만 줄인다.
+*/
 ${bar} button, ${slot} button {
   min-height: ${touchTargetPx}px; min-width: ${touchTargetPx}px;
-  padding: 0 8px; border-radius: 6px; border: 1px solid currentColor;
-  background: transparent; color: inherit; font: inherit; cursor: pointer;
+  padding: 0 8px; border-radius: ${RADIUS.md}; border: 1px solid currentColor;
+  background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* 도구 행 안에서는 좌우 여백을 줄인다 — 최소 터치 타겟 ${touchTargetPx}px 는 유지한다 */
 ${slot} button { padding: 0 6px; }
 /*
-  자리가 모자라면 개수·화살표를 떼고 라벨만 남긴다 (실측 2026-08-15).
-  62px → 44px 로 줄어 FR-10 오버레이(채팅 183px)에서 도구 행이 한 줄에 들어간다.
+  자리가 모자라면 개수·화살표를 떼고 라벨만 남긴다 (실측 2026-08-15, 2026-08-21 재실측).
+  58px → 44px 로 줄어 FR-10 오버레이(채팅 183px)에서 도구 행이 한 줄에 들어간다.
 */
 ${slot}[data-compact="true"] .cm-preset-toggle-extra { display: none; }
 ${bar} .cm-preset-editor { display: flex; flex-direction: column; gap: 4px; }
@@ -503,6 +514,11 @@ export const chatPresetFeature: Feature = {
         textInput.setAttribute('aria-label', '문구 본문');
         textInput.placeholder = '문구';
 
+        const deleteButton = button('', `${preset.label} 삭제`, () =>
+          persist(removePreset(presets, preset.id)),
+        );
+        deleteButton.appendChild(createIconElement('close', 14));
+
         row.append(
           button('↑', `${preset.label} 위로 이동`, () =>
             persist(reorderPresets(presets, preset.id, 'up')),
@@ -526,7 +542,7 @@ export const chatPresetFeature: Feature = {
               }),
             );
           }),
-          button('✕', `${preset.label} 삭제`, () => persist(removePreset(presets, preset.id))),
+          deleteButton,
         );
         editor.appendChild(row);
       }

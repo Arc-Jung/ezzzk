@@ -3,6 +3,7 @@ import {
   FALLBACK_TEXT_LIMIT,
   addPreset,
   canSendNow,
+  chatPresetFeature,
   deriveLabel,
   removePreset,
   reorderPresets,
@@ -12,7 +13,10 @@ import {
   updatePreset,
   validatePresetText,
 } from './chatPreset';
-import { LIMITS, type ChatPreset } from '../constants/storage';
+import { OURS } from '../constants/class';
+import { DEVICE_PROFILES, type DeviceClass } from '../constants/device';
+import { DEFAULT_SETTINGS, LIMITS, type ChatPreset } from '../constants/storage';
+import type { FeatureContext } from './types';
 
 /** 실측 `textLimitCount` (2026-08-11) — 하드코딩 상한이 아니라 클라이언트에서 읽는 값이다. */
 const MEASURED_TEXT_LIMIT = 400;
@@ -358,5 +362,83 @@ describe("resolveToolsSlot 'after-donation' — 문구 버튼은 후원하기 �
   it('후원 묶음이 없으면 null — 예외를 던지지 않는다', () => {
     mountChatArea('<div class="_tools_1k5b6_1"></div>');
     expect(resolveToolsSlot(document, 'after-donation')).toBeNull();
+  });
+});
+/** 최소 통합 ctx — chatPresetFeature.start 를 실제로 돌려 buildCss 출력을 검증한다. */
+function makeCtx(deviceClass: DeviceClass, presets: ChatPreset[] = []): FeatureContext {
+  return {
+    page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    device: {
+      deviceClass,
+      profile: DEVICE_PROFILES[deviceClass],
+      signals: {
+        longSide: 915,
+        shortSide: 412,
+        hasTouch: deviceClass === 'mobile',
+        canHover: deviceClass !== 'mobile',
+        coarsePointer: deviceClass === 'mobile',
+        devicePixelRatio: 2,
+        uaMobile: deviceClass === 'mobile' ? true : null,
+      },
+      reason: 'test fixture',
+    },
+    settings: { ...DEFAULT_SETTINGS, chatPresets: presets },
+  };
+}
+
+describe('버튼 시각 크기 축소 — 히트 영역은 그대로 최소 터치 타겟이다', () => {
+  afterEach(() => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = '';
+  });
+
+  it('모바일(44px): 폰트는 13px 로 줄어도 min-height/min-width 는 44px 다', () => {
+    mountChatArea(TOOLS_ROW);
+    const dispose = chatPresetFeature.start(makeCtx('mobile'));
+    const css = document.getElementById(`${OURS.chatPresetBarId}-style`)?.textContent ?? '';
+
+    expect(css).toMatch(/\bfont-size:\s*13px/);
+    expect(css).toMatch(/\bmin-height:\s*44px[^;]*;\s*min-width:\s*44px/);
+    dispose?.();
+  });
+
+  it('데스크톱/랩탑(32px): 히트 영역이 32px 로 낮아져도 그 이상을 유지한다', () => {
+    mountChatArea(TOOLS_ROW);
+    const dispose = chatPresetFeature.start(makeCtx('laptop'));
+    const css = document.getElementById(`${OURS.chatPresetBarId}-style`)?.textContent ?? '';
+
+    expect(css).toMatch(/\bmin-height:\s*32px[^;]*;\s*min-width:\s*32px/);
+    dispose?.();
+  });
+});
+
+describe('문구 삭제 버튼 — 문자 "✕" 대신 SVG 아이콘', () => {
+  afterEach(() => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = '';
+  });
+
+  it('삭제 버튼은 aria-hidden SVG 를 담고, 버튼 자신은 aria-label 을 유지한다', () => {
+    mountChatArea(TOOLS_ROW);
+    const dispose = chatPresetFeature.start(makeCtx('laptop', [preset('p1', '테스트 문구', 0)]));
+
+    const bar = document.getElementById(OURS.chatPresetBarId);
+    expect(bar).not.toBeNull();
+
+    // 접힘 → 펼침, 이어서 편집 모드로 들어가야 삭제 버튼이 DOM 에 나온다.
+    bar!.querySelector<HTMLButtonElement>('.cm-preset-toggle')!.click();
+    bar!.querySelector<HTMLButtonElement>('button[aria-label="채팅 문구 편집"]')!.click();
+
+    const deleteButton = bar!.querySelector<HTMLButtonElement>(
+      'button[aria-label="테스트 문구 삭제"]',
+    );
+    expect(deleteButton).not.toBeNull();
+    expect(deleteButton!.textContent?.trim()).toBe('');
+
+    const svg = deleteButton!.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg!.getAttribute('aria-hidden')).toBe('true');
+
+    dispose?.();
   });
 });
