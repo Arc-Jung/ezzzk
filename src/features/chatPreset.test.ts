@@ -202,7 +202,7 @@ describe('resolveToolsSlot', () => {
     const slot = resolveToolsSlot(document);
     expect(slot).not.toBeNull();
     expect(slot?.parent.className).toContain('_tools_');
-    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
   });
 
   it('고른 자리에 넣으면 후원하기 **왼쪽**, 채팅 버튼 왼쪽에 온다', () => {
@@ -220,7 +220,7 @@ describe('resolveToolsSlot', () => {
 
   it('바깥 후원 블록을 고른다 — 내부 `_donation_text_` 버튼이 아니다', () => {
     mountChatArea(TOOLS_ROW);
-    expect(resolveToolsSlot(document)?.before.tagName).toBe('DIV');
+    expect(resolveToolsSlot(document)?.before?.tagName).toBe('DIV');
   });
 
   it('도구 행이 없으면 null 을 돌려 폴백하게 한다', () => {
@@ -255,7 +255,7 @@ describe('resolveToolsSlot', () => {
       </aside>`;
     const slot = resolveToolsSlot(document);
     expect(slot?.parent.className).toContain('_tools_');
-    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
   });
 
   it('입력 영역은 입력창의 부모가 아니라 도구 행을 품은 조상이다', () => {
@@ -290,13 +290,13 @@ describe('resolveToolsSlot', () => {
 
     const slot = resolveToolsSlot(document);
     expect(slot?.parent.className).toContain('_tools_');
-    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
   });
 
   it('이모티콘 버튼이 없을 때도 동일하게 `_donation_` 앞으로 폴백한다', () => {
     mountChatArea(TOOLS_ROW, { withEmoticonButton: false });
     const slot = resolveToolsSlot(document);
-    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
   });
 
   it('도구 행을 못 찾으면(치지직 구조 변경 등) 폴백 대상이 없다는 신호로 null 이다', () => {
@@ -323,5 +323,40 @@ describe('sortByOrder', () => {
     const input = [preset('b', 'B', 2), preset('a', 'A', 1)];
     expect(sortByOrder(input).map((p) => p.id)).toEqual(['a', 'b']);
     expect(input[0]?.id).toBe('b');
+  });
+});
+
+describe("resolveToolsSlot 'after-donation' — 문구 버튼은 후원하기 오른쪽이다", () => {
+  it('후원 묶음 바로 뒤를 고른다 (요청 2026-08-21)', () => {
+    mountChatArea(TOOLS_ROW);
+    const slot = resolveToolsSlot(document, 'after-donation');
+
+    expect(slot).not.toBeNull();
+    expect(slot?.parent.className).toContain('_tools_');
+    // 후원 묶음의 다음 형제 = 전송 버튼. 그 앞에 끼우면 후원하기 오른쪽이 된다.
+    expect(slot?.before?.className).toContain('_send_button_');
+  });
+
+  it("🔴 채팅 폭 컨트롤('right')과 같은 틈을 쓰되 서로를 밀어내지 않는다", () => {
+    mountChatArea(TOOLS_ROW);
+    const preset = resolveToolsSlot(document, 'after-donation');
+    const width = resolveToolsSlot(document, 'right');
+
+    // 둘 다 같은 부모(도구 행)에 붙지만 기준점이 달라 순서가 정해진다.
+    expect(preset?.parent).toBe(width?.parent);
+    expect(preset?.before).toBe(width?.before);
+  });
+
+  it('후원 묶음이 마지막이면 맨 뒤에 붙인다 (before 가 null)', () => {
+    mountChatArea('<div class="_tools_1k5b6_1"><div class="_donation_1k5b6_132"></div></div>');
+    const slot = resolveToolsSlot(document, 'after-donation');
+
+    expect(slot).not.toBeNull();
+    expect(slot?.before).toBeNull();
+  });
+
+  it('후원 묶음이 없으면 null — 예외를 던지지 않는다', () => {
+    mountChatArea('<div class="_tools_1k5b6_1"></div>');
+    expect(resolveToolsSlot(document, 'after-donation')).toBeNull();
   });
 });

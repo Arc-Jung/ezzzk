@@ -124,15 +124,40 @@ export function resolveInputArea(input: Element): Element | null {
   return null;
 }
 
+/**
+ * 도구 행에서 우리 요소를 끼울 자리를 찾는다.
+ *
+ * | side | 자리 |
+ * | --- | --- |
+ * | `left` | `_donation_`(후원 묶음) **앞** |
+ * | `after-donation` | `_donation_` **바로 뒤** = 후원하기 오른쪽 |
+ * | `right` | `_send_button_`(채팅 전송) **앞** |
+ *
+ * 🔴 `after-donation` 과 `right` 는 **같은 틈**(`_donation_`~`_send_button_` 사이)을 쓴다.
+ * 문구 버튼(`after-donation`)이 먼저, 채팅 폭 컨트롤(`right`)이 뒤에 놓여 순서가 정해진다 —
+ * 둘 다 `before` 기준이 다르므로 서로를 밀어내지 않는다.
+ *
+ * 도구 행 실측 구조 (2026-08-21, 비로그인 · mobile-portrait · laptop13):
+ * `_tools_ > [_donation_(= _donation_text_ + _tooltip_ + _action_), _send_button_]`
+ * 원 자료는 `etc/probe/chat-tools-row.json`.
+ */
 export function resolveToolsSlot(
   root: ParentNode = document,
-  side: 'left' | 'right' = 'left',
-): { parent: Element; before: Element } | null {
+  side: 'left' | 'right' | 'after-donation' = 'left',
+): { parent: Element; before: Element | null } | null {
   const input = qs<HTMLTextAreaElement>(CHZZK.chatInput, root);
   const area = input ? resolveInputArea(input) : null;
   if (!area) return null;
   const tools = qs(CHZZK.chatTools, area);
   if (!tools) return null;
+
+  if (side === 'after-donation') {
+    const donation = qs(CHZZK.chatDonation, tools);
+    if (!donation || donation.parentElement !== tools) return null;
+    // `nextElementSibling` 이 없으면(후원 묶음이 마지막) 맨 뒤에 붙인다.
+    return { parent: tools, before: donation.nextElementSibling };
+  }
+
   const anchor = qs(side === 'right' ? CHZZK.chatSendButton : CHZZK.chatDonation, tools);
   if (!anchor || anchor.parentElement !== tools) return null;
   return { parent: tools, before: anchor };
@@ -654,7 +679,7 @@ export const chatPresetFeature: Feature = {
       actionsEl?.remove();
       actionsEl = actions;
 
-      const slot = resolveToolsSlot(document);
+      const slot = resolveToolsSlot(document, 'after-donation');
       /**
        * 🔴 최소 크기 버튼조차 못 들어가면 도구 행을 **쓰지 않는다** (실측 2026-08-15).
        * 채팅 124px 에서는 치지직의 후원하기+채팅만으로 이미 107/108px 을 쓴다. 억지로 넣으면
