@@ -1103,9 +1103,9 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
     });
   });
   /**
-   * P2 — 채팅 폭 조절 묶음을 플레이어 좌상단으로 옮긴다 (도구 행·플로팅은 폴백으로만 남는다).
+   * P2 — 채팅 폭 조절 묶음을 플레이어 우측 가운데으로 옮긴다 (도구 행·플로팅은 폴백으로만 남는다).
    */
-  describe('P2 — 플레이어 좌상단 앵커', () => {
+  describe('P2 — 플레이어 우측 가운데 앵커', () => {
     const control = (): HTMLElement | null => document.getElementById('cm-chat-width-control');
 
     /** 실측 구조를 본뜬 최소 플레이어 루트 (`PLAYER.rootPc` = `.pzp-pc`). */
@@ -1120,10 +1120,45 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       const player = mountPlayerRoot();
       const dispose = chatWidthFeature.start(makeCtx({}));
 
-      expect(control()?.dataset['anchor']).toBe('player-top-left');
+      expect(control()?.dataset['anchor']).toBe('player-right-center');
       expect(control()?.parentElement).toBe(player);
       // 컨트롤바 자동 숨김과 같은 신호(클래스)를 써야 한다.
       expect(control()?.classList.contains(CONTROL_ITEM_CLASS)).toBe(true);
+      dispose?.();
+    });
+    /**
+     * 🔴 우측 가운데은 오른쪽 모서리에 고정된다 — `+ − ⟩ ▦` 가 오른쪽(화면 밖)으로 펼쳐지면 잘려
+     * 나간다. 컨테이너·아이템 묶음 모두 row-reverse 여야 왼쪽(영상 안쪽)으로 펼쳐진다.
+     */
+    it('우측 가운데 앵커는 오른쪽이 아니라 왼쪽으로 펼쳐진다 (row-reverse)', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      const style = document.getElementById('cm-chat-width-control-style');
+      const css = style?.textContent ?? '';
+      const anchorRule = css.slice(css.indexOf('[data-anchor="player-right-center"] {'));
+      expect(anchorRule).toContain('right:');
+      expect(anchorRule.slice(0, anchorRule.indexOf('}'))).toContain('flex-direction: row-reverse');
+      expect(css).toContain(
+        '[data-anchor="player-right-center"] .cm-chat-width-items { flex-direction: row-reverse; }',
+      );
+      dispose?.();
+    });
+
+    it('🔴 세로 가운데에 붙는다 — 우상단은 치지직 LIVE 뱃지와 겹쳐 내려왔다', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      const css = document.getElementById('cm-chat-width-control-style')?.textContent ?? '';
+      const anchorRule = css.slice(css.indexOf('[data-anchor="player-right-center"] {'));
+      const block = anchorRule.slice(0, anchorRule.indexOf('}'));
+      expect(block).toContain('top: 50%');
+      expect(block).toContain('translateY(-50%)');
+      /*
+       * 🔴 우상단 인셋으로 되돌리면 치지직 LIVE 뱃지를 다시 가린다
+       * (실측 2026-08-21: laptop13 55×24px 겹침, mobile-portrait 는 뱃지가 통째로 덮였다).
+       */
+      expect(block).not.toMatch(/top:\s*12px/);
       dispose?.();
     });
 
@@ -1131,7 +1166,7 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       const player = mountPlayerRoot();
       const dispose = chatWidthFeature.start(makeCtx({ collapsed: true }));
 
-      expect(control()?.dataset['anchor']).toBe('player-top-left');
+      expect(control()?.dataset['anchor']).toBe('player-right-center');
       expect(control()?.parentElement).toBe(player);
       dispose?.();
     });

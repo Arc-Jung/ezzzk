@@ -303,17 +303,19 @@ const OVERLAY_SIDE_MIN_PX = 160;
 /**
  * P2 — 채팅 폭 조절 묶음을 어디에 어떻게 둘지.
  *
- * - `player-top-left` — **기본.** 플레이어(`PLAYER.rootPc`) 좌상단에 절대배치로 얹는다.
+ * - `player-right-center` — **기본.** 플레이어(`PLAYER.rootPc`) 우측 가운데에 절대배치로 얹는다.
  *   도구 행·aside 크기와 무관하므로 접힘 상태에서도 자리를 잃지 않는다. 플레이어를 못 찾으면
- *   아래 폴백으로 내려간다.
+ *   아래 폴백으로 내려간다. 오른쪽 모서리에 고정되므로 펼쳤을 때 화면 밖으로 나가지 않게
+ *   컨테이너와 아이템 묶음 모두 `flex-direction: row-reverse` 로 왼쪽으로 펼친다
+ *   (토글은 모서리에 그대로, `+ − ⟩ ▦` 는 영상 쪽으로 펼쳐진다).
  * - `inline` — 플레이어를 못 찾았을 때의 폴백. 도구 행에 4개까지 그대로 펼친다.
  * - `popover` — 도구 행에는 토글만 두고, 펼치면 **위로 열리는 팝오버**로 띄운다.
  * - `floating` — 토글 하나조차 못 들어가면 도구 행을 쓰지 않고 화면 오른쪽 플로팅으로 폴백한다.
  */
-export type ControlAnchor = 'inline' | 'popover' | 'floating' | 'player-top-left';
+export type ControlAnchor = 'inline' | 'popover' | 'floating' | 'player-right-center';
 
-/** 플레이어 좌상단 앵커의 안쪽 여백(px). 영상 그림을 가리지 않게 작게 유지한다. */
-const PLAYER_TOP_LEFT_INSET_PX = 12;
+/** 플레이어 우측 가운데 앵커의 안쪽 여백(px). 영상 그림을 가리지 않게 작게 유지한다. */
+const PLAYER_RIGHT_INSET_PX = 12;
 
 /**
  * 도구 행의 여유 폭으로 배치를 정한다. **순수 함수 — 테스트 대상.**
@@ -364,21 +366,34 @@ function controlCss(touchTargetPx: number): string {
 #${CONTROL_ID}[data-expanded="true"] .${ITEMS_CLASS} { display: flex; }
 #${CONTROL_ID}[data-anchor="floating"] .${ITEMS_CLASS} { flex-direction: column; }
 /*
-  P2 — 기본 자리. 플레이어(PLAYER.rootPc) 좌상단 안쪽에 절대배치로 얹는다.
+  P2 — 기본 자리. 플레이어(PLAYER.rootPc) 우측 가운데 안쪽에 절대배치로 얹는다.
   🔴 자동 숨김은 CONTROL_ITEM_CLASS 클래스(컨트롤바와 같은 신호, controlBar.ts 의
   ensureControlBarAutoHideCss 가 주입)로 동기화한다 — 이 저장소는 JS 로 opacity 를 따라
   읽는 방식이 실측에서 실패한 이력이 있다(컨트롤바 자동 숨김 주석 참조).
   플레이어 루트가 위치 기준(position: relative)을 이미 갖고 있다고 본다 (미검증 — 네이티브
   컨트롤도 같은 방식으로 얹히므로 근거는 있으나 이 저장소에 DOM 캡처 증거는 없다).
+  🔴 오른쪽 모서리(right)에 고정된다 — 펼쳤을 때 '+ − ⟩ ▦' 가 오른쪽(화면 밖)으로 나가면
+  안 되므로 컨테이너 자체를 row-reverse 로 뒤집는다: 토글(마지막 자식)이 모서리 쪽(오른쪽)에
+  남고, 아이템 묶음(첫 자식)이 그 왼쪽(영상 안쪽)으로 펼쳐진다. 아이템 묶음 내부도 row-reverse
+  로 뒤집어야 모서리에서 먼 쪽으로 갈수록 '+ − ⟩ ▦' 순서가 유지된다(이전 좌상단 배치와 같은
+  순서 — 토글에서 멀어지는 방향으로 +, −, ⟩, ▦).
   ⚠️ 이 문자열은 템플릿 리터럴이다 — 주석에 백틱을 쓰지 않는다 (빌드가 깨진다).
 */
-#${CONTROL_ID}[data-anchor="player-top-left"] {
+#${CONTROL_ID}[data-anchor="player-right-center"] {
   position: absolute;
-  top: ${PLAYER_TOP_LEFT_INSET_PX}px;
-  left: ${PLAYER_TOP_LEFT_INSET_PX}px;
+  /*
+    🔴 세로 가운데다. 우상단에 뒀더니 치지직 LIVE 뱃지와 겹쳤다 (실측 2026-08-21,
+    laptop13 55x24px · mobile-portrait 는 뱃지가 통째로 덮임). 그 뱃지는 플레이어 호버 때만
+    뜨는 상세 헤더 오버레이의 일부인데 우리 컨트롤도 같은 신호로 뜬다 — 정확히 같은 순간에 겹친다.
+    가운데로 내리면 헤더(위)와 컨트롤바(아래) 어느 쪽과도 부딪히지 않는다.
+  */
+  top: 50%;
+  transform: translateY(-50%);
+  right: ${PLAYER_RIGHT_INSET_PX}px;
   z-index: ${OURS.topZIndex - 2};
+  flex-direction: row-reverse;
 }
-#${CONTROL_ID}[data-anchor="player-top-left"] .${ITEMS_CLASS} { flex-direction: row; }
+#${CONTROL_ID}[data-anchor="player-right-center"] .${ITEMS_CLASS} { flex-direction: row-reverse; }
 /*
   도구 행에 4개를 펼칠 자리가 없으면 **채팅 영역 바깥(영상 위)** 에 띄운다.
   🔴 예전에는 컨트롤 바로 위(bottom: 100%)로 열었는데, 그 자리가 정확히 치지직 입력창이라
@@ -718,7 +733,7 @@ export const chatWidthFeature: Feature = {
 
     const anchorControl = (container: HTMLElement): void => {
       /**
-       * P2 — **플레이어 좌상단이 기본 자리다.** 도구 행·aside 크기와 무관하므로 접힘·재렌더
+       * P2 — **플레이어 우측 가운데이 기본 자리다.** 도구 행·aside 크기와 무관하므로 접힘·재렌더
        * 어디에서도 자리를 잃지 않는다. 컨트롤바 자동 숨김과 같은 신호(`CONTROL_ITEM_CLASS`)를
        * 쓰므로 opacity 를 JS 로 따라 읽지 않는다 (그 방식은 이 저장소에서 실측 실패 이력이 있다).
        */
@@ -729,7 +744,7 @@ export const chatWidthFeature: Feature = {
       let before: Element | null;
 
       if (playerRoot) {
-        anchor = 'player-top-left';
+        anchor = 'player-right-center';
         parent = playerRoot;
         before = null;
       } else {
@@ -764,9 +779,9 @@ export const chatWidthFeature: Feature = {
         return;
       }
       container.dataset['anchor'] = anchor;
-      // 컨트롤바 자동 숨김과 같은 신호를 쓰는 곳은 플레이어 좌상단뿐이다 — 도구 행·플로팅은
+      // 컨트롤바 자동 숨김과 같은 신호를 쓰는 곳은 플레이어 우측 가운데뿐이다 — 도구 행·플로팅은
       // 자체적으로 항상 보인다.
-      container.classList.toggle(CONTROL_ITEM_CLASS, anchor === 'player-top-left');
+      container.classList.toggle(CONTROL_ITEM_CLASS, anchor === 'player-right-center');
 
       if (!before) {
         container.classList.remove(OURS.toolsSlotClass);
@@ -781,7 +796,7 @@ export const chatWidthFeature: Feature = {
 
     const mountControl = (): void => {
       upsertStyle(CONTROL_STYLE_ID, controlCss(ctx.device.profile.touchTargetPx));
-      // 플레이어 좌상단 자리에서 컨트롤바와 같은 자동 숨김 신호를 쓴다 (여러 기능이 불러도 안전).
+      // 플레이어 우측 가운데 자리에서 컨트롤바와 같은 자동 숨김 신호를 쓴다 (여러 기능이 불러도 안전).
       ensureControlBarAutoHideCss();
 
       const container = document.createElement('div');
