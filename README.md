@@ -196,6 +196,9 @@ yarn build
 [Releases](https://github.com/Arc-Jung/ezzzk/releases) 에서 내려받는다.
 `main` 에 머지되어 CI 가 통과하면 패치 버전이 `0.0.1` 오르고 태그·릴리스가 자동으로 만들어진다.
 
+> ⭐ **`.zip` 설치를 권장한다.** 릴리스에는 `.crx` 도 함께 올라가지만, 크롬·엣지는 보안 정책상
+> 스토어 밖에서 배포된 `.crx` 설치를 차단하는 경우가 많다 — `.zip` 은 이 차단이 없다.
+
 #### 데스크톱 설치 절차 — macOS · Windows × Chrome · Edge
 
 **1단계 — 내려받기**
