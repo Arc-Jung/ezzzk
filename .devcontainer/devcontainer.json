@@ -1,0 +1,66 @@
+{
+  // GitHub Codespaces / VS Code Dev Containers 용 개발 환경 정의.
+  // Node 버전은 저장소 컨벤션(.nvmrc, package.json engines)과 반드시 같은 값을 쓴다.
+  "name": "ezzzk",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-26.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24.18.0"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true
+    }
+  },
+
+  // docker-in-docker 는 컨테이너 안에서 다시 컨테이너를 띄우는 구조라 privileged 모드가 필요하다.
+  "runArgs": ["--privileged"],
+
+  // gajae-code(gjc) 는 bun 전역 설치라 ~/.bun/bin 을 PATH 에 넣어야 셸에서 바로 실행된다.
+  "containerEnv": {
+    "PATH": "${containerEnv:PATH}:/home/node/.bun/bin"
+  },
+
+  // corepack 으로 package.json 에 고정된 yarn 버전을 그대로 쓴다 (전역 yarn 설치와 버전이 갈리지 않게).
+  // Playwright 는 저장소 스크립트(scripts/demo-context.mjs)가 확장을 로드해 실브라우저로 조작할 때 쓴다
+  // (--with-deps 로 리눅스 의존 라이브러리까지 함께 설치). Chrome·Edge 는 Playwright 번들
+  // Chromium과 별개로, 수동 확인·브라우저별 동작 비교용으로 따로 둔다 (이 확장은 Chrome/Edge 양쪽 대상).
+  // Claude Code CLI 는 설치만 해둔다 — 인증 토큰은 커밋하지 않으므로 Codespace 생성 후
+  // `claude` 실행 시 로그인하거나, Codespaces 리포지토리 시크릿에 CLAUDE_CODE_OAUTH_TOKEN 을
+  // 등록해 두면 자동 로드된다.
+  "postCreateCommand": {
+    "corepack": "corepack enable && corepack prepare yarn@1.22.22 --activate",
+    "yarn-install": "yarn install --frozen-lockfile",
+    "playwright": "npx playwright install --with-deps chromium",
+    "chrome": "curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && sudo apt-get update && sudo apt-get install -y /tmp/chrome.deb && rm /tmp/chrome.deb",
+    "edge": "curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft.gpg > /dev/null && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/edge stable main' | sudo tee /etc/apt/sources.list.d/microsoft-edge.list > /dev/null && sudo apt-get update && sudo apt-get install -y microsoft-edge-stable",
+    "claude-code": "npm install -g @anthropic-ai/claude-code",
+    "gajae-code": "curl -fsSL https://bun.sh/install | bash && ~/.bun/bin/bun install -g gajae-code",
+    "gjc-alias": "grep -q 'alias gjc=' ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'\n\n# gjc 입력 시 가재코드(gajae-code) 실행. bun 전역 설치 바이너리를 명시적으로 가리켜\n# PATH 순서가 꼬여도 항상 이 바이너리가 뜨게 한다.\nalias gjc=\"~/.bun/bin/gjc\"\nEOF",
+    "claude-autostart": "grep -q CLAUDE_CODE_OAUTH_TOKEN ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'\n\n# 새 터미널을 열면 자동으로 Claude Code 를 띄운다. 로컬 macOS 셋업과 동일한 목적이지만,\n# 이 저장소는 공개라 키 파일을 커밋할 수 없으므로 값은 Codespaces 리포지토리 시크릿으로\n# CLAUDE_CODE_OAUTH_TOKEN 을 등록해야 한다 (Settings > Secrets and variables > Codespaces).\nif [[ $- == *i* ]] && [ -n \"$CLAUDE_CODE_OAUTH_TOKEN\" ] && [ -z \"$CLAUDE_CODE_ENTRYPOINT\" ]; then\n  claude --dangerously-skip-permissions\nfi\nEOF"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-playwright.playwright",
+        "editorconfig.editorconfig",
+        "github.vscode-pull-request-github",
+        "anthropic.claude-code"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+
+  // vite dev 서버 기본 포트.
+  "forwardPorts": [5173],
+
+  "remoteUser": "node"
+}
