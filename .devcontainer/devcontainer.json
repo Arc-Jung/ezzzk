@@ -8,7 +8,9 @@
       "version": "24.18.0"
     },
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    },
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": true,
       "configureZshAsDefaultShell": true
@@ -16,6 +18,8 @@
   },
 
   // docker-in-docker 는 컨테이너 안에서 다시 컨테이너를 띄우는 구조라 privileged 모드가 필요하다.
+  // 기본값 moby(Microsoft 포크)는 Ubuntu 26.04(resolute)용 패키지가 아직 없어 feature 설치가
+  // 실패한다 (실측 2026-08-22, Codespace 생성 로그) — moby:false 로 공식 Docker CE 를 쓴다.
   "runArgs": ["--privileged"],
 
   // gajae-code(gjc) 는 bun 전역 설치라 ~/.bun/bin 을 PATH 에 넣어야 셸에서 바로 실행된다.
