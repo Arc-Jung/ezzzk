@@ -2,7 +2,7 @@
   // GitHub Codespaces / VS Code Dev Containers 용 개발 환경 정의.
   // Node 버전은 저장소 컨벤션(.nvmrc, package.json engines)과 반드시 같은 값을 쓴다.
   "name": "ezzzk",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-26.04",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu26.04",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "24.18.0"
