@@ -13,7 +13,7 @@ import { ID, PLAYER } from '../../constants/class';
 import { qs } from '../../utils/dom';
 import { observe, type Disposer } from '../../utils/observe';
 import { info, warning } from '../../utils/log';
-import { isUserInitiated } from './userIntent';
+import { trackHostDirectedInput } from './userIntent';
 
 /** 멀티뷰 시작 직전의 호스트 플레이어 상태. 해제 시 이 값으로 되돌린다. */
 export interface HostPlaybackState {
@@ -83,9 +83,16 @@ export function suspendHostPlayer({
   /**
    * 사용자가 호스트 플레이어를 **직접** 재생·음소거 해제했다.
    * 그 뒤로는 이 플레이어와 싸우지 않는다 — 사용자가 소리 겹침을 감수하고 고른 것이다.
-   * 자체 복구(사용자 활성화 없음)와는 `isUserInitiated()` 로 구분한다.
+   * 자체 복구(사용자 활성화 없음)와는 `hostInput.isActive()` 로 구분한다.
    */
   let surrendered = false;
+  /**
+   * 🔴 **정지 시점부터** 우리 UI 밖의 사용자 조작만 센다 (2026-08-22 수정).
+   * 예전에는 `isUserInitiated()`(= `navigator.userActivation.isActive`) 하나로 판정해
+   * **멀티뷰를 여는 클릭 자체**가 "사용자가 원본을 재생시켰다"로 잡혔다 — 자세한 근거는
+   * `userIntent.ts` 의 `trackHostDirectedInput` 주석 참조.
+   */
+  const hostInput = trackHostDirectedInput();
   /** 우리가 마지막으로 건 `muted`. `volumechange` 가 우리 조작인지 가르는 표시다. */
   let appliedMuted: boolean | null = null;
 
@@ -104,7 +111,7 @@ export function suspendHostPlayer({
     const video = event.currentTarget as HTMLVideoElement | null;
     if (!video || surrendered) return;
     // 사용자가 직접 눌러 재생한 것이면 되돌리지 않는다.
-    if (isUserInitiated()) {
+    if (hostInput.isActive()) {
       surrenderToUser('resumed');
       return;
     }
@@ -136,7 +143,7 @@ export function suspendHostPlayer({
     if (!video || surrendered) return;
     if (video.muted === appliedMuted) return;
     if (video.muted) return;
-    if (!isUserInitiated()) return;
+    if (!hostInput.isActive()) return;
     surrenderToUser('unmuted');
   };
 
@@ -184,6 +191,7 @@ export function suspendHostPlayer({
 
   return () => {
     stopGuard();
+    hostInput.stop();
     const video = watched;
     watched = null;
     const snapshot = saved;
