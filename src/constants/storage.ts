@@ -42,8 +42,8 @@ export type Settings = {
   quality: { enabled: boolean; target: QualityTarget; applyToVod: boolean };
   /**
    * FR-19 오디오 처리 (2026-08-20). 구현 참조: chzzk-plus (kyechan99/chzzk-plus, MIT).
-   * 컴프레서는 방송마다 들쭉날쭉한 음량을 눌러 균일하게 만든다. 기본은 꺼짐 —
-   * 소리를 바꾸는 기능이라 사용자가 켜는 것이 맞다.
+   * 컴프레서는 방송마다 들쭉날쭉한 음량을 눌러 균일하게 만든다. 기본은 켜짐(2026-08-22 변경) —
+   * 방송마다 음량 편차가 커 대부분의 시청 환경에서 바로 도움이 된다.
    */
   audio: {
     compressor: {
@@ -218,7 +218,7 @@ export const CHAT_WIDTH_RANGE = { min: 15, max: 50 } as const;
 export const DEFAULT_SETTINGS: Settings = {
   quality: { enabled: true, target: '1080p', applyToVod: true },
   audio: {
-    compressor: { enabled: false, threshold: -50, knee: 40, ratio: 12, attack: 0, release: 0.25 },
+    compressor: { enabled: true, threshold: -50, knee: 40, ratio: 12, attack: 0, release: 0.25 },
   },
   volume: { autoUnmute: true, defaultLevel: 50, step: 10, restoreLast: false, lastLevel: 50 },
   chatPresets: [],

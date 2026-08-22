@@ -81,11 +81,10 @@ export const ICON_PATHS = {
     },
   ],
   compressor: [
-    { tag: 'path', d: 'M2 3.5h12' },
-    { tag: 'rect', x: 2.5, y: 8, width: 2, height: 5 },
-    { tag: 'rect', x: 5.5, y: 5.5, width: 2, height: 7.5 },
-    { tag: 'rect', x: 8.5, y: 4, width: 2, height: 9 },
-    { tag: 'rect', x: 11.5, y: 7, width: 2, height: 6 },
+    { tag: 'path', d: 'M2 6.3h2.2L7.7 3.2v9.6L4.2 9.7H2z' },
+    { tag: 'path', d: 'M9.7 6.3a2.5 2.5 0 0 1 0 3.4' },
+    { tag: 'path', d: 'M11.7 4.6a5.1 5.1 0 0 1 0 6.8' },
+    { tag: 'path', d: 'M9.3 3h4.7' },
   ],
 } as const satisfies Record<string, string | readonly IconShape[]>;
 
@@ -234,7 +233,7 @@ export function GearIcon({ size = 16, className }: IconProps) {
   return <svg {...strokeSvgProps(size, className)}>{renderIconShapes(ICON_PATHS.gear)}</svg>;
 }
 
-/** 음량 평탄화(컴프레서) 토글 — 높낮이가 제각각인 막대와 그 위 수평 상한선. 큰 소리를 눌러 고르게 만드는 모양. */
+/** 음량 평탄화(컴프레서) 토글 — 스피커 + 음파 두 겹 + 그 위 수평 상한선. 소리를 상한선까지만 눌러 고르게 만드는 모양. */
 export function CompressorIcon({ size = 16, className }: IconProps) {
   return <svg {...strokeSvgProps(size, className)}>{renderIconShapes(ICON_PATHS.compressor)}</svg>;
 }
