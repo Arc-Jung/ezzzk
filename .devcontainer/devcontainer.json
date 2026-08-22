@@ -8,6 +8,7 @@
       "version": "24.18.0"
     },
     "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "moby": false
     },
@@ -17,14 +18,19 @@
     }
   },
 
+  // sshd 는 VS Code 웹/데스크톱 접속에는 필요 없지만 `gh codespace ssh`(CLI 접속)는 컨테이너
+  // 안에 실제 SSH 데몬이 있어야 동작한다 (실측 2026-08-22 — sshd 없이는 "failed to start SSH
+  // server" 로 거부됨).
   // docker-in-docker 는 컨테이너 안에서 다시 컨테이너를 띄우는 구조라 privileged 모드가 필요하다.
   // 기본값 moby(Microsoft 포크)는 Ubuntu 26.04(resolute)용 패키지가 아직 없어 feature 설치가
   // 실패한다 (실측 2026-08-22, Codespace 생성 로그) — moby:false 로 공식 Docker CE 를 쓴다.
   "runArgs": ["--privileged"],
 
-  // gajae-code(gjc) 는 bun 전역 설치라 ~/.bun/bin 을 PATH 에 넣어야 셸에서 바로 실행된다.
+  // corepack 이 yarn 바이너리를 처음 내려받을 때 뜨는 대화형 확인 프롬프트를 끈다.
+  // postCreateCommand 는 pty 가 달린 비대화 셸이라 프롬프트가 뜨면 응답을 못 받고 영원히
+  // 멎는다 (실측 2026-08-22 — yarn install 이 corepack 확인 프롬프트에 걸려 몇 분째 멈춤).
   "containerEnv": {
-    "PATH": "${containerEnv:PATH}:/home/node/.bun/bin"
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
   },
 
   // corepack 으로 package.json 에 고정된 yarn 버전을 그대로 쓴다 (전역 yarn 설치와 버전이 갈리지 않게).
@@ -35,14 +41,11 @@
   // `claude` 실행 시 로그인하거나, Codespaces 리포지토리 시크릿에 CLAUDE_CODE_OAUTH_TOKEN 을
   // 등록해 두면 자동 로드된다.
   "postCreateCommand": {
-    "corepack": "corepack enable && corepack prepare yarn@1.22.22 --activate",
-    "yarn-install": "yarn install --frozen-lockfile",
-    "playwright": "npx playwright install --with-deps chromium",
-    "chrome": "curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && sudo apt-get update && sudo apt-get install -y /tmp/chrome.deb && rm /tmp/chrome.deb",
-    "edge": "curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft.gpg > /dev/null && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/edge stable main' | sudo tee /etc/apt/sources.list.d/microsoft-edge.list > /dev/null && sudo apt-get update && sudo apt-get install -y microsoft-edge-stable",
+    "yarn": "corepack enable && corepack prepare yarn@1.22.22 --activate && yarn install --frozen-lockfile && npx --yes playwright install --with-deps chromium",
+    "browsers": "curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && sudo apt-get update && sudo apt-get install -y /tmp/chrome.deb && rm /tmp/chrome.deb && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft.gpg > /dev/null && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/edge stable main' | sudo tee /etc/apt/sources.list.d/microsoft-edge.list > /dev/null && sudo apt-get update && sudo apt-get install -y microsoft-edge-stable",
     "claude-code": "npm install -g @anthropic-ai/claude-code",
     "gajae-code": "curl -fsSL https://bun.sh/install | bash && ~/.bun/bin/bun install -g gajae-code",
-    "gjc-alias": "grep -q 'alias gjc=' ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'\n\n# gjc 입력 시 가재코드(gajae-code) 실행. bun 전역 설치 바이너리를 명시적으로 가리켜\n# PATH 순서가 꼬여도 항상 이 바이너리가 뜨게 한다.\nalias gjc=\"~/.bun/bin/gjc\"\nEOF",
+    "gjc-alias": "grep -q 'alias gjc=' ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'\n\n# bun 전역 설치 경로. devcontainer.json 의 containerEnv 로 PATH 를 건드리면 features 빌드\n# 단계의 PATH 치환이 깨지는 문제가 있어(실측 2026-08-22) 셸 rc 파일에서만 추가한다.\nexport PATH=\"$HOME/.bun/bin:$PATH\"\n# gjc 입력 시 가재코드(gajae-code) 실행. bun 전역 설치 바이너리를 명시적으로 가리켜\n# PATH 순서가 꼬여도 항상 이 바이너리가 뜨게 한다.\nalias gjc=\"~/.bun/bin/gjc\"\nEOF",
     "claude-autostart": "grep -q CLAUDE_CODE_OAUTH_TOKEN ~/.zshrc 2>/dev/null || cat >> ~/.zshrc <<'EOF'\n\n# 새 터미널을 열면 자동으로 Claude Code 를 띄운다. 로컬 macOS 셋업과 동일한 목적이지만,\n# 이 저장소는 공개라 키 파일을 커밋할 수 없으므로 값은 Codespaces 리포지토리 시크릿으로\n# CLAUDE_CODE_OAUTH_TOKEN 을 등록해야 한다 (Settings > Secrets and variables > Codespaces).\nif [[ $- == *i* ]] && [ -n \"$CLAUDE_CODE_OAUTH_TOKEN\" ] && [ -z \"$CLAUDE_CODE_ENTRYPOINT\" ]; then\n  claude --dangerously-skip-permissions\nfi\nEOF"
   },
 
