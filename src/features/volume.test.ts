@@ -809,9 +809,9 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
 
     const button = compressorButton();
     expect(button).not.toBeNull();
-    expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 켜기');
-    expect(button?.getAttribute('aria-pressed')).toBe('false');
-    expect(button?.dataset.enabled).toBe('false');
+    expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 끄기');
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(button?.dataset.enabled).toBe('true');
     // "옆에" — +/− 와 같은 컨테이너 안에 있다.
     const group = document.getElementById('cm-volume-control');
     expect(group?.contains(button)).toBe(true);
@@ -850,7 +850,7 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
     // 준비 대기·자동 재확인(800ms)까지 넉넉히 지나도 컴프레서 설정은 그대로여야 한다.
     await vi.advanceTimersByTimeAsync(5_000);
 
-    expect(savedCompressorEnabled()).toBe(false);
+    expect(savedCompressorEnabled()).toBe(true);
 
     dispose?.();
   });
@@ -864,20 +864,20 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
     const button = compressorButton();
     button?.click();
 
-    expect(button?.getAttribute('aria-pressed')).toBe('true');
-    expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 끄기');
-    expect(button?.dataset.enabled).toBe('true');
-
-    await flush();
-    expect(savedCompressorEnabled()).toBe(true);
-
-    button?.click();
     expect(button?.getAttribute('aria-pressed')).toBe('false');
     expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 켜기');
     expect(button?.dataset.enabled).toBe('false');
 
     await flush();
     expect(savedCompressorEnabled()).toBe(false);
+
+    button?.click();
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(button?.getAttribute('aria-label')).toBe('음량 평탄화 끄기');
+    expect(button?.dataset.enabled).toBe('true');
+
+    await flush();
+    expect(savedCompressorEnabled()).toBe(true);
 
     dispose?.();
   });
@@ -893,8 +893,8 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
     button?.click();
 
     expect(button?.style.color).not.toBe(colorBefore);
-    expect(button?.getAttribute('aria-pressed')).toBe('true');
-    expect(button?.dataset.enabled).toBe('true');
+    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    expect(button?.dataset.enabled).toBe('false');
 
     dispose?.();
   });
