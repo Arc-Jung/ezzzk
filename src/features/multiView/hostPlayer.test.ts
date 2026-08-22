@@ -42,6 +42,16 @@ function setUserActivation(isActive: boolean): void {
   });
 }
 
+/**
+ * 사용자가 **실제로 눌렀다** 를 흉내 낸다.
+ * 활성화 플래그만으로는 부족하다 — 2026-08-22 수정으로 "우리 UI 밖에서 일어난 입력"까지
+ * 있어야 사용자 조작으로 인정한다 (`userIntent.trackHostDirectedInput`).
+ */
+function userPressOn(target: Element): void {
+  setUserActivation(true);
+  target.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+}
+
 afterEach(() => {
   document.body.innerHTML = '';
   Reflect.deleteProperty(navigator, 'userActivation');
@@ -227,7 +237,7 @@ describe('suspendHostPlayer — 사용자가 직접 조작하면 물러선다', 
     const resume = suspendHostPlayer({ isSlotFrame: false });
     expect(video.paused).toBe(true);
 
-    setUserActivation(true);
+    userPressOn(video);
     void video.play();
     video.muted = false;
     video.dispatchEvent(new Event('play'));
@@ -241,7 +251,7 @@ describe('suspendHostPlayer — 사용자가 직접 조작하면 물러선다', 
     const video = mountHostPlayer({ paused: false, muted: false });
     const resume = suspendHostPlayer({ isSlotFrame: false });
 
-    setUserActivation(true);
+    userPressOn(video);
     void video.play();
     video.dispatchEvent(new Event('play'));
 
@@ -262,7 +272,7 @@ describe('suspendHostPlayer — 사용자가 직접 조작하면 물러선다', 
     const resume = suspendHostPlayer({ isSlotFrame: false });
     expect(video.muted).toBe(true);
 
-    setUserActivation(true);
+    userPressOn(video);
     video.muted = false;
     video.dispatchEvent(new Event('volumechange'));
 
@@ -291,7 +301,7 @@ describe('suspendHostPlayer — 사용자가 직접 조작하면 물러선다', 
     const video = mountHostPlayer({ paused: false, muted: true });
     const resume = suspendHostPlayer({ isSlotFrame: false });
 
-    setUserActivation(true);
+    userPressOn(video);
     video.muted = false;
     video.dispatchEvent(new Event('volumechange'));
     void video.play();
@@ -301,5 +311,80 @@ describe('suspendHostPlayer — 사용자가 직접 조작하면 물러선다', 
     // 스냅샷(muted: true)으로 되돌리면 사용자가 켠 소리를 우리가 다시 끄는 꼴이 된다.
     expect(video.muted).toBe(false);
     expect(video.paused).toBe(false);
+  });
+});
+
+/**
+ * 🔴 회귀 고정 (실측 2026-08-22, `console-laptop13.log`) — **멀티뷰를 여는 클릭 자체**가
+ * "사용자가 원본을 재생시켰다"로 잡혀 재정지를 포기했다. 사용자는 그 사이 아무것도 누르지
+ * 않았고, 결과적으로 원본 소리가 슬롯 소리와 겹쳤다.
+ * 판정을 "우리 UI 밖에서, 정지 이후에 일어난 조작"으로 좁힌 것이 이 그룹의 계약이다.
+ */
+describe('suspendHostPlayer — 우리 UI 위의 클릭은 사용자 조작으로 치지 않는다', () => {
+  it('멀티뷰 버튼을 누른 직후 플레이어가 스스로 되살아나도 다시 멈춘다', () => {
+    const video = mountHostPlayer({ paused: false, muted: false });
+    // 멀티뷰 진입 클릭 = 우리 버튼 위에서 일어난 입력. 활성화 창은 열려 있다.
+    const button = document.createElement('button');
+    button.id = 'cm-multiview-button';
+    document.body.appendChild(button);
+    const resume = suspendHostPlayer({ isSlotFrame: false });
+
+    userPressOn(button);
+    void video.play();
+    video.muted = false;
+    video.dispatchEvent(new Event('play'));
+
+    expect(video.paused).toBe(true);
+    expect(video.muted).toBe(true);
+    resume();
+  });
+
+  it('스테이지 조작 바(`.cm-stage-bar`) 클릭도 항복 사유가 아니다', () => {
+    const video = mountHostPlayer({ paused: false, muted: false });
+    const stage = document.createElement('div');
+    stage.id = 'cm-multiview-stage';
+    const bar = document.createElement('div');
+    bar.className = 'cm-stage-bar';
+    stage.appendChild(bar);
+    document.body.appendChild(stage);
+    const resume = suspendHostPlayer({ isSlotFrame: false });
+
+    userPressOn(bar);
+    video.muted = false;
+    video.dispatchEvent(new Event('volumechange'));
+    video.dispatchEvent(new Event('play'));
+
+    expect(video.paused).toBe(true);
+    expect(video.muted).toBe(true);
+    resume();
+  });
+
+  it('입력 없이 활성화 플래그만 살아 있어도 항복하지 않는다 (진입 클릭 잔여 활성화)', () => {
+    const video = mountHostPlayer({ paused: false, muted: false });
+    const resume = suspendHostPlayer({ isSlotFrame: false });
+
+    // 정지 이후 아무 입력도 없었다 — 활성화 창만 진입 클릭 때문에 열려 있는 상태.
+    setUserActivation(true);
+    void video.play();
+    video.muted = false;
+    video.dispatchEvent(new Event('play'));
+
+    expect(video.paused).toBe(true);
+    expect(video.muted).toBe(true);
+    resume();
+  });
+
+  it('우리 UI 밖(원본 플레이어)을 직접 누른 경우에는 예전처럼 물러선다', () => {
+    const video = mountHostPlayer({ paused: false, muted: false });
+    const resume = suspendHostPlayer({ isSlotFrame: false });
+
+    userPressOn(video);
+    void video.play();
+    video.muted = false;
+    video.dispatchEvent(new Event('play'));
+
+    expect(video.paused).toBe(false);
+    expect(video.muted).toBe(false);
+    resume();
   });
 });

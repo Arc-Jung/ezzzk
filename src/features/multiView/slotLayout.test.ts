@@ -45,13 +45,63 @@ describe('computeSlotRects — 실측 기준값 재현 (1920×1080)', () => {
 
   it('2분할 세로는 상하로 나눈다 (모바일·7인치급 세로 자세)', () => {
     const rects = computeSlotRects(2, 412, 915, 'portrait');
-    expect(rects[0]).toMatchObject({ index: 1, x: 0, y: 0, width: 412 });
+    // y 는 0 이 아니다 — 16:9 높이만 쓰고 가운데로 모으기 때문이다 (2026-08-22, 아래 describe 참조).
+    expect(rects[0]).toMatchObject({ index: 1, x: 0, width: 412 });
     expect(rects[1]?.index).toBe(2);
     expect(rects[1]?.x).toBe(0);
     expect(rects[1]?.width).toBe(412);
     // 상하 합 + gap 이 무대 높이를 넘지 않는다
     const total = (rects[0]?.height ?? 0) + (rects[1]?.height ?? 0) + SLOT_GAP;
     expect(total).toBeLessThanOrEqual(915 + SLOT_GAP);
+  });
+
+  /**
+   * 🔴 회귀 고정 (실측 2026-08-22, mobile-portrait 412×915) — 세로 2분할에서 슬롯이 412×421
+   * 이었는데 16:9 영상은 412×232 밖에 안 돼 **슬롯마다 189px(약 45%)가 검은 띠**로 남았다.
+   * 세로 자세에서는 폭이 제약이므로 필요한 높이는 `width × 9/16` 뿐이다 — 그만큼만 준다.
+   */
+  describe('2분할 세로는 16:9 높이만 쓰고 가운데로 모은다 (2026-08-22)', () => {
+    it('412×915 에서 슬롯이 412×232 (16:9) 다', () => {
+      const rects = computeSlotRects(2, 412, 915, 'portrait');
+      expect(rects[0]).toMatchObject({ index: 1, x: 0, width: 412, height: 232 });
+      expect(rects[1]).toMatchObject({ index: 2, x: 0, width: 412, height: 232 });
+    });
+
+    it('슬롯 안에 검은 띠(레터박스)가 남지 않는다', () => {
+      const rect = computeSlotRects(2, 412, 915, 'portrait')[0]!;
+      const m = stripMetrics(rect.width, rect.height, 0, 'overlay');
+      expect(rect.height - m.pictureH).toBeLessThanOrEqual(1);
+      expect(m.pillarbox).toBeLessThanOrEqual(1);
+    });
+
+    it('남는 높이는 위아래로 균등 분배해 두 슬롯을 가운데에 둔다', () => {
+      const rects = computeSlotRects(2, 412, 915, 'portrait');
+      const top = rects[0]!.y;
+      const bottom = 915 - (rects[1]!.y + rects[1]!.height);
+      expect(rects[1]!.y).toBe(rects[0]!.y + rects[0]!.height + SLOT_GAP);
+      expect(Math.abs(top - bottom)).toBeLessThanOrEqual(1);
+    });
+
+    it('조작 바 띠가 있어도 그 아래 남는 높이 안에서 같은 계약을 지킨다', () => {
+      const rects = computeSlotRects(2, 412, 915, 'portrait', SLOT_GAP, 70);
+      expect(rects[0]).toMatchObject({ index: 1, x: 0, width: 412, height: 232 });
+      expect(rects[1]).toMatchObject({ index: 2, x: 0, width: 412, height: 232 });
+      expect(rects[0]!.y).toBeGreaterThanOrEqual(70);
+      expect(rects[1]!.y + rects[1]!.height).toBeLessThanOrEqual(915);
+    });
+
+    it('16:9 두 장이 안 들어가는 좁은 높이에서는 예전처럼 균등 분할한다', () => {
+      // 412 폭이면 16:9 두 장에 466px 이 필요하다 — 400px 밖에 없으면 균등 분할이 최선이다.
+      const rects = computeSlotRects(2, 412, 400, 'portrait');
+      expect(rects[0]?.height).toBe(199);
+      expect(rects[1]?.y).toBe(201);
+      expect(rects[1]!.y + rects[1]!.height).toBe(400);
+    });
+
+    it('가로 2분할은 바뀌지 않는다 (좌우 배치는 폭이 제약이 아니다)', () => {
+      const rects = computeSlotRects(2, 1920, 1080, 'landscape');
+      expect(rects[0]).toMatchObject({ index: 1, x: 0, y: 0, width: 959, height: 1080 });
+    });
   });
 
   it('3분할은 좌측 1개가 두 행을 차지하고 우측 2개가 정확히 16:9 다', () => {
@@ -126,9 +176,10 @@ describe('computeSlotRects — 조작 바 전용 상단 띠 (2026-08-16 회귀)'
   });
 
   it('2분할 세로도 띠 아래에서 상하로 나눈다', () => {
+    // 2026-08-22: 세로 2분할은 16:9 높이(232)만 쓰고 띠 아래 남는 높이 안에서 가운데로 모인다.
     const rects = computeSlotRects(2, 412, 915, 'portrait', SLOT_GAP, INSET);
-    expect(rects[0]).toMatchObject({ index: 1, x: 0, y: 70, width: 412, height: 421 });
-    expect(rects[1]).toMatchObject({ index: 2, x: 0, y: 494, width: 412, height: 421 });
+    expect(rects[0]).toMatchObject({ index: 1, x: 0, y: 259, width: 412, height: 232 });
+    expect(rects[1]).toMatchObject({ index: 2, x: 0, y: 493, width: 412, height: 232 });
   });
 
   it('띠는 슬롯 높이만 줄인다 — 폭·x 는 띠가 없을 때와 같다', () => {

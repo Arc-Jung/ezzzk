@@ -6,6 +6,7 @@
 
 import { CHAT_FONT_RANGE, LIMITS, type SlotLines, type SplitCount } from '../constants/storage';
 import { lineHeightForFont, visibleLines } from '../features/chatFont';
+import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
 import { Stepper } from './Stepper';
 import { useSettings } from './useSettings';
 import { CloseIcon } from '../ui/icons';
@@ -213,18 +214,21 @@ export function Popup() {
               <option value={4}>4분할</option>
             </select>
           </div>
-          <div className="cm-row">
-            <span>슬롯 채팅 줄</span>
-            <Stepper
-              label="슬롯 채팅 줄 수"
-              value={multiView.slotChatLines}
-              min={0}
-              max={5}
-              onChange={(next) =>
-                update({ multiView: { ...multiView, slotChatLines: next as SlotLines } })
-              }
-            />
-          </div>
+          {/* 멀티뷰 채팅 임시 비활성화 (`features/multiView/chatFeature.ts`, 2026-08-22). */}
+          {MULTIVIEW_CHAT_ENABLED ? (
+            <div className="cm-row">
+              <span>슬롯 채팅 줄</span>
+              <Stepper
+                label="슬롯 채팅 줄 수"
+                value={multiView.slotChatLines}
+                min={0}
+                max={5}
+                onChange={(next) =>
+                  update({ multiView: { ...multiView, slotChatLines: next as SlotLines } })
+                }
+              />
+            </div>
+          ) : null}
           <label className="cm-label">
             <input
               type="checkbox"
