@@ -365,7 +365,7 @@ describe('adBlockNoticeFeature 라이프사이클', () => {
     document.body.innerHTML = '';
   });
 
-  it('🔴 정상적으로 닫힌 뒤에는 재시도 카운터가 초기화된다 — 3번째 모달도 2회 눌러 본다', async () => {
+  it('🔴 정상적으로 닫힌 뒤에는 재시도 카운터가 초기화된다 — 3번째 모달도 1회 눌러 본다', async () => {
     vi.useFakeTimers();
     const dispose = adBlockNoticeFeature.start(ctx);
 
@@ -387,7 +387,7 @@ describe('adBlockNoticeFeature 라이프사이클', () => {
     });
     await vi.advanceTimersByTimeAsync(5_000);
 
-    expect(clicks).toBe(2);
+    expect(clicks).toBe(1);
     const overlay = document.querySelector('._dim_abc_1') as HTMLElement;
     expect(overlay.getAttribute(HIDDEN_ATTR)).toBe('true');
 
