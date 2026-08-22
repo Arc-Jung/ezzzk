@@ -43,6 +43,7 @@ import {
   setCompressorEnabled,
   volumeGaugeColor,
 } from './audioPipeline';
+import { createIconElement, type IconName } from '../ui/icons';
 import { CONTROL_ITEM_CLASS, ensureControlBarAutoHideCss } from './controlBar';
 import type { Feature } from './types';
 
@@ -442,13 +443,13 @@ export const volumeFeature: Feature = {
       if (persistToSettings) persist(percent);
     };
 
-    const makeButton = (glyph: string, ariaLabel: string, onPress: () => void): HTMLElement => {
+    const makeButton = (icon: IconName, ariaLabel: string, onPress: () => void): HTMLElement => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'cm-volume-button';
       // NFR-10 — 삽입한 모든 조작 요소에 aria-label 을 준다.
       button.setAttribute('aria-label', ariaLabel);
-      button.textContent = glyph;
+      button.appendChild(createIconElement(icon));
       button.style.cssText = [
         `min-width:${touchSize}px`,
         `min-height:${touchSize}px`,
@@ -515,7 +516,9 @@ export const volumeFeature: Feature = {
         'flex:0 0 auto',
       ].join(';');
 
-      const minus = makeButton('−', '볼륨 낮추기', () => setPercent(stepVolume(percent, -1, step)));
+      const minus = makeButton('minus', '볼륨 낮추기', () =>
+        setPercent(stepVolume(percent, -1, step)),
+      );
       const value = document.createElement('span');
       value.className = 'cm-volume-value';
       value.setAttribute('aria-live', 'polite');
@@ -526,7 +529,9 @@ export const volumeFeature: Feature = {
         'font-size:12px',
         'font-variant-numeric:tabular-nums',
       ].join(';');
-      const plus = makeButton('+', '볼륨 높이기', () => setPercent(stepVolume(percent, 1, step)));
+      const plus = makeButton('plus', '볼륨 높이기', () =>
+        setPercent(stepVolume(percent, 1, step)),
+      );
       const compressorButton = makeIconButton(COMPRESSOR_ICON_MARKUP, '음량 평탄화 켜기', () =>
         toggleCompressor(),
       );

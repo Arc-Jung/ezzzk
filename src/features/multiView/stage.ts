@@ -10,13 +10,14 @@
  * 레이아웃 값은 **크기 변화마다 재계산하고 캐시하지 않는다** (FR-12.1).
  */
 
+import { createIconElement } from '../../ui/icons';
 import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
 import type { MultiViewSlot, Settings, SlotIndex } from '../../constants/storage';
 import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
 import { readViewport } from '../../utils/viewport';
 import { info, warning } from '../../utils/log';
-import { AudioRouter, slotFromAudioShortcut } from './audioRouter';
+import { slotFromAudioShortcut } from './messages';
 import {
   MV_CHANNEL,
   parseMvMessage,
@@ -46,6 +47,14 @@ const FRAME_LOAD_TIMEOUT_MS = 15_000;
  * 480px(슬롯 하나 약 240px) 미만이 되면 채팅을 아예 켜지 않는다 — 모바일·분할 화면·세로가 여기 걸린다.
  */
 const MIN_STAGE_WIDTH_PX = 480;
+/**
+ * 조작 바를 1줄로 압축하는 폭 경계. 실측(`docs/ui-audit/multiview-stage-mobile-portrait.png`,
+ * `mobile-portrait` 412×915)에서 라벨("구성"·"해제"·"채팅") 때문에 조작 바가 3줄로 접혀
+ * 무대를 잡아먹었다 — 라벨만 숨기면 1줄에 들어간다. `laptop13`(1440) 은 이 경계 밖이라
+ * 라벨이 그대로 남는다. `tablet7Min`(600, `SIZE_TIERS`)과 같은 값을 쓴다 — 그 아래 기기부터
+ * 손가락 위주 UI 라는 판단이 이미 있으니 새 경계를 또 만들지 않는다.
+ */
+const STAGE_BAR_COMPACT_MAX_PX = 600;
 
 /**
  * 사이드 채팅에 담을 줄 수. 슬롯 스트립(0~5줄)과 **같은 `chat` 메시지를 공유**하므로,
@@ -118,7 +127,6 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   background: #000;
   outline: 1px solid #1c1f22;
 }
-#${OURS.multiViewStageId} .cm-slot--active { outline: 2px solid #00ffa3; }
 #${OURS.multiViewStageId} .cm-slot iframe {
   display: block;
   border: 0;
@@ -198,13 +206,23 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   슬롯 배치 띠로 환산하므로 슬롯과 겹치지 않는다.
 */
 #${OURS.multiViewStageId} .cm-stage-bar {
+  /*
+   * 실측 회귀 — left: 50% + transform: translateX(-50%) 로 가운데를 맞추면, width 를
+   * fit-content 로 줘도 그 계산의 "가용 폭" 자체가 "컨테이너 폭 − left" 로 반토막난다
+   * (412px 뷰포트에서 206px). CSS 절대 위치 스펙상 inset 한쪽(left)만 정해지면 shrink-to-fit
+   * 계산이 그 한쪽만 기준으로 잡히기 때문이다 — 라벨을 다 숨겨도 그 반쪽 폭 안에서 계속
+   * 줄바꿈되던 원인이 이것이었다. left·right 를 둘 다 0 으로 고정하고 margin: 0 auto 로
+   * 가운데를 맞추면 가용 폭이 컨테이너 전체 폭이 된다 — 표준적인 "shrink-to-fit 가운데" 기법.
+   */
+  width: fit-content;
   max-width: calc(100vw - 8px);
   flex-wrap: wrap;
   justify-content: center;
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   top: 6px;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -215,13 +233,22 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   z-index: 3;
 }
 #${OURS.multiViewStageId} .cm-stage-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   min-width: ${touchTargetPx}px;
   min-height: ${touchTargetPx}px;
+  padding: 0 8px;
   border: 1px solid #2a2d31;
   border-radius: 5px;
   background: #1c1f22;
   color: #e9ecef;
   cursor: pointer;
+}
+#${OURS.multiViewStageId} .cm-stage-bar__label {
+  font-size: 11px;
+  white-space: nowrap;
 }
 #${OURS.multiViewStageId} .cm-stage-bar output { min-width: 40px; text-align: center; }
 /*
@@ -309,6 +336,21 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   border-left: 1px solid #2a2d31;
 }
 #${OURS.multiViewStageId} .cm-stage-chat-controls output { min-width: 48px; }
+/*
+  🔴 좁은 화면에서 조작 바 1줄 압축 (사용자 보고: 3줄로 접혀 무대를 잡아먹음).
+  버튼 크기(터치 타겟)는 절대 줄이지 않는다 — 라벨 글자만 숨기고 아이콘만 남긴다.
+  간격은 오히려 넓힌다: 촘촘해 보이는 건 버튼이 커서가 아니라 간격이 부족해서다.
+  라벨을 숨겨도 버튼의 aria-label 이 그대로 접근성 이름을 맡는다 (createBar 참고).
+  laptop13(1440) 처럼 이 경계보다 넓은 화면은 그대로 라벨이 보인다.
+*/
+@media (max-width: ${STAGE_BAR_COMPACT_MAX_PX}px) {
+  #${OURS.multiViewStageId} .cm-stage-bar {
+    gap: 12px;
+  }
+  #${OURS.multiViewStageId} .cm-stage-bar__label {
+    display: none;
+  }
+}
 `.trim();
 }
 
@@ -318,7 +360,7 @@ export const STRIP_BAR_GAP_PX = 6;
 /**
  * 조작 바 전용 띠의 높이. **순수 함수 — 테스트 대상.**
  *
- * 🔴 2026-08-16 회귀: 가운데 상단 조작 바가 슬롯 헤더 버튼(`슬롯 N 소리 활성`·`채팅 줄 수 …`)을
+ * 🔴 2026-08-16 회귀: 가운데 상단 조작 바가 슬롯 헤더 버튼(`슬롯 N 초점`·`채팅 줄 수 …`)을
  * 덮어 **버튼 중심점의 `elementFromPoint` 가 `div.cm-stage-bar`** 가 됐다 — 눌리지 않았다
  * (mobile-landscape·mobile-portrait·tablet10-landscape·laptop13 4건).
  * 바의 자리를 슬롯 배치에서 아예 떼어 내면 분할 수·프로필과 무관하게 겹칠 수 없다.
@@ -386,6 +428,41 @@ export function stripBottomOffset(
   return Math.max(0, Math.min(offset, slot.height - stripHeightPx));
 }
 
+/**
+ * 실제로 초점을 받을 슬롯. **순수 함수** — 테스트 대상.
+ *
+ * 🔴 **희망 슬롯이 아직 등록되지 않았을 수 있다** (실측 결함, 옛 오디오 라우터에서 옮겨 옴).
+ * `stage.open()` 은 iframe 이 `load` 되기 **전에** 초점 슬롯을 지정한다. 등록된 프레임이
+ * 없다고 지정을 버리면 저장된 `activeSlot` 이 사라진다.
+ * → 희망 슬롯이 등록되어 있으면 그것을, 아니면 **등록된 가장 앞 슬롯**을 쓴다.
+ *
+ * ⚠️ 2026-08-20 정책 변경 이후 이 값은 **오디오와 무관하다** — 모든 슬롯이 항상 소리를
+ * 낸다. 사이드 채팅 대상·비활성 슬롯 화질 하향·나가기 버튼 채널 선택에만 쓴다.
+ */
+export function effectiveActiveSlot(registered: SlotIndex[], desired: SlotIndex): SlotIndex | null {
+  if (registered.length === 0) return null;
+  if (registered.includes(desired)) return desired;
+  return [...registered].sort((a, b) => a - b)[0] ?? null;
+}
+
+/** 초점 슬롯을 다음 후보로 옮긴다 (슬롯이 비워졌을 때). */
+export function nextActiveSlot(slots: SlotIndex[], current: SlotIndex): SlotIndex {
+  if (slots.includes(current)) return current;
+  return [...slots].sort((a, b) => a - b)[0] ?? 1;
+}
+
+/**
+ * 조작 바 버튼의 텍스트 라벨. 좁은 화면(`STAGE_BAR_COMPACT_MAX_PX` 이하)에서는
+ * `buildStageCss` 의 미디어쿼리가 이 클래스를 숨겨 아이콘만 남긴다 — 그때도
+ * 접근성 이름은 버튼의 `aria-label` 이 그대로 맡으므로 스크린리더에는 문제가 없다.
+ */
+function barLabel(text: string): HTMLSpanElement {
+  const label = document.createElement('span');
+  label.className = 'cm-stage-bar__label';
+  label.textContent = text;
+  return label;
+}
+
 export class MultiViewStage {
   private container: HTMLElement | null = null;
   /** 하단 컨트롤 바. 스트립이 이 바를 피하도록 좌표를 읽는다. */
@@ -406,7 +483,9 @@ export class MultiViewStage {
   /** 마지막 배치에 쓴 조작 바 높이. 줄바꿈으로 높이가 바뀌면 한 번 더 배치한다. */
   private lastBarHeight = 0;
   private runtimes = new Map<SlotIndex, SlotRuntime>();
-  private router = new AudioRouter();
+  /** 초점 슬롯(오디오 아님) 계산용 상태 — 등록 여부와 무관하게 희망 슬롯을 기억한다. */
+  private focusDesired: SlotIndex = 1;
+  private focusRegistered = new Set<SlotIndex>();
   private disposers: (() => void)[] = [];
   private volumePercent: number;
 
@@ -455,8 +534,7 @@ export class MultiViewStage {
     document.addEventListener('fullscreenchange', onFullscreenChange);
     this.disposers.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange));
 
-    this.router.setActive(this.settings.multiView.activeSlot);
-    this.markActiveSlot();
+    this.focusDesired = this.settings.multiView.activeSlot;
     this.updateChatControls();
     this.layout();
     info(`multiview stage opened with ${slots.length} slot(s)`);
@@ -572,7 +650,9 @@ export class MultiViewStage {
     }
     if (this.chatToggle) {
       this.chatToggle.setAttribute('aria-label', this.chatOpen ? '채팅 끄기' : '채팅 켜기');
-      this.chatToggle.textContent = this.chatOpen ? '✕' : '💬';
+      this.chatToggle.replaceChildren(
+        this.chatOpen ? createIconElement('close') : createIconElement('chatBubble'),
+      );
     }
   }
 
@@ -662,7 +742,7 @@ export class MultiViewStage {
        * 사이드 채팅이 켜져 있으면 **활성 슬롯에만** 더 많은 줄을 요청한다. 스트립은 뒤쪽 N줄만
        * 쓰므로(`renderStrip`) 표시가 달라지지 않고, 비활성 슬롯의 부담도 늘지 않는다.
        */
-      const isActive = runtime.slot === this.router.getActive();
+      const isActive = runtime.slot === this.getFocusedSlot();
       const requestLines = isActive && this.chatPanel ? Math.max(lines, SIDE_CHAT_LINES) : lines;
       this.post({
         channel: MV_CHANNEL,
@@ -679,7 +759,7 @@ export class MultiViewStage {
     const override = config.slots.find((s) => s.index === slot)?.chatLines;
     const requested =
       override ??
-      (slot === this.router.getActive() ? config.slotChatLinesActive : config.slotChatLines);
+      (slot === this.getFocusedSlot() ? config.slotChatLinesActive : config.slotChatLines);
     return resolveSlotChatLines(requested, slotWidth, this.device.deviceClass);
   }
 
@@ -698,8 +778,10 @@ export class MultiViewStage {
 
     const audioButton = document.createElement('button');
     audioButton.type = 'button';
-    audioButton.setAttribute('aria-label', `슬롯 ${slot.index} 소리 활성`);
-    audioButton.textContent = '🔊';
+    // ⚠️ 2026-08-20 정책 변경: 오디오는 모든 슬롯이 항상 낸다 — 이 버튼은 초점(사이드채팅
+    // 대상·화질 우선순위)만 옮긴다. "소리" 문구를 없애 오해를 막는다.
+    audioButton.setAttribute('aria-label', `슬롯 ${slot.index} 초점`);
+    audioButton.appendChild(createIconElement('target'));
     audioButton.addEventListener('click', (event) => {
       event.stopPropagation();
       this.setActiveSlot(slot.index);
@@ -713,7 +795,7 @@ export class MultiViewStage {
       const button = document.createElement('button');
       button.type = 'button';
       button.setAttribute('aria-label', `슬롯 ${slot.index} 채팅 ${label}`);
-      button.textContent = delta < 0 ? '−' : '+';
+      button.appendChild(createIconElement(delta < 0 ? 'minus' : 'plus'));
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         const current = this.settings.multiView.slots.find(
@@ -755,9 +837,7 @@ export class MultiViewStage {
 
     frame.addEventListener('load', () => {
       runtime.loaded = true;
-      this.router.register(slot.index, frame);
-      // 등록으로 실효 활성 슬롯이 바뀔 수 있다 (희망 슬롯이 이번에야 등록된 경우).
-      this.markActiveSlot();
+      this.registerFocus(slot.index);
       this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'enterSlotMode', slot: slot.index });
       this.applyQuality(slot.index);
     });
@@ -802,12 +882,20 @@ export class MultiViewStage {
       const button = document.createElement('button');
       button.type = 'button';
       button.setAttribute('aria-label', label);
-      button.textContent = delta < 0 ? '−' : '+';
+      button.appendChild(createIconElement(delta < 0 ? 'minus' : 'plus'));
       button.addEventListener('click', () => {
         const step = this.settings.volume.step;
         this.volumePercent = Math.max(0, Math.min(100, this.volumePercent + delta * step));
         volumeLabel.textContent = `${this.volumePercent}%`;
-        this.router.setVolume(this.volumePercent);
+        for (const runtime of this.runtimes.values()) {
+          this.post({
+            channel: MV_CHANNEL,
+            dir: 'p2s',
+            kind: 'setVolume',
+            slot: runtime.slot,
+            percent: this.volumePercent,
+          });
+        }
         this.callbacks.onVolumeChange(this.volumePercent);
       });
       bar.appendChild(button);
@@ -817,7 +905,8 @@ export class MultiViewStage {
     const configButton = document.createElement('button');
     configButton.type = 'button';
     configButton.setAttribute('aria-label', '멀티뷰 구성 열기');
-    configButton.textContent = '구성';
+    configButton.appendChild(createIconElement('slots'));
+    configButton.appendChild(barLabel('구성'));
     configButton.addEventListener('click', () => this.callbacks.onRequestConfig());
     bar.appendChild(configButton);
 
@@ -836,7 +925,7 @@ export class MultiViewStage {
     const narrow = document.createElement('button');
     narrow.type = 'button';
     narrow.setAttribute('aria-label', '채팅 영역 좁히기');
-    narrow.textContent = '−';
+    narrow.appendChild(createIconElement('minus'));
     narrow.addEventListener('click', () => {
       this.chatSteps -= 1;
       this.syncChatWidth();
@@ -845,7 +934,7 @@ export class MultiViewStage {
     const widen = document.createElement('button');
     widen.type = 'button';
     widen.setAttribute('aria-label', '채팅 영역 넓히기');
-    widen.textContent = '+';
+    widen.appendChild(createIconElement('plus'));
     widen.addEventListener('click', () => {
       this.chatSteps += 1;
       this.syncChatWidth();
@@ -854,7 +943,6 @@ export class MultiViewStage {
     const chatOff = document.createElement('button');
     chatOff.type = 'button';
     chatOff.setAttribute('aria-label', '채팅 끄기');
-    chatOff.textContent = '✕';
     chatOff.addEventListener('click', () => {
       /*
        * 🔴 토글이다. 예전에는 끄기만 있고 다시 켜는 경로가 **전체 화면 재진입** 뿐이어서,
@@ -865,7 +953,7 @@ export class MultiViewStage {
       this.syncChatWidth();
     });
 
-    chatControls.append(document.createTextNode('채팅'), narrow, chatLabel, widen, chatOff);
+    chatControls.append(barLabel('채팅'), narrow, chatLabel, widen, chatOff);
     bar.appendChild(chatControls);
     this.chatControls = chatControls;
     this.chatLabel = chatLabel;
@@ -881,7 +969,7 @@ export class MultiViewStage {
     const fullscreenButton = document.createElement('button');
     fullscreenButton.type = 'button';
     fullscreenButton.setAttribute('aria-label', '전체 화면 전환 (주소창 숨김)');
-    fullscreenButton.textContent = '⛶';
+    fullscreenButton.appendChild(createIconElement('fullscreen'));
     fullscreenButton.addEventListener('click', () => {
       void this.toggleFullscreen();
     });
@@ -890,9 +978,10 @@ export class MultiViewStage {
     const exitButton = document.createElement('button');
     exitButton.type = 'button';
     exitButton.setAttribute('aria-label', '멀티뷰 해제');
-    exitButton.textContent = '해제';
+    exitButton.appendChild(createIconElement('close'));
+    exitButton.appendChild(barLabel('해제'));
     exitButton.addEventListener('click', () => {
-      const active = this.runtimes.get(this.router.getActive());
+      const active = this.runtimes.get(this.getFocusedSlot());
       this.callbacks.onExit(active?.channelId ?? null);
     });
     bar.appendChild(exitButton);
@@ -923,28 +1012,29 @@ export class MultiViewStage {
   }
 
   /**
-   * 소리가 나는 슬롯에 초록 아웃라인을 붙인다.
+   * 초점 슬롯(오디오 아님) — 사이드 채팅 대상·화질 우선순위·나가기 버튼 채널에 쓴다.
+   * 등록된 프레임이 없으면 희망 슬롯을 그대로 돌려준다.
    *
-   * 🔴 2026-08-16 실측 결함: 스테이지를 **열자마자는 어느 슬롯에도 아웃라인이 없었다**
-   * (`probe-multiview-beta` 03-stage: 두 슬롯 모두 `cm-slot--active` 없음).
-   * 클래스 토글이 `setActiveSlot()` 안에만 있어서 **사용자가 한 번 누르기 전까지**
-   * "지금 어느 방송의 소리가 나는가"를 화면에서 알 수 없었다.
-   *
-   * 기준은 `router.getActive()` 다 — 저장된 활성 슬롯이 이번 구성에 없으면
-   * `effectiveActiveSlot` 이 실제로 소리 내는 슬롯으로 대체하므로, 희망값을 쓰면
-   * **소리는 1번에서 나는데 아웃라인은 3번에** 붙는 어긋남이 생긴다.
-   * iframe 이 등록될 때마다 실효 활성 슬롯이 바뀔 수 있어 `load` 시점에도 다시 부른다.
+   * ⚠️ 2026-08-20 정책 변경: 오디오는 더 이상 이 값을 따르지 않는다 — 모든 슬롯이 항상
+   * 소리를 낸다. 초록 아웃라인 표시도 의미가 없어져 제거했다.
    */
-  private markActiveSlot(): void {
-    const active = this.router.getActive();
-    for (const runtime of this.runtimes.values()) {
-      runtime.cell.classList.toggle('cm-slot--active', runtime.slot === active);
-    }
+  private getFocusedSlot(): SlotIndex {
+    return effectiveActiveSlot([...this.focusRegistered], this.focusDesired) ?? this.focusDesired;
+  }
+
+  /** 슬롯 프레임이 떴다. 희망 슬롯이 이번에야 등록됐으면 실효 초점이 바뀔 수 있다. */
+  private registerFocus(slot: SlotIndex): void {
+    this.focusRegistered.add(slot);
+  }
+
+  /** 고장난 슬롯을 초점 후보에서 뺀다 — 초점이 남은 슬롯으로 넘어갈 수 있다. */
+  private unregisterFocus(slot: SlotIndex): void {
+    this.focusRegistered.delete(slot);
+    this.focusDesired = nextActiveSlot([...this.focusRegistered], this.focusDesired);
   }
 
   setActiveSlot(slot: SlotIndex): void {
-    this.router.setActive(slot);
-    this.markActiveSlot();
+    this.focusDesired = slot;
     /*
      * 사이드 채팅은 활성 슬롯을 따라간다. 채널이 바뀌면 이전 채널의 줄이 섞이지 않게 비우고,
      * 새 활성 슬롯의 첫 배치가 오기를 기다린다(200ms 배치 — `slotFrame.ts`).
@@ -959,7 +1049,7 @@ export class MultiViewStage {
 
   /** 비활성 슬롯 화질 하향 — 대역폭 보호. 기본 켜기이며 설정에서 끌 수 있다. */
   private applyQuality(slot: SlotIndex): void {
-    const isActive = slot === this.router.getActive();
+    const isActive = slot === this.getFocusedSlot();
     const isDowngrade = !isActive && this.settings.multiView.lowerInactiveQuality;
     const target = isDowngrade
       ? INACTIVE_SLOT_QUALITY
@@ -993,16 +1083,14 @@ export class MultiViewStage {
       /**
        * 🔴 슬롯 컨트롤러는 iframe `load` 보다 **늦게** 기동한다 (실측 2026-08-15:
        * `multiview stage opened` 로그가 `slot controller started` 보다 먼저 찍힌다).
-       * `load` 시점에 보낸 `setAudio`·`enterSlotMode` 는 아직 리스너가 없어 그대로 유실되고,
-       * 그 결과 **활성 슬롯까지 음소거로 남아 아무 소리도 나지 않았다.**
+       * `load` 시점에 보낸 `enterSlotMode` 는 아직 리스너가 없어 그대로 유실된다.
        * 준비 신호를 받은 지금 지시문을 다시 보낸다 (모두 멱등하다).
        */
       if (message.kind === 'ready') {
         info(`slot ${message.slot} controller is ready; re-sending slot directives`);
         runtime.ready = true;
         this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'enterSlotMode', slot: message.slot });
-        this.router.register(message.slot, runtime.frame);
-        this.markActiveSlot();
+        this.registerFocus(message.slot);
         this.applyQuality(message.slot);
         // 채팅 줄 수(`setChatLines`)도 여기서 다시 나간다.
         this.layout();
@@ -1014,14 +1102,14 @@ export class MultiViewStage {
        */
       if (message.kind === 'audioShortcut') {
         if (this.device.profile.shortcuts === 'off') return;
-        if (this.router.getActive() === message.slot) return;
+        if (this.getFocusedSlot() === message.slot) return;
         info(`slot ${message.slot} activated by audio shortcut forwarded from a slot frame`);
         this.setActiveSlot(message.slot);
         return;
       }
       /** 사용자가 이 슬롯의 음소거를 직접 풀었다 → 의도대로 활성 슬롯을 옮긴다. */
       if (message.kind === 'requestAudio') {
-        if (this.router.getActive() === message.slot) return;
+        if (this.getFocusedSlot() === message.slot) return;
         info(`slot ${message.slot} requested audio focus (unmuted by the user)`);
         this.setActiveSlot(message.slot);
         return;
@@ -1036,8 +1124,8 @@ export class MultiViewStage {
       }
       if (message.kind === 'error') {
         warning(`slot ${message.slot} reported an error: ${message.reason}`);
-        // 고장난 슬롯이 오디오를 쥐고 있으면 아무 소리도 안 난다 → 라우팅에서 빼 다른 슬롯으로 넘긴다.
-        this.router.unregister(message.slot);
+        // 고장난 슬롯이 초점을 쥐고 있으면 사이드 채팅·화질 우선순위가 죽은 슬롯을 가리킨다 → 뺀다.
+        this.unregisterFocus(message.slot);
       }
     };
     window.addEventListener('message', onMessage);
@@ -1099,7 +1187,7 @@ export class MultiViewStage {
 
   private updateChatPanelTitle(): void {
     if (!this.chatPanelTitle) return;
-    const active = this.router.getActive();
+    const active = this.getFocusedSlot();
     const runtime = active === null ? undefined : this.runtimes.get(active);
     this.chatPanelTitle.textContent = runtime ? `${runtime.slot} ${runtime.channelName}` : '채팅';
   }
@@ -1110,7 +1198,7 @@ export class MultiViewStage {
     messages: { nickname: string; text: string; color: string | null }[],
   ): void {
     if (!this.chatPanelList) return;
-    if (this.router.getActive() !== runtime.slot) return;
+    if (this.getFocusedSlot() !== runtime.slot) return;
 
     const nodes = messages.slice(-SIDE_CHAT_LINES).map((message) => {
       const line = document.createElement('div');

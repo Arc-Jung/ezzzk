@@ -1,5 +1,5 @@
 /**
- * 오픈소스 라이선스 고지 화면. 설정 패널 맨 아래 진입점에서 연다.
+ * 설정 패널 「오픈소스 라이선스」 탭 본문 (FR-09.2).
  *
  * 원칙
  * - **목록을 손으로 적지 않는다.** 전부 `licenses.generated.ts`(= `yarn licenses:gen`)에서 온다.
@@ -8,6 +8,11 @@
  *   있는 것과 없는 것이 구분되지 않아 오히려 부정확해진다.
  * - 배포 그룹과 이 확장 자신의 라이선스는 **전문을 그대로** 싣고, 길이는 접기로 다룬다.
  * - 확인하지 못한 것은 "확인하지 못함"으로 적는다. 지어내지 않는다.
+ *
+ * 🔴 예전에는 시트를 통째로 갈아 끼우는 **별도 화면**이었다 (설정 패널 하단 진입점 → `showLicenses`).
+ * 고지 한 장을 위해 시트 교체 상태를 따로 들고 있을 만한 기능이 아니라 탭으로 접었다
+ * (요청 2026-08-21). 탭이 되면서 `onClose`·`touchTargetPx`·`Sheet` 래퍼가 전부 필요 없어졌다 —
+ * 시트 껍데기는 `SettingsPanel` 것 하나뿐이다.
  *
  * 스크롤: 본문은 `Sheet` 의 `.cm-sheet__body`(flex + `min-height: 0` + `overflow-y: auto`)가
  * 담당한다. 이 파일에서 별도 스크롤 컨테이너를 만들지 않는다 — 이중 스크롤은 세로가 짧은 화면에서
@@ -25,13 +30,6 @@ import {
   type BundledLicenseEntry,
   type LicenseEntry,
 } from '../constants/licenses.generated';
-import { Sheet } from '../ui/Sheet';
-import { SHEET_LOGO_PATH, extensionAssetUrl } from '../ui/assetUrl';
-
-type Props = {
-  onClose: () => void;
-  touchTargetPx?: number;
-};
 
 /**
  * 화면에 쓰는 확장 버전. **생성물에 박아 두지 않는다** — 릴리스 워크플로가 머지마다
@@ -119,106 +117,89 @@ function BriefRow({ entry }: { entry: LicenseEntry }) {
   );
 }
 
-export function LicenseSheet({ onClose, touchTargetPx }: Props) {
+export function LicenseTab() {
   const [selfOpen, setSelfOpen] = useState(false);
 
   return (
-    <Sheet
-      title="오픈소스 라이선스"
-      onClose={onClose}
-      logoSrc={extensionAssetUrl(SHEET_LOGO_PATH)}
-      touchTargetPx={touchTargetPx}
-      footer={
+    <div className="cm-lic">
+      {/* 예전에는 시트 푸터에 있던 문구다. 탭이 되면서 푸터는 설정 패널 것 하나뿐이라
+          본문 맨 위로 올렸다 — 목록의 출처를 먼저 밝혀야 아래 내용을 신뢰할 수 있다. */}
+      <p className="cm-sheet__note">
+        목록은 package.json 과 각 패키지의 LICENSE 원문에서 자동 생성됩니다.
+      </p>
+      <h3>이 확장</h3>
+      <ul className="cm-lic__list">
+        <li className="cm-lic__item">
+          <div className="cm-lic__head">
+            <span className="cm-lic__name">
+              {[SELF_NAME, extensionVersion(), '— MIT'].filter(Boolean).join(' ')}
+            </span>
+            <button
+              type="button"
+              className="cm-sheet__btn"
+              aria-expanded={selfOpen}
+              aria-label={`이 확장 라이선스 전문 ${selfOpen ? '접기' : '펼치기'}`}
+              onClick={() => setSelfOpen((prev) => !prev)}
+            >
+              {selfOpen ? '전문 접기' : '전문 보기'}
+            </button>
+          </div>
+          {selfOpen ? <pre className="cm-lic__text">{SELF_LICENSE_TEXT}</pre> : null}
+        </li>
+      </ul>
+
+      <h3>배포물에 포함 — 재배포 고지 대상</h3>
+      <p className="cm-sheet__note">
+        아래 항목은 확장 번들(dist)에 코드가 함께 들어가므로 라이선스 전문을 싣습니다.
+      </p>
+      <ul className="cm-lic__list">
+        {BUNDLED_LICENSES.map((entry) => (
+          <FullText key={entry.name} entry={entry} />
+        ))}
+      </ul>
+
+      {CODE_ATTRIBUTIONS.length > 0 ? (
         <>
-          <span className="cm-sheet__note" style={{ marginRight: 'auto' }}>
-            목록은 package.json 과 각 패키지의 LICENSE 원문에서 자동 생성됩니다.
-          </span>
-          <button
-            type="button"
-            className="cm-sheet__btn cm-sheet__btn--primary"
-            aria-label="설정으로 돌아가기"
-            onClick={onClose}
-          >
-            설정으로 돌아가기
-          </button>
+          <h3>코드 참조 고지</h3>
+          <p className="cm-sheet__note">
+            아래 프로젝트의 구현을 참조했습니다. 해당 파일에 참조 주석을 남겨 두었습니다.
+          </p>
+          <ul className="cm-lic__list">
+            {CODE_ATTRIBUTIONS.map((entry) => (
+              <li key={entry.name} className="cm-lic__brief">
+                <span className="cm-lic__name">{entry.name}</span>
+                <span className="cm-lic__kind">{entry.licenseField}</span>
+                <span className="cm-sheet__note">
+                  {entry.url} · 참조 파일: {entry.files.join(', ')}
+                </span>
+              </li>
+            ))}
+          </ul>
         </>
-      }
-    >
-      <div className="cm-lic">
-        <h3>이 확장</h3>
-        <ul className="cm-lic__list">
-          <li className="cm-lic__item">
-            <div className="cm-lic__head">
-              <span className="cm-lic__name">
-                {[SELF_NAME, extensionVersion(), '— MIT'].filter(Boolean).join(' ')}
-              </span>
-              <button
-                type="button"
-                className="cm-sheet__btn"
-                aria-expanded={selfOpen}
-                aria-label={`이 확장 라이선스 전문 ${selfOpen ? '접기' : '펼치기'}`}
-                onClick={() => setSelfOpen((prev) => !prev)}
-              >
-                {selfOpen ? '전문 접기' : '전문 보기'}
-              </button>
-            </div>
-            {selfOpen ? <pre className="cm-lic__text">{SELF_LICENSE_TEXT}</pre> : null}
+      ) : null}
+
+      <h3>개발·검증에만 사용 — 배포물 미포함</h3>
+      <p className="cm-sheet__note">
+        아래 항목은 개발·빌드·검증에만 쓰이며 배포되는 확장에는 포함되지 않습니다. 수가 많아
+        이름·버전·라이선스 종류·저작권자만 적습니다.
+      </p>
+      <ul className="cm-lic__list">
+        {DEV_LICENSES.map((entry) => (
+          <BriefRow key={entry.name} entry={entry} />
+        ))}
+        {EXTERNAL_TOOLS.map((entry) => (
+          <li key={entry.name} className="cm-lic__brief">
+            <span className="cm-lic__name">
+              {entry.name} {entry.version}
+            </span>
+            <span className="cm-lic__kind">{licenseLabel(entry)}</span>
+            <span className="cm-sheet__note">
+              {copyrightLabel(entry)} · npm 의존성이 아니라 검증용으로 내려받아 쓰며, 배포된 zip
+              안에 라이선스 원문 파일이 없어 종류를 확인하지 못했습니다.
+            </span>
           </li>
-        </ul>
-
-        <h3>배포물에 포함 — 재배포 고지 대상</h3>
-        <p className="cm-sheet__note">
-          아래 항목은 확장 번들(dist)에 코드가 함께 들어가므로 라이선스 전문을 싣습니다.
-        </p>
-        <ul className="cm-lic__list">
-          {BUNDLED_LICENSES.map((entry) => (
-            <FullText key={entry.name} entry={entry} />
-          ))}
-        </ul>
-
-        {CODE_ATTRIBUTIONS.length > 0 ? (
-          <>
-            <h3>코드 참조 고지</h3>
-            <p className="cm-sheet__note">
-              아래 프로젝트의 구현을 참조했습니다. 해당 파일에 참조 주석을 남겨 두었습니다.
-            </p>
-            <ul className="cm-lic__list">
-              {CODE_ATTRIBUTIONS.map((entry) => (
-                <li key={entry.name} className="cm-lic__brief">
-                  <span className="cm-lic__name">{entry.name}</span>
-                  <span className="cm-lic__kind">{entry.licenseField}</span>
-                  <span className="cm-sheet__note">
-                    {entry.url} · 참조 파일: {entry.files.join(', ')}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
-
-        <h3>개발·검증에만 사용 — 배포물 미포함</h3>
-        <p className="cm-sheet__note">
-          아래 항목은 개발·빌드·검증에만 쓰이며 배포되는 확장에는 포함되지 않습니다. 수가 많아
-          이름·버전·라이선스 종류·저작권자만 적습니다.
-        </p>
-        <ul className="cm-lic__list">
-          {DEV_LICENSES.map((entry) => (
-            <BriefRow key={entry.name} entry={entry} />
-          ))}
-          {EXTERNAL_TOOLS.map((entry) => (
-            <li key={entry.name} className="cm-lic__brief">
-              <span className="cm-lic__name">
-                {entry.name} {entry.version}
-              </span>
-              <span className="cm-lic__kind">{licenseLabel(entry)}</span>
-              <span className="cm-sheet__note">
-                {copyrightLabel(entry)} · npm 의존성이 아니라 검증용으로 내려받아 쓰며, 배포된 zip
-                안에 라이선스 원문 파일이 없어 종류를 확인하지 못했습니다.
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </Sheet>
+        ))}
+      </ul>
+    </div>
   );
 }

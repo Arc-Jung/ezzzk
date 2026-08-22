@@ -14,6 +14,7 @@ import { ConfigSheet } from './ConfigSheet';
 import { decideDevice } from '../../device';
 import { DEFAULT_SETTINGS } from '../../constants/storage';
 import type { FollowChannel } from './followList';
+import { auditIconButtons } from '../../ui/iconButtonAudit.test-utils';
 
 vi.mock('./followList', async () => {
   const actual = await vi.importActual<typeof import('./followList')>('./followList');
@@ -175,5 +176,29 @@ describe('ConfigSheet — 채널 목록 섹션은 하나만 렌더된다', () =>
     );
     expect(headings.some((t) => t?.includes('시청자 수 많은 방송'))).toBe(true);
     expect(document.querySelectorAll('.cm-mv-channels > li').length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * P3 아이콘 치환 회귀 — 시트 닫기(`✕`)와 슬롯 채팅 줄 스테퍼(`−`/`+`)가 전부 아이콘 전용
+ * 버튼이 됐다. 보이는 텍스트가 없으므로 `aria-label` 이 사라지면 이름 없는 버튼이 된다.
+ */
+describe('ConfigSheet — 아이콘 버튼 접근성', () => {
+  it('시트 안의 모든 아이콘 버튼에 접근성 이름이 있다', async () => {
+    vi.mocked(fetchFollowings).mockResolvedValue({ ok: true, channels: [followChannel(1)] });
+    vi.mocked(fetchLivePage).mockResolvedValue({ channels: [popularChannel(1)], next: null });
+
+    await mount(<ConfigSheet {...baseProps()} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // 시트는 `document.body` 직계로 렌더된다 — host 가 아니라 document 를 훑는다.
+    // 닫기 + 스테퍼 `−`/`+` 셋이 최소선이다.
+    auditIconButtons(document, { expectAtLeast: 3, context: 'multiview config sheet' });
+
+    const close = document.querySelector<HTMLButtonElement>('.cm-sheet__close');
+    expect(close?.textContent?.trim()).toBe('');
+    expect(close?.getAttribute('aria-label')).toBe('닫기');
   });
 });

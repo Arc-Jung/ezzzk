@@ -29,6 +29,7 @@ import {
 } from '../features/optionPreset';
 import { Stepper } from '../popup/Stepper';
 import { RevertButton, Toggle, placementTradeOff, type TabProps } from './tabs';
+import { CloseIcon } from '../ui/icons';
 
 const SPLITS: SplitCount[] = [2, 3, 4];
 
@@ -157,7 +158,7 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
                   aria-label={`${set.name} 삭제`}
                   onClick={() => patch({ sets: multiView.sets.filter((s) => s.id !== set.id) })}
                 >
-                  ✕
+                  <CloseIcon />
                 </button>
               </span>
             </li>
@@ -341,7 +342,7 @@ export function ChatTab({
                 </>
               ) : (
                 <>
-                  <span>· {preset.label}</span>
+                  <span className="cm-sp__item-name">· {preset.label}</span>
                   <span className="cm-sp__controls">
                     <button
                       type="button"
@@ -360,7 +361,7 @@ export function ChatTab({
                       aria-label={`${preset.label} 삭제`}
                       onClick={() => update({ chatPresets: removePreset(chatPresets, preset.id) })}
                     >
-                      ✕
+                      <CloseIcon />
                     </button>
                     <button
                       type="button"
@@ -602,7 +603,7 @@ export function PresetTab({ settings, update }: TabProps) {
               ) : (
                 <>
                   <div className="cm-sheet__row">
-                    <span>
+                    <span className="cm-sp__item-name">
                       · {preset.name}
                       {settings.activePresetId === preset.id ? ' (적용 중)' : ''}
                     </span>
@@ -657,7 +658,7 @@ export function PresetTab({ settings, update }: TabProps) {
                           })
                         }
                       >
-                        ✕
+                        <CloseIcon />
                       </button>
                       <button
                         type="button"

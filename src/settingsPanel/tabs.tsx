@@ -32,11 +32,18 @@ export const TAB_IDS = [
   'chat',
   'misc',
   'preset',
+  'licenses',
 ] as const;
 
 export type TabId = (typeof TAB_IDS)[number];
 
-/** 좌측 탭 레일 순서. 목업 화면 ⑦ 의 순서를 그대로 따른다. */
+/**
+ * 좌측 탭 레일 순서. 목업 화면 ⑦ 의 순서를 그대로 따르고, 고지 성격인 라이선스를 맨 뒤에 둔다.
+ *
+ * 라이선스는 예전에 시트 하단의 별도 진입점이었다 — 눌러야 나오는 화면 하나를 위해
+ * `showLicenses` 상태와 시트 교체 로직을 따로 들고 있었다. 독립 화면일 만큼의 기능이 아니라
+ * 탭으로 접었다 (요청 2026-08-21).
+ */
 export const TABS: readonly { id: TabId; title: string }[] = [
   { id: 'playback', title: '재생' },
   { id: 'sound', title: '소리' },
@@ -45,11 +52,15 @@ export const TABS: readonly { id: TabId; title: string }[] = [
   { id: 'chat', title: '채팅' },
   { id: 'misc', title: '기타' },
   { id: 'preset', title: '프리셋' },
+  { id: 'licenses', title: '오픈소스 라이선스' },
 ] as const;
 
 /**
  * `[ 이 탭 초기화 ]` 가 되돌릴 설정 섹션. 탭에서 노출하는 값과 1:1 로 대응해야 한다 —
  * 어긋나면 "초기화했는데 값이 그대로"인 상태가 만들어진다.
+ *
+ * 빈 배열은 **되돌릴 설정이 없는 탭**(라이선스 고지)이다. 이때 패널은 `[ 이 탭 초기화 ]`
+ * 자체를 렌더하지 않는다 — 눌러도 아무 일이 없는 버튼을 두지 않는다 (FR-15).
  */
 export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
   switch (tab) {
@@ -67,6 +78,8 @@ export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
       return ['powerCollect', 'promoHide', 'adSkip', 'device', 'debug'];
     case 'preset':
       return ['optionPresets', 'activePresetId'];
+    case 'licenses':
+      return [];
   }
 }
 

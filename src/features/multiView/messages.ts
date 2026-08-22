@@ -19,7 +19,6 @@ export const MV_CHANNEL = 'ezzzk/multiview' as const;
 export type ParentToSlot =
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'enterSlotMode'; slot: SlotIndex }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'exitSlotMode'; slot: SlotIndex }
-  | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'setAudio'; slot: SlotIndex; active: boolean }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'setVolume'; slot: SlotIndex; percent: number }
   | {
       channel: typeof MV_CHANNEL;
@@ -42,6 +41,15 @@ export type ParentToSlot =
       slot: SlotIndex;
       lines: number;
     };
+
+/** `Alt+Shift+1~4` 로 눌린 슬롯 번호. 대상이 아니면 null. 부모·슬롯 양쪽에서 쓴다. */
+export function slotFromAudioShortcut(event: KeyboardEvent): SlotIndex | null {
+  if (!event.altKey || !event.shiftKey) return null;
+  // event.code 를 쓴다 — Shift 조합에서는 event.key 가 `!@#$` 로 바뀐다.
+  const match = /^Digit([1-4])$/.exec(event.code);
+  if (!match) return null;
+  return Number(match[1]) as SlotIndex;
+}
 
 /** 슬롯 → 부모 */
 export type SlotToParent =
@@ -72,9 +80,8 @@ export type SlotToParent =
       messages: { nickname: string; text: string; color: string | null }[];
     }
   /**
-   * 사용자가 이 슬롯의 음소거를 **직접** 풀었다 → 활성 오디오 슬롯으로 승격해 달라.
-   * 사용자와 싸우는 대신 의도를 따른다. 승격하면 이전 활성 슬롯이 음소거되므로
-   * "오디오는 항상 한 슬롯만"(FR-14) 은 유지된다.
+   * 사용자가 이 슬롯의 음소거를 **직접** 풀었다 → 초점 슬롯으로 승격해 달라(사이드 채팅
+   * 대상·화질 우선순위용, 오디오는 건드리지 않는다 — 모든 슬롯이 항상 소리를 낸다).
    */
   | { channel: typeof MV_CHANNEL; dir: 's2p'; kind: 'requestAudio'; slot: SlotIndex }
   /**

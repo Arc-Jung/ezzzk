@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEVICE_PROFILES } from '../constants/device';
 import { DEFAULT_SETTINGS, STORAGE_KEY, type Settings } from '../constants/storage';
 import { resetAllSettings } from '../storage';
+import { auditIconButtons } from '../ui/iconButtonAudit.test-utils';
 import type { FeatureContext } from './types';
 import {
   VOLUME_STORAGE_KEYS,
@@ -386,6 +387,30 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     // 기본 볼륨 50% 가 실제로 적용됐다.
     expect(video.volume).toBeCloseTo(0.5);
     expect(shownLabel()).toBe('50%');
+
+    dispose?.();
+  });
+
+  it('볼륨 조작 버튼은 전부 문자가 아니라 aria-hidden svg 아이콘이다 (NFR-10 전수 검사)', async () => {
+    vi.useFakeTimers();
+    const dispose = volumeFeature.start(ctx);
+
+    const root = mountPlayer();
+    addVideo(root);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    const buttons = control()?.querySelectorAll<HTMLButtonElement>('.cm-volume-button');
+    // `−` · `+` · 음량 평탄화 토글 셋이다.
+    // 🔴 버튼이 늘면 이 수도 함께 올려 **전수 검사**를 유지한다 — 숫자를 지우면 새 버튼이 검사를 빠져나간다.
+    expect(buttons?.length).toBe(3);
+    for (const button of Array.from(buttons ?? [])) {
+      expect(button.getAttribute('aria-label')).toBeTruthy();
+      expect(button.textContent).toBe('');
+      const svg = button.querySelector('svg');
+      expect(svg).toBeTruthy();
+      expect(svg?.getAttribute('aria-hidden')).toBe('true');
+      expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
+    }
 
     dispose?.();
   });
@@ -792,6 +817,28 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
     expect(group?.contains(button)).toBe(true);
     expect(group?.querySelector('button[aria-label="볼륨 낮추기"]')).not.toBeNull();
     expect(group?.querySelector('button[aria-label="볼륨 높이기"]')).not.toBeNull();
+
+    dispose?.();
+  });
+
+  /**
+   * P3 아이콘 치환 회귀 — 볼륨 컨트롤의 `−`·`+`·평탄화 셋 다 아이콘 전용이 됐다.
+   * 개별 `aria-label` 검사(위 테스트)는 이름을 아는 버튼만 본다. 여기서는 반대로
+   * **컨트롤 안의 모든 버튼**을 훑어 새 버튼이 라벨 없이 끼어드는 것을 막는다.
+   */
+  it('볼륨 컨트롤의 모든 아이콘 버튼에 접근성 이름이 있다', async () => {
+    vi.useFakeTimers();
+    addVideo(mountPlayer());
+    const dispose = volumeFeature.start(ctx);
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    const group = document.getElementById('cm-volume-control');
+    expect(group).not.toBeNull();
+    const audit = auditIconButtons(group as HTMLElement, {
+      expectAtLeast: 3,
+      context: 'volume control',
+    });
+    expect(audit.auditedIconButtons).toBe(audit.totalButtons);
 
     dispose?.();
   });

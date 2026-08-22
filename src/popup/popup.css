@@ -19,17 +19,65 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   margin: 0;
   width: 340px;
+  /* 브라우저가 팝업 창 높이를 제한한다(실측 400×600, docs/ui-audit/popup-*.png) —
+     그 한계를 그대로 받아 안쪽에서 스크롤을 만든다. */
+  max-height: 600px;
+  overflow: hidden;
   font-family: -apple-system, system-ui, 'Malgun Gothic', '맑은 고딕', Helvetica, Arial, sans-serif;
   font-size: 13px;
   background: var(--cm-bg-base);
   color: var(--cm-fg);
 }
 
+/*
+  팝업 하단 스크롤 신호 (감사 보고서 심각도 보통, 2026-08-21).
+  `단축키` 섹션 · `세부 설정 열기` 버튼 · 상표 고지가 스크롤 없이는 안 보이는데,
+  스크롤이 더 있다는 시각 신호가 없었다 — docs/ui-audit/popup-laptop13.png ·
+  popup-mobile-portrait.png 에서 직접 확인했다.
+  본문 스크롤은 `.cm-popup__body` 가 새로 만든다 — 이전에는 `.cm-popup` 에
+  overflow 규칙이 전혀 없어 내용이 넘치면 문서 전체가 늘어나기만 했다
+  (Chrome 이 강제로 자르면 네이티브 스크롤바만 남고 신호가 없었다).
+
+  설정 패널(settingsPanelCss.ts)의 이중 배경 트릭과 달리, 팝업은 `세부 설정 열기`
+  버튼이 스크롤 영역 맨 끝 쪽에 실제로 있어 그림자가 그 위에 얹히는 경우가
+  이론이 아니라 실제로 생긴다. 그래서 별도 그림자 레이어(`::after`)를 두고
+  `pointer-events: none` 으로 명시적으로 클릭을 통과시킨다 — 이 레이어는
+  장식일 뿐이라 아래 실제 버튼이 항상 눌린다.
+*/
 .cm-popup {
-  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px 14px 0;
+}
+
+.cm-popup__body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
+.cm-popup__body::after {
+  content: '';
+  display: block;
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 26px;
+  /* 스크롤 중에는 하단 고정, 콘텐츠 끝에 닿으면 흐름을 따라 사라진다 — 항상
+     떠 있는 오버레이가 아니다. 장식용이므로 클릭은 아래 버튼으로 통과시킨다. */
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0));
 }
 
 .cm-popup h1 {

@@ -24,8 +24,7 @@ import {
 import { debounce, observe, type Disposer } from '../../utils/observe';
 import { info, warning } from '../../utils/log';
 import { findChatClient, readChatMessage } from '../../utils/reactFiber';
-import { slotFromAudioShortcut } from './audioRouter';
-import { MV_CHANNEL, parseMvMessage, type SlotToParent } from './messages';
+import { MV_CHANNEL, parseMvMessage, slotFromAudioShortcut, type SlotToParent } from './messages';
 import { isUserInitiated } from './userIntent';
 import {
   matchesTarget,
@@ -95,51 +94,50 @@ function currentVideo(): HTMLVideoElement | null {
 const PROMOTE_COOLDOWN_MS = 1_000;
 
 export interface SlotAudio {
-  /** 부모 지시. 사용자 조작 표시를 지운다 — 명시 지시가 사용자 의도보다 최신이다. */
-  setActive(active: boolean): void;
   setVolume(percent: number): void;
-  /** 리렌더 뒤 상태 재확인. **사용자가 직접 만든 상태는 덮지 않는다.** */
-  reassert(): void;
+  /** 리렌더로 video 요소가 교체됐을 수 있으니 리스너를 다시 붙인다. */
+  reattach(): void;
   dispose(): void;
 }
 
 /**
- * 슬롯 하나의 오디오 상태기.
+ * 슬롯 하나의 볼륨 적용 + 사용자 언마요트 승격 신호.
  *
- * 활성이 아닌 슬롯은 강제 음소거한다. 판별은 `video.muted` 로만 한다 (volume===0 은 틀림).
+ * 🔴 정책 변경 (요청 2026-08-20): **모든 슬롯이 소리를 낸다.**
+ * 예전에는 활성 슬롯 하나만 소리를 내고 나머지를 강제 음소거했다(`setActive`/`appliedMuted`/
+ * `userMuted` 로 우리 조작과 사용자 조작을 가르던 로직). 슬롯마다 음소거·볼륨 버튼이 이미 있어
+ * 사용자가 직접 조절할 수 있으므로 강제 음소거를 없앴다 — 2026-08-15 "켜도 다시 음소거로
+ * 돌아간다" 사용자 보고의 원인이기도 했다.
  *
- * 🔴 **사용자가 비활성 슬롯의 음소거를 직접 풀면 다시 걸지 않고 부모에 승격을 요청한다.**
- * 예전에는 재확인(`reassert`)이 500ms 안에 무조건 다시 음소거해서, 사용자가 볼륨을 켜도
- * 곧바로 음소거로 되돌아갔다 (2026-08-15 사용자 보고, `scripts/verify-multiview-audio.mjs` 로 재현).
- * 승격되면 이전 활성 슬롯이 음소거되므로 "오디오는 항상 한 슬롯만"(FR-14) 은 그대로 지켜진다.
+ * 남은 역할은 두 가지뿐이다.
+ * - 조작 바 볼륨(마스터 볼륨)을 이 슬롯의 `video.volume` 에 적용한다. **음소거는 건드리지
+ *   않는다** — 사용자가 치지직 음소거 버튼을 직접 눌러 만든 상태를 존중한다.
+ * - 사용자가 이 슬롯의 음소거를 직접 풀면 초점 승격을 요청한다(사이드채팅 대상·화질
+ *   우선순위용 — 오디오와는 무관하다. `messages.ts` `requestAudio` 주석 참조).
  *
- * 우리 조작과 사용자 조작은 **우리가 마지막으로 쓴 `muted` 값**(`appliedMuted`)으로 가른다.
- * `volumechange` 시점의 값이 그 표시와 같으면 우리가 건 것이고, 다르면 밖에서 바뀐 것이다.
+ * ⚠️ (실측 진행 중) 슬롯 등록 시 자동으로 보내던 언마요트 지시도 함께 없앴다.
+ * 브라우저 자동재생 정책이 슬롯을 음소거 상태로 띄우면 지금은 아무도 그것을 풀어주지 않는다 —
+ * 이게 재생을 막는지는 별도 에이전트가 실측 중이다.
  */
 export function createSlotAudio(
   getVideo: () => HTMLVideoElement | null,
   onPromotionRequest: () => void,
 ): SlotAudio {
-  let active = false;
   let volumePercent = 50;
-  /** 우리가 마지막으로 건 `muted`. 아직 아무것도 걸지 않았으면 null. */
-  let appliedMuted: boolean | null = null;
-  /** 사용자가 직접 만든 `muted`. 남아 있는 동안 재확인이 이 값을 덮지 않는다. */
-  let userMuted: boolean | null = null;
   let watched: HTMLVideoElement | null = null;
   let lastRequestAt = 0;
+  /** 마지막으로 관찰한 `muted`. **음소거 → 해제**로 실제로 바뀐 순간만 승격 요청 대상이다. */
+  let lastMuted: boolean | null = null;
 
   const onVolumeChange = (event: Event): void => {
     const video = event.currentTarget as HTMLVideoElement | null;
     if (!video) return;
-    // 우리가 건 변경이다 — 사용자 조작으로 오해하면 안 된다.
-    if (video.muted === appliedMuted) return;
-    // 플레이어 자체 초기화로 되돌아온 경우다. 재확인이 평소대로 다시 음소거한다.
+    const wasMuted = lastMuted;
+    lastMuted = video.muted;
+    // 우리가 볼륨만 바꿔도 `volumechange` 가 온다 — 음소거가 실제로 풀린 경우만 승격 대상이다.
+    if (wasMuted !== true || video.muted) return;
+    // 플레이어 자체 초기화로 바뀐 값이면 승격 요청을 보내지 않는다.
     if (!isUserInitiated()) return;
-
-    userMuted = video.muted;
-    // 음소거를 건 쪽이면 우리 목적과 같고, 이미 활성이면 승격할 것도 없다.
-    if (video.muted || active) return;
 
     const now = Date.now();
     if (now - lastRequestAt < PROMOTE_COOLDOWN_MS) return;
@@ -152,39 +150,22 @@ export function createSlotAudio(
     // 비디오 요소가 교체될 수 있으므로 이전 요소의 리스너를 먼저 뗀다.
     watched?.removeEventListener('volumechange', onVolumeChange);
     watched = video;
-    // 새 요소에는 이전 표시가 통하지 않는다.
-    appliedMuted = null;
-    userMuted = null;
+    lastMuted = video.muted;
     video.addEventListener('volumechange', onVolumeChange);
   };
 
-  const apply = (): void => {
-    const video = getVideo();
-    if (!video) return;
-    attach(video);
-    // 표시를 **쓰기 직전에** 세운다. `volumechange` 는 쓰기 뒤에 도착한다.
-    appliedMuted = !active;
-    video.muted = !active;
-    if (active) video.volume = Math.min(1, Math.max(0, volumePercent / 100));
-  };
-
   return {
-    setActive(next: boolean): void {
-      active = next;
-      userMuted = null;
-      apply();
-    },
     setVolume(percent: number): void {
       volumePercent = percent;
-      userMuted = null;
-      apply();
-    },
-    reassert(): void {
       const video = getVideo();
       if (!video) return;
       attach(video);
-      if (userMuted !== null && video.muted === userMuted) return;
-      apply();
+      video.volume = Math.min(1, Math.max(0, volumePercent / 100));
+    },
+    reattach(): void {
+      const video = getVideo();
+      if (!video) return;
+      attach(video);
     },
     dispose(): void {
       watched?.removeEventListener('volumechange', onVolumeChange);
@@ -333,9 +314,6 @@ export function startSlotController(slot: SlotIndex): Disposer {
       case 'exitSlotMode':
         removeStyle(SLOT_STYLE_ID);
         break;
-      case 'setAudio':
-        audio.setActive(message.active);
-        break;
       case 'setVolume':
         audio.setVolume(message.percent);
         break;
@@ -373,9 +351,8 @@ export function startSlotController(slot: SlotIndex): Disposer {
     document.documentElement,
     () => {
       if (!document.getElementById(SLOT_STYLE_ID)) upsertStyle(SLOT_STYLE_ID, buildSlotModeCss());
-      // 활성 상태를 재확인한다 — 플레이어가 초기화되면 muted 가 되돌아간다.
-      // 사용자가 직접 만든 상태는 여기서 덮지 않는다 (createSlotAudio 주석 참조).
-      audio.reassert();
+      // 리렌더로 video 요소가 교체됐을 수 있으니 리스너를 다시 붙인다 (음소거는 건드리지 않는다).
+      audio.reattach();
     },
     { debounceMs: 500 },
   );

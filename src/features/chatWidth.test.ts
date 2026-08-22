@@ -6,10 +6,15 @@ import {
   clampChatRatio,
   effectiveChatLayout,
   effectiveChatRatio,
+  playerRightColumnHeightPx,
+  playerRightGridHeightPx,
+  PLAYER_RIGHT_COMPACT_RATIO,
   ratioToPx,
   resolveControlAnchor,
   stepChatRatio,
 } from './chatWidth';
+import { ICON_PATHS } from '../ui/icons';
+import { auditIconButtons } from '../ui/iconButtonAudit.test-utils';
 import { pictureSize } from '../utils/viewport';
 import { CHAT_WIDTH_RANGE, DEFAULT_SETTINGS, STORAGE_KEY } from '../constants/storage';
 import type { Settings } from '../constants/storage';
@@ -803,7 +808,11 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
     expect(layoutCss()).toContain('flex-direction: column !important');
     expect(layoutCss()).not.toContain('width: 183px !important');
     // 아이콘도 하단 배치를 그대로 보여 준다 (표시와 실제가 갈라지지 않는다).
-    expect(placementButton()?.textContent).toBe('▤');
+    // ▤(아래 배치) 대체 — LayoutBottomIcon 은 rect + 가로 분할선 2개 엘리먼트로 그려진다.
+    expect(placementButton()?.querySelector('svg')?.children).toHaveLength(2);
+    expect(placementButton()?.querySelector('path')?.getAttribute('d')).toBe(
+      ICON_PATHS.layoutBottom[1].d,
+    );
     restarted?.();
   });
 
@@ -1101,18 +1110,60 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       expect(control()?.parentElement).toBe(document.body);
       dispose?.();
     });
+
+    /**
+     * P3 아이콘 치환 회귀 — 폴백 경로에는 토글(`↔`)이 **추가로** 붙는다.
+     * 우측 가운데 앵커에는 없는 버튼이라 그쪽 검사만으로는 라벨 소실을 못 잡는다.
+     */
+    it('폴백(플로팅) 경로의 아이콘 버튼도 접근성 이름을 갖는다', () => {
+      mountChatArea(1);
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      const root = control();
+      expect(root).not.toBeNull();
+      expect(root?.dataset['anchor']).toBe('floating');
+      // 토글 + `+ − ⟩ ▦` = 5개.
+      const audit = auditIconButtons(root as HTMLElement, {
+        expectAtLeast: 5,
+        context: 'chatWidth floating',
+      });
+      expect(audit.auditedIconButtons).toBe(audit.totalButtons);
+      dispose?.();
+    });
   });
   /**
    * P2 — 채팅 폭 조절 묶음을 플레이어 우측 가운데으로 옮긴다 (도구 행·플로팅은 폴백으로만 남는다).
    */
   describe('P2 — 플레이어 우측 가운데 앵커', () => {
     const control = (): HTMLElement | null => document.getElementById('cm-chat-width-control');
+    const items = (): HTMLElement | null =>
+      control()?.querySelector<HTMLElement>('.cm-chat-width-items') ?? null;
+    const toggle = (): HTMLButtonElement | null =>
+      control()?.querySelector<HTMLButtonElement>('button[aria-label^="채팅 폭 조절"]') ?? null;
 
-    /** 실측 구조를 본뜬 최소 플레이어 루트 (`PLAYER.rootPc` = `.pzp-pc`). */
-    const mountPlayerRoot = (): HTMLElement => {
+    /**
+     * 실측 구조를 본뜬 최소 플레이어 루트 (`PLAYER.rootPc` = `.pzp-pc`).
+     * `heightPx` 를 주면 `getBoundingClientRect().height` 를 그 값으로 고정한다 — jsdom 은
+     * 레이아웃을 계산하지 않으므로(항상 0) 2×2 접힘 판정(`updatePlayerRightCompact`)을 테스트하려면
+     * 직접 못박아야 한다.
+     */
+    const mountPlayerRoot = (heightPx?: number): HTMLElement => {
       const root = document.createElement('div');
       root.className = 'pzp-pc';
       document.body.appendChild(root);
+      if (heightPx !== undefined) {
+        root.getBoundingClientRect = () =>
+          ({
+            height: heightPx,
+            width: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            x: 0,
+            y: 0,
+          }) as DOMRect;
+      }
       return root;
     };
 
@@ -1126,11 +1177,35 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       expect(control()?.classList.contains(CONTROL_ITEM_CLASS)).toBe(true);
       dispose?.();
     });
+
+    it('토글 없이 버튼 4개가 처음부터 전부 보인다', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()?.dataset['expanded']).toBe('true');
+      expect(items()?.hidden).toBe(false);
+      expect(
+        Array.from(items()?.querySelectorAll('button') ?? []).map((b) =>
+          b.getAttribute('aria-label'),
+        ),
+      ).toEqual(['채팅 폭 늘리기', '채팅 폭 줄이기', '채팅 접기', '채팅 위치를 아래로 옮기기']);
+      dispose?.();
+    });
+
+    it('이 앵커에는 ↔ 토글 버튼이 없다 (누를 것이 없다)', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(toggle()).toBeNull();
+      expect(control()?.querySelector('button[aria-label="채팅 폭 조절 열기"]')).toBeNull();
+      dispose?.();
+    });
+
     /**
-     * 🔴 우측 가운데은 오른쪽 모서리에 고정된다 — `+ − ⟩ ▦` 가 오른쪽(화면 밖)으로 펼쳐지면 잘려
-     * 나간다. 컨테이너·아이템 묶음 모두 row-reverse 여야 왼쪽(영상 안쪽)으로 펼쳐진다.
+     * 세로 공간은 넘친다 (플레이어 오른쪽이라 도구 행처럼 좁지 않다) — 접힘 대신
+     * `flex-direction: column` 으로 상시 세로 배치한다. row-reverse 는 더 필요 없다.
      */
-    it('우측 가운데 앵커는 오른쪽이 아니라 왼쪽으로 펼쳐진다 (row-reverse)', () => {
+    it('우측 가운데 앵커는 세로로 쌓인다 (column, row-reverse 아님)', () => {
       mountPlayerRoot();
       const dispose = chatWidthFeature.start(makeCtx({}));
 
@@ -1138,10 +1213,32 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       const css = style?.textContent ?? '';
       const anchorRule = css.slice(css.indexOf('[data-anchor="player-right-center"] {'));
       expect(anchorRule).toContain('right:');
-      expect(anchorRule.slice(0, anchorRule.indexOf('}'))).toContain('flex-direction: row-reverse');
-      expect(css).toContain(
-        '[data-anchor="player-right-center"] .cm-chat-width-items { flex-direction: row-reverse; }',
+      expect(anchorRule.slice(0, anchorRule.indexOf('}'))).toContain('flex-direction: column');
+      const itemsRule = css.slice(
+        css.indexOf('[data-anchor="player-right-center"] .cm-chat-width-items'),
       );
+      expect(itemsRule.slice(0, itemsRule.indexOf('}'))).toContain('flex-direction: column');
+      expect(css).not.toContain('row-reverse');
+      dispose?.();
+    });
+
+    /**
+     * P3 아이콘 치환 회귀 — 이 앵커의 버튼은 전부 아이콘 전용이라 `aria-label` 이
+     * 사라지면 스크린리더에서 넷 다 그냥 "버튼"이 된다. 눈으로는 멀쩡해 보인다.
+     */
+    it('앵커의 아이콘 버튼에 접근성 이름이 전부 남아 있다', () => {
+      mountPlayerRoot();
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      const root = control();
+      expect(root).not.toBeNull();
+      // `+ − ⟩ ▦` 넷. 이 앵커는 토글(`↔`)을 렌더하지 않는다.
+      const audit = auditIconButtons(root as HTMLElement, {
+        expectAtLeast: 4,
+        context: 'chatWidth player-right-center',
+      });
+      // 텍스트를 가진 버튼이 섞여 있으면 전수 검사가 아니게 된다.
+      expect(audit.auditedIconButtons).toBe(audit.totalButtons);
       dispose?.();
     });
 
@@ -1202,6 +1299,23 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       expect(control()?.classList.contains(CONTROL_ITEM_CLASS)).toBe(false);
       dispose?.();
     });
+    it('폴백(플로팅)에서는 토글 접힘/펼침이 그대로 동작한다 — 좁은 자리 전제가 아직 살아 있다', () => {
+      const dispose = chatWidthFeature.start(makeCtx({}));
+
+      expect(control()?.dataset['anchor']).toBe('floating');
+      expect(toggle()).not.toBeNull();
+      expect(control()?.dataset['expanded']).toBe('false');
+      expect(items()?.hidden).toBe(true);
+
+      toggle()?.click();
+      expect(control()?.dataset['expanded']).toBe('true');
+      expect(items()?.hidden).toBe(false);
+
+      toggle()?.click();
+      expect(control()?.dataset['expanded']).toBe('false');
+      expect(items()?.hidden).toBe(true);
+      dispose?.();
+    });
 
     it('플레이어가 없으면 도구 행 폴백도 그대로 동작한다', () => {
       document.body.innerHTML = `
@@ -1234,6 +1348,112 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
 
       expect(control()).toBeNull();
       expect(document.getElementById('cm-chat-width-control-style')).toBeNull();
+    });
+    /**
+     * 2×2 접힘 — 세로 한 줄이 플레이어 높이의 절반을 넘으면 접는다.
+     * 기준은 실제 플레이어 높이다(프로필 이름이 아니다) — `mountPlayerRoot(heightPx)` 로
+     * `getBoundingClientRect().height` 를 직접 못박아 검증한다.
+     */
+    describe('2×2 접힘 — 플레이어 높이 기준', () => {
+      it('플레이어가 낮으면(모바일 세로 실측 232px) 2×2 로 접힌다', () => {
+        mountPlayerRoot(232);
+        const dispose = chatWidthFeature.start(makeCtx({}, { touchTargetPx: 44 }));
+        // 세로 한 줄 196px / 232px = 84.5% > 50% → 접는다.
+        expect(playerRightColumnHeightPx(44) / 232).toBeGreaterThan(PLAYER_RIGHT_COMPACT_RATIO);
+        expect(control()?.dataset['compact']).toBe('true');
+        // 접힌 뒤에는 절반 이하로 내려간다 (100px / 232px = 43.1%).
+        expect(playerRightGridHeightPx(44) / 232).toBeLessThan(0.5);
+        dispose?.();
+      });
+
+      it('플레이어가 넉넉하면(laptop13 실측 900px) 1열을 유지한다', () => {
+        mountPlayerRoot(900);
+        const dispose = chatWidthFeature.start(makeCtx({}, { touchTargetPx: 32 }));
+        // 세로 한 줄 148px / 900px = 16.4% ≤ 50% → 유지한다.
+        expect(playerRightColumnHeightPx(32) / 900).toBeLessThan(PLAYER_RIGHT_COMPACT_RATIO);
+        expect(control()?.dataset['compact']).toBe('false');
+        dispose?.();
+      });
+
+      it('접힘 기준은 캐시하지 않는다 — 플레이어 높이가 나중에 바뀌면 다시 판정한다 (FR-12.1)', async () => {
+        const player = mountPlayerRoot(900); // 처음엔 넉넉하다 → 1열.
+        const dispose = chatWidthFeature.start(
+          makeCtx({ ratioSource: 'auto' }, { touchTargetPx: 44 }),
+        );
+        expect(control()?.dataset['compact']).toBe('false');
+
+        // 회전 등으로 플레이어가 낮아졌다고 가정한다. 값은 매번 다시 읽어야 하므로
+        // 마운트 시점 값을 캐시했다면 여기서 바뀌지 않아야 하는데, 바뀌어야 통과한다.
+        player.getBoundingClientRect = () =>
+          ({ height: 200, width: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0 }) as DOMRect;
+        click('채팅 폭 늘리기'); // apply() 를 다시 태우는 계기 — 변경 내용 자체는 무관하다.
+        await flush();
+
+        expect(control()?.dataset['compact']).toBe('true');
+        dispose?.();
+      });
+
+      it('접혀도 버튼 히트 영역은 touchTargetPx 이상이다 (grid 칸도 버튼과 같은 크기)', () => {
+        mountPlayerRoot(232);
+        const dispose = chatWidthFeature.start(makeCtx({}, { touchTargetPx: 44 }));
+        const css = document.getElementById('cm-chat-width-control-style')?.textContent ?? '';
+        expect(css).toMatch(/button\s*\{[^}]*min-width:\s*44px/);
+        expect(css).toMatch(/button\s*\{[^}]*min-height:\s*44px/);
+        // 아이콘을 줄여 접는 게 아니라 배치만 바꾼다 — grid 칸도 버튼 크기(44px) 그대로다.
+        expect(css).toContain('grid-template-columns: repeat(2, 44px)');
+        dispose?.();
+      });
+    });
+
+    /** SVG 아이콘 전수 검사 — 문자 아이콘이 하나도 남지 않았는지 본다. */
+    describe('SVG 아이콘 — 문자 아이콘 0개', () => {
+      it('버튼 4개 모두 SVG 를 갖고 aria-hidden·aria-label 을 지킨다 (전수 검사)', () => {
+        mountPlayerRoot();
+        const dispose = chatWidthFeature.start(makeCtx({}));
+        const buttons = Array.from(items()?.querySelectorAll<HTMLButtonElement>('button') ?? []);
+        expect(buttons).toHaveLength(4);
+        for (const button of buttons) {
+          expect(button.getAttribute('aria-label')).toBeTruthy();
+          const svg = button.querySelector('svg');
+          expect(svg).not.toBeNull();
+          expect(svg?.getAttribute('aria-hidden')).toBe('true');
+          // 문자 아이콘이 남아 있으면 버튼 자체의 텍스트 노드로 보인다 — SVG 안의 <path>/<rect> 만 있어야 한다.
+          expect(button.textContent?.trim()).toBe('');
+        }
+        dispose?.();
+      });
+
+      it('접기 버튼을 누르면 SVG 가 사라지지 않고 아이콘만 바뀐다 (⟩ → ⟨)', async () => {
+        mountPlayerRoot();
+        const dispose = chatWidthFeature.start(makeCtx({}));
+        const collapseButton = document.querySelector<HTMLButtonElement>(
+          '#cm-chat-width-control button[aria-label="채팅 접기"]',
+        );
+        expect(collapseButton?.querySelector('svg')).not.toBeNull();
+
+        click('채팅 접기');
+        await flush();
+
+        const svg = collapseButton?.querySelector('svg');
+        expect(svg).not.toBeNull(); // textContent 로 덮었다면 여기서 사라진다.
+        expect(collapseButton?.getAttribute('aria-label')).toBe('채팅 펼치기');
+        dispose?.();
+      });
+
+      it('위치 전환 버튼을 누르면 SVG 가 사라지지 않고 아이콘만 바뀐다 (▦ → ▤)', async () => {
+        mountPlayerRoot();
+        const dispose = chatWidthFeature.start(makeCtx({ ratioSource: 'auto' }));
+        expect(placementButton()?.querySelector('svg')).not.toBeNull();
+
+        placementButton()?.click();
+        await flush();
+
+        expect(placementButton()?.querySelector('svg')).not.toBeNull();
+        expect(placementButton()?.querySelector('path')?.getAttribute('d')).toBe(
+          ICON_PATHS.layoutBottom[1].d,
+        );
+        dispose?.();
+      });
     });
   });
 

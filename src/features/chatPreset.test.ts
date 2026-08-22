@@ -3,6 +3,7 @@ import {
   FALLBACK_TEXT_LIMIT,
   addPreset,
   canSendNow,
+  chatPresetFeature,
   deriveLabel,
   removePreset,
   reorderPresets,
@@ -12,7 +13,10 @@ import {
   updatePreset,
   validatePresetText,
 } from './chatPreset';
-import { LIMITS, type ChatPreset } from '../constants/storage';
+import { OURS } from '../constants/class';
+import { DEVICE_PROFILES, type DeviceClass } from '../constants/device';
+import { DEFAULT_SETTINGS, LIMITS, type ChatPreset } from '../constants/storage';
+import type { FeatureContext } from './types';
 
 /** 실측 `textLimitCount` (2026-08-11) — 하드코딩 상한이 아니라 클라이언트에서 읽는 값이다. */
 const MEASURED_TEXT_LIMIT = 400;
@@ -154,12 +158,26 @@ describe('updatePreset / removePreset', () => {
  * 삽입 위치 판정 (2026-08-15).
  * 마크업은 실측 픽스처 `scripts/fixtures/live-page.html` 의 입력 영역을 그대로 옮긴 것이다
  * (해시 접미사 포함 — 셀렉터가 해시에 의존하지 않는지도 함께 본다).
+ *
+ * 🔴 실측 정정 (2026-08-21, 실사이트 비로그인 mobile-portrait·laptop13): 이모티콘 버튼은
+ * `_donation_`/`_action_` 안이 **아니라** 입력창(textarea)의 형제로 별도 입력 컨테이너에
+ * 있고, `aria-label` 이 없다(blind 텍스트 `이모티콘`만 있다). `_action_` 안의 버튼 2개는
+ * aria-label·텍스트가 둘 다 없는 후원 관련 버튼이다. 근거는 `etc/probe/chat-tools-row.json`.
  */
-function mountChatArea(toolsMarkup: string): HTMLElement {
+function mountChatArea(
+  toolsMarkup: string,
+  opts: { withEmoticonButton?: boolean } = {},
+): HTMLElement {
+  const emoticon = opts.withEmoticonButton
+    ? '<button type="button" aria-haspopup="true"><span class="blind">이모티콘</span></button>'
+    : '';
   document.body.innerHTML = `
     <aside id="aside-chatting">
       <div class="_area_b8csn_49">
-        <textarea class="_input_1k5b6_92"></textarea>
+        <div class="_container_1k5b6_2">
+          <textarea class="_input_1k5b6_92"></textarea>
+          ${emoticon}
+        </div>
         ${toolsMarkup}
       </div>
     </aside>`;
@@ -170,7 +188,10 @@ const TOOLS_ROW = `
   <div class="_tools_1k5b6_125">
     <div class="_donation_1k5b6_132">
       <button type="button" class="_donation_text_1k5b6_137">후원하기</button>
-      <div class="_action_1k5b6_140"><button type="button" aria-label="이모티콘">😀</button></div>
+      <div class="_action_1k5b6_140">
+        <button type="button" aria-haspopup="true"></button>
+        <button type="button" aria-haspopup="true"></button>
+      </div>
     </div>
     <button type="button" class="_send_button_1k5b6_176">채팅</button>
   </div>`;
@@ -185,7 +206,7 @@ describe('resolveToolsSlot', () => {
     const slot = resolveToolsSlot(document);
     expect(slot).not.toBeNull();
     expect(slot?.parent.className).toContain('_tools_');
-    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
   });
 
   it('고른 자리에 넣으면 후원하기 **왼쪽**, 채팅 버튼 왼쪽에 온다', () => {
@@ -203,7 +224,7 @@ describe('resolveToolsSlot', () => {
 
   it('바깥 후원 블록을 고른다 — 내부 `_donation_text_` 버튼이 아니다', () => {
     mountChatArea(TOOLS_ROW);
-    expect(resolveToolsSlot(document)?.before.tagName).toBe('DIV');
+    expect(resolveToolsSlot(document)?.before?.tagName).toBe('DIV');
   });
 
   it('도구 행이 없으면 null 을 돌려 폴백하게 한다', () => {
@@ -238,7 +259,7 @@ describe('resolveToolsSlot', () => {
       </aside>`;
     const slot = resolveToolsSlot(document);
     expect(slot?.parent.className).toContain('_tools_');
-    expect(slot?.before.className).toBe('_donation_1k5b6_132');
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
   });
 
   it('입력 영역은 입력창의 부모가 아니라 도구 행을 품은 조상이다', () => {
@@ -258,6 +279,47 @@ describe('resolveToolsSlot', () => {
       <div class="_area_x"><textarea class="_input_x"></textarea>${TOOLS_ROW}</div>`;
     expect(resolveToolsSlot(document)).toBeNull();
   });
+
+  /**
+   * 🔴 실측 정정 (2026-08-21): 이모티콘 버튼은 도구 행(`_tools_`) 안이 아니라 입력
+   * 컨테이너(textarea 형제) 안에 있다. 여기 있어도 자리 선택은 여전히 `_donation_` 앞이어야
+   * 한다 — 이모티콘을 도구 행 안에서 찾으려 들면 안 된다는 회귀 방지 테스트다.
+   * (근거: `etc/probe/chat-tools-row.json`, 입력 컨테이너 여유폭 26px < 최소 터치 타겟)
+   */
+  it('이모티콘 버튼이 입력 컨테이너에 있어도(도구 행 밖) 자리 선택에 영향을 주지 않는다', () => {
+    mountChatArea(TOOLS_ROW, { withEmoticonButton: true });
+    const emoticon = document.body.querySelector('[aria-haspopup="true"] .blind');
+    expect(emoticon?.textContent).toBe('이모티콘');
+    expect(document.body.querySelector('.blind')?.closest('[class*="_tools_"]')).toBeNull();
+
+    const slot = resolveToolsSlot(document);
+    expect(slot?.parent.className).toContain('_tools_');
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
+  });
+
+  it('이모티콘 버튼이 없을 때도 동일하게 `_donation_` 앞으로 폴백한다', () => {
+    mountChatArea(TOOLS_ROW, { withEmoticonButton: false });
+    const slot = resolveToolsSlot(document);
+    expect(slot?.before?.className).toBe('_donation_1k5b6_132');
+  });
+
+  it('도구 행을 못 찾으면(치지직 구조 변경 등) 폴백 대상이 없다는 신호로 null 이다', () => {
+    mountChatArea('', { withEmoticonButton: true });
+    expect(resolveToolsSlot(document)).toBeNull();
+  });
+
+  it('고른 자리에 aria-label 있는 버튼을 넣어도 라벨이 그대로 유지된다', () => {
+    mountChatArea(TOOLS_ROW);
+    const slot = resolveToolsSlot(document);
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.textContent = '문구';
+    toggle.setAttribute('aria-label', '채팅 문구 도구 펼치기');
+    slot?.parent.insertBefore(toggle, slot.before);
+
+    expect(toggle.getAttribute('aria-label')).toBe('채팅 문구 도구 펼치기');
+    expect(toggle.nextElementSibling?.className).toBe('_donation_1k5b6_132');
+  });
 });
 
 describe('sortByOrder', () => {
@@ -265,5 +327,118 @@ describe('sortByOrder', () => {
     const input = [preset('b', 'B', 2), preset('a', 'A', 1)];
     expect(sortByOrder(input).map((p) => p.id)).toEqual(['a', 'b']);
     expect(input[0]?.id).toBe('b');
+  });
+});
+
+describe("resolveToolsSlot 'after-donation' — 문구 버튼은 후원하기 오른쪽이다", () => {
+  it('후원 묶음 바로 뒤를 고른다 (요청 2026-08-21)', () => {
+    mountChatArea(TOOLS_ROW);
+    const slot = resolveToolsSlot(document, 'after-donation');
+
+    expect(slot).not.toBeNull();
+    expect(slot?.parent.className).toContain('_tools_');
+    // 후원 묶음의 다음 형제 = 전송 버튼. 그 앞에 끼우면 후원하기 오른쪽이 된다.
+    expect(slot?.before?.className).toContain('_send_button_');
+  });
+
+  it("🔴 채팅 폭 컨트롤('right')과 같은 틈을 쓰되 서로를 밀어내지 않는다", () => {
+    mountChatArea(TOOLS_ROW);
+    const preset = resolveToolsSlot(document, 'after-donation');
+    const width = resolveToolsSlot(document, 'right');
+
+    // 둘 다 같은 부모(도구 행)에 붙지만 기준점이 달라 순서가 정해진다.
+    expect(preset?.parent).toBe(width?.parent);
+    expect(preset?.before).toBe(width?.before);
+  });
+
+  it('후원 묶음이 마지막이면 맨 뒤에 붙인다 (before 가 null)', () => {
+    mountChatArea('<div class="_tools_1k5b6_1"><div class="_donation_1k5b6_132"></div></div>');
+    const slot = resolveToolsSlot(document, 'after-donation');
+
+    expect(slot).not.toBeNull();
+    expect(slot?.before).toBeNull();
+  });
+
+  it('후원 묶음이 없으면 null — 예외를 던지지 않는다', () => {
+    mountChatArea('<div class="_tools_1k5b6_1"></div>');
+    expect(resolveToolsSlot(document, 'after-donation')).toBeNull();
+  });
+});
+/** 최소 통합 ctx — chatPresetFeature.start 를 실제로 돌려 buildCss 출력을 검증한다. */
+function makeCtx(deviceClass: DeviceClass, presets: ChatPreset[] = []): FeatureContext {
+  return {
+    page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    device: {
+      deviceClass,
+      profile: DEVICE_PROFILES[deviceClass],
+      signals: {
+        longSide: 915,
+        shortSide: 412,
+        hasTouch: deviceClass === 'mobile',
+        canHover: deviceClass !== 'mobile',
+        coarsePointer: deviceClass === 'mobile',
+        devicePixelRatio: 2,
+        uaMobile: deviceClass === 'mobile' ? true : null,
+      },
+      reason: 'test fixture',
+    },
+    settings: { ...DEFAULT_SETTINGS, chatPresets: presets },
+  };
+}
+
+describe('버튼 시각 크기 축소 — 히트 영역은 그대로 최소 터치 타겟이다', () => {
+  afterEach(() => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = '';
+  });
+
+  it('모바일(44px): 폰트는 13px 로 줄어도 min-height/min-width 는 44px 다', () => {
+    mountChatArea(TOOLS_ROW);
+    const dispose = chatPresetFeature.start(makeCtx('mobile'));
+    const css = document.getElementById(`${OURS.chatPresetBarId}-style`)?.textContent ?? '';
+
+    expect(css).toMatch(/\bfont-size:\s*13px/);
+    expect(css).toMatch(/\bmin-height:\s*44px[^;]*;\s*min-width:\s*44px/);
+    dispose?.();
+  });
+
+  it('데스크톱/랩탑(32px): 히트 영역이 32px 로 낮아져도 그 이상을 유지한다', () => {
+    mountChatArea(TOOLS_ROW);
+    const dispose = chatPresetFeature.start(makeCtx('laptop'));
+    const css = document.getElementById(`${OURS.chatPresetBarId}-style`)?.textContent ?? '';
+
+    expect(css).toMatch(/\bmin-height:\s*32px[^;]*;\s*min-width:\s*32px/);
+    dispose?.();
+  });
+});
+
+describe('문구 삭제 버튼 — 문자 "✕" 대신 SVG 아이콘', () => {
+  afterEach(() => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = '';
+  });
+
+  it('삭제 버튼은 aria-hidden SVG 를 담고, 버튼 자신은 aria-label 을 유지한다', () => {
+    mountChatArea(TOOLS_ROW);
+    const dispose = chatPresetFeature.start(makeCtx('laptop', [preset('p1', '테스트 문구', 0)]));
+
+    const bar = document.getElementById(OURS.chatPresetBarId);
+    expect(bar).not.toBeNull();
+
+    // 접힘 → 펼침, 이어서 편집 모드로 들어가야 삭제 버튼이 DOM 에 나온다.
+    bar!.querySelector<HTMLButtonElement>('.cm-preset-toggle')!.click();
+    bar!.querySelector<HTMLButtonElement>('button[aria-label="채팅 문구 편집"]')!.click();
+
+    const deleteButton = bar!.querySelector<HTMLButtonElement>(
+      'button[aria-label="테스트 문구 삭제"]',
+    );
+    expect(deleteButton).not.toBeNull();
+    expect(deleteButton!.textContent?.trim()).toBe('');
+
+    const svg = deleteButton!.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg!.getAttribute('aria-hidden')).toBe('true');
+
+    dispose?.();
   });
 });

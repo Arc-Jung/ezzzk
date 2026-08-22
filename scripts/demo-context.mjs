@@ -10,6 +10,7 @@
  * 적용해 기기 판정이 뒤집힌다.
  */
 import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,14 +93,70 @@ export async function openLiveContext(profile, { profileDir, freshProfile = true
   if (freshProfile) rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
 
-  return chromium.launchPersistentContext(dir, {
-    // ⚠️ 확장 로드에는 표시 가능한 브라우저가 필요하다. 리눅스에서는 xvfb-run 으로 감싼다.
+  /*
+   * 🔴 창을 **항상 같은 자리**에 띄운다 (2026-08-21 요청).
+   *
+   * 위치를 안 주면 OS 가 알아서 배치해 실행할 때마다 창이 다른 모니터·다른 자리에 뜬다.
+   * 프로필 3종을 병렬로 돌리면 어느 창이 무엇인지 매번 다시 찾아야 한다.
+   *
+   * Chrome 의 `--window-position` 은 **주 디스플레이 좌상단이 (0,0)** 인 가상 좌표계를 쓴다.
+   * 이 기기는 내장 디스플레이가 주 디스플레이라(실측 2026-08-21 `system_profiler`:
+   * `Color LCD / Built-in Liquid Retina XDR / Main Display: Yes`) (0,0) 기준이면 노트북 화면에 뜬다.
+   * 외부 모니터를 주 디스플레이로 바꿔 쓰는 경우를 위해 `EZZZK_WINDOW_ORIGIN=x,y` 로 덮을 수 있다.
+   *
+   * 프로필마다 고정 오프셋을 줘 **같은 프로필은 늘 같은 자리**에 뜨게 한다 — 완전히 겹치면
+   * 병렬 실행에서 뒤 창이 안 보이고, 무작위로 흩으면 지금 문제가 그대로 남는다.
+   */
+  const origin = (process.env['EZZZK_WINDOW_ORIGIN'] ?? '0,0').split(',').map(Number);
+  const originX = Number.isFinite(origin[0]) ? origin[0] : 0;
+  const originY = Number.isFinite(origin[1]) ? origin[1] : 0;
+  const slot = Math.max(
+    0,
+    PROFILES.findIndex((p) => p.key === profile.key),
+  );
+  const windowX = originX + slot * 48;
+  const windowY = originY + slot * 48;
+
+  /*
+   * 🔴 **기본은 창을 띄우지 않는다** (2026-08-21 요청: 실측할 때마다 창이 떠서 방해된다).
+   *
+   * 예전 주석은 "확장 로드에는 표시 가능한 브라우저가 필요하다"였는데, 그건 **구 headless 얘기**다.
+   * Chrome 112+ 의 `--headless=new` 는 확장을 지원한다 — 실측으로 확인했다
+   * (2026-08-21: `--headless=new` 로 서비스워커 `fklinobekdfkegoehneldcpnobkmdaja` 정상 등록, 485ms).
+   *
+   * 창을 봐야 할 때만 `EZZZK_HEADED=1` 로 띄운다. 그때는 아래 `--window-position` 이
+   * 늘 같은 자리에 놓아 준다.
+   *
+   * ⚠️ headless 와 headed 는 폰트 래스터라이즈가 미세하게 다를 수 있다. README 에 실리는
+   * 데모 캡처처럼 **픽셀이 결과물인 경우**에는 창을 띄워 찍는 것을 권한다.
+   *
+   * | `EZZZK_HEADED` | 동작 |
+   * | --- | --- |
+   * | (없음) | 창 없음 (`--headless=new`) |
+   * | `1` | 창을 띄우되 **포커스를 뺏지 않는다** — 눈으로 보면서 하던 일을 계속할 수 있다 |
+   * | `focus` | 창을 띄우고 포커스도 가져간다 (수동 조작이 필요할 때) |
+   */
+  const headedMode = process.env['EZZZK_HEADED'];
+  const headed = headedMode === '1' || headedMode === 'focus';
+
+  /*
+   * 🔴 창을 띄우되 **포커스는 돌려준다** (2026-08-21 요청).
+   * 크로미움에는 "비활성으로 띄우기" 플래그가 없다 — 띄운 뒤 **직전에 앞에 있던 앱을 다시 활성화**하는
+   * 것이 macOS 에서 통하는 방법이다. 그래서 실행 전에 최전면 앱 이름을 먼저 받아 둔다.
+   * 실패는 조용히 넘긴다 — 포커스 복원은 편의 기능이지 동작 조건이 아니다.
+   */
+  const previousApp =
+    headed && headedMode === '1' && process.platform === 'darwin' ? frontmostApp() : null;
+
+  const context = await chromium.launchPersistentContext(dir, {
+    // Playwright 의 `headless: true` 는 구 headless 로 갈 수 있어 쓰지 않는다 — 플래그로 직접 준다.
     headless: false,
     args: [
       `--disable-extensions-except=${DIST}`,
       `--load-extension=${DIST}`,
       '--autoplay-policy=no-user-gesture-required',
       '--mute-audio',
+      ...(headed ? [`--window-position=${windowX},${windowY}`] : ['--headless=new']),
     ],
     viewport: profile.viewport,
     deviceScaleFactor: profile.deviceScaleFactor,
@@ -108,6 +165,37 @@ export async function openLiveContext(profile, { profileDir, freshProfile = true
     userAgent: DESKTOP_UA,
     locale: 'ko-KR',
   });
+
+  if (previousApp) restoreFocus(previousApp);
+  return context;
+}
+
+/** 지금 최전면 앱 이름. macOS 전용, 실패하면 null. */
+function frontmostApp() {
+  try {
+    return execFileSync(
+      'osascript',
+      [
+        '-e',
+        'tell application "System Events" to get name of first application process whose frontmost is true',
+      ],
+      { encoding: 'utf8', timeout: 3000 },
+    ).trim();
+  } catch {
+    return null;
+  }
+}
+
+/** 창이 뜨며 뺏어간 포커스를 원래 앱으로 돌려준다. 실패는 조용히 넘긴다. */
+function restoreFocus(appName) {
+  try {
+    execFileSync('osascript', ['-e', `tell application "${appName}" to activate`], {
+      encoding: 'utf8',
+      timeout: 3000,
+    });
+  } catch {
+    // 포커스 복원 실패는 실측 자체를 막지 않는다.
+  }
 }
 
 export async function warmUp(context, channelId = CHANNELS[0].channelId) {

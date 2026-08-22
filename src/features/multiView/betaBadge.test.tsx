@@ -180,8 +180,8 @@ describe('③ 스테이지 조작 바', () => {
     ]) {
       expect(labels).toContain(expected);
     }
-    // 슬롯 헤더의 소리·줄 수 버튼 이름도 그대로다.
-    expect(document.querySelector('[aria-label="슬롯 1 소리 활성"]')).not.toBeNull();
+    // 슬롯 헤더의 초점·줄 수 버튼 이름도 그대로다.
+    expect(document.querySelector('[aria-label="슬롯 1 초점"]')).not.toBeNull();
 
     stage.close();
   });

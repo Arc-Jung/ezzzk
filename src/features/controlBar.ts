@@ -18,6 +18,7 @@
 import { BETA_BADGE_TEXT, OURS, PLAYER } from '../constants/class';
 import { qs, upsertStyle } from '../utils/dom';
 import { keepMounted, type Disposer } from '../utils/observe';
+import { createIconElement, type IconName } from '../ui/icons';
 
 /** 네이티브 버튼 크기 (실측 고정값) */
 export const NATIVE_BUTTON_PX = 36;
@@ -96,8 +97,15 @@ export type ControlBarButtonOptions = {
   id: string;
   /** 접근성 필수 (NFR-10). 네이티브 `설정` 과 구분되는 문구를 쓴다. */
   ariaLabel: string;
-  /** 버튼 안에 넣을 내용 (텍스트 또는 SVG 문자열) */
-  content: string;
+  /**
+   * 버튼 안에 넣을 텍스트 (`멀티` 처럼 글자를 쓰는 버튼용).
+   * 🔴 아이콘 버튼이면 `content` 가 아니라 `icon` 을 쓴다 — 문자·이모지는 폰트에 따라
+   * 크기·정렬·색이 제각각이라 치지직 네이티브 버튼과 톤이 어긋난다
+   * (계획 `docs/chzzk-tone-ui-plan.md` §4.3).
+   */
+  content?: string;
+  /** 인라인 SVG 아이콘. `content` 와 함께 주면 아이콘이 이긴다. */
+  icon?: IconName;
   onClick: () => void;
   /** 터치 타겟 최소 크기. 기기 프로필의 touchTargetPx 를 넘긴다. */
   minTargetPx?: number;
@@ -115,7 +123,8 @@ function buildButton(options: ControlBarButtonOptions): HTMLButtonElement {
   button.className = CONTROL_ITEM_CLASS;
   button.setAttribute('aria-label', options.ariaLabel);
   button.title = options.ariaLabel;
-  button.innerHTML = options.content;
+  if (options.icon) button.appendChild(createIconElement(options.icon));
+  else if (options.content !== undefined) button.textContent = options.content;
   button.style.cssText = [
     `width: ${size}px`,
     `height: ${size}px`,

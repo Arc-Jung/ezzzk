@@ -13,7 +13,9 @@ import {
   ChevronRightIcon,
   CloseIcon,
   CompressorIcon,
+  createIconElement,
   GearIcon,
+  ICON_PATHS,
   LayoutBottomIcon,
   LayoutRightIcon,
   LiveDotIcon,
@@ -128,5 +130,46 @@ describe('아이콘 세트 — 공통 규약', () => {
     expect(svg.querySelectorAll('rect')).toHaveLength(4);
     const path = svg.querySelector('path');
     expect(path?.getAttribute('d')).toBe('M2 3.5h12');
+  });
+});
+
+/**
+ * `createIconElement` (바닐라 DOM 헬퍼) 회귀 — `stage.ts`·`volume.ts` 전용.
+ * React 컴포넌트와 같은 `ICON_PATHS` 를 참조하는지가 핵심이다: 복붙하면 한쪽만 고쳐져 갈라진다.
+ */
+describe('createIconElement — 바닐라 DOM 헬퍼', () => {
+  it.each(Object.keys(ICON_PATHS) as Array<keyof typeof ICON_PATHS>)(
+    '%s — svg 를 만들고 공통 규약을 지킨다',
+    (name) => {
+      const svg = createIconElement(name);
+      expect(svg.tagName.toLowerCase()).toBe('svg');
+      expect(svg.getAttribute('viewBox')).toBe('0 0 16 16');
+      expect(svg.getAttribute('stroke')).toBe('currentColor');
+      expect(svg.getAttribute('aria-hidden')).toBe('true');
+      expect(svg.getAttribute('focusable')).toBe('false');
+      // `ICON_PATHS[name]` 은 단일 path 문자열이거나 `{ tag, ... }` 목록이다(예: rect 를 곁들이는
+      // layoutRight/layoutBottom). 둘 다 같은 개수·순서의 자식 엘리먼트로 그려지는지 본다.
+      const spec = ICON_PATHS[name];
+      if (typeof spec === 'string') {
+        expect(svg.querySelector('path')?.getAttribute('d')).toBe(spec);
+        return;
+      }
+      expect(svg.children).toHaveLength(spec.length);
+      spec.forEach((shape, index) => {
+        expect(svg.children[index]?.tagName.toLowerCase()).toBe(shape.tag);
+      });
+    },
+  );
+
+  it('size 를 넘기면 width/height 에 반영된다', () => {
+    const svg = createIconElement('plus', 24);
+    expect(svg.getAttribute('width')).toBe('24');
+    expect(svg.getAttribute('height')).toBe('24');
+  });
+
+  it('PlusIcon/MinusIcon/CloseIcon 은 createIconElement 와 같은 path 데이터를 쓴다 (복붙 방지)', () => {
+    expect(mount(PlusIcon).querySelector('path')?.getAttribute('d')).toBe(ICON_PATHS.plus);
+    expect(mount(MinusIcon).querySelector('path')?.getAttribute('d')).toBe(ICON_PATHS.minus);
+    expect(mount(CloseIcon).querySelector('path')?.getAttribute('d')).toBe(ICON_PATHS.close);
   });
 });

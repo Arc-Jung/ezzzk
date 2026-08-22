@@ -4,10 +4,10 @@
  * Playwright 실브라우저 검증의 몫이다 (요구사항 §8.0).
  */
 
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { CHAT_FONT_RANGE, DEFAULT_SETTINGS, LIMITS } from '../constants/storage';
+import { CHAT_FONT_RANGE, DEFAULT_SETTINGS, LIMITS, STORAGE_KEY } from '../constants/storage';
 import { lineHeightForFont, visibleLines } from '../features/chatFont';
 import { computeSlotRects, stripMetrics } from '../features/multiView/slotLayout';
 import {
@@ -20,10 +20,13 @@ import {
   formatLoss,
   placementTradeOff,
   sectionsForTab,
+  type TabId,
 } from './tabs';
 import { REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
 import { SETTINGS_PANEL_CSS } from './settingsPanelCss';
 import { SHEET_CSS } from '../ui/Sheet';
+import { SettingsPanel } from './SettingsPanel';
+import { decideDevice } from '../device';
 
 declare global {
   // React 18 이 act 지원 환경임을 알리는 표준 플래그. 없으면 경고가 쏟아진다.
@@ -96,7 +99,7 @@ describe('설정 패널 하단 스크롤 신호', () => {
 });
 
 describe('탭 구성', () => {
-  it('탭은 7개이며 목업 화면 ⑦ 의 순서를 지킨다', () => {
+  it('탭은 8개이며 목업 화면 ⑦ 의 순서를 지킨다 (라이선스는 고지라 맨 뒤)', () => {
     expect(TABS.map((tab) => tab.title)).toEqual([
       '재생',
       '소리',
@@ -105,9 +108,18 @@ describe('탭 구성', () => {
       '채팅',
       '기타',
       '프리셋',
+      '오픈소스 라이선스',
     ]);
-    expect(TAB_IDS).toHaveLength(7);
+    expect(TAB_IDS).toHaveLength(8);
     expect(TABS.map((tab) => tab.id)).toEqual([...TAB_IDS]);
+  });
+
+  /**
+   * 🔴 라이선스는 **되돌릴 설정이 없다.** 빈 배열을 돌려주지 않으면 `[ 이 탭 초기화 ]` 가
+   * 남의 섹션을 초기화하거나, 눌러도 아무 일이 없는 죽은 버튼이 된다 (FR-15).
+   */
+  it('라이선스 탭은 되돌릴 섹션이 없다', () => {
+    expect(sectionsForTab('licenses')).toEqual([]);
   });
 
   it('탭 → 초기화 섹션 매핑이 FR-09.2 표와 일치한다', () => {
@@ -325,5 +337,94 @@ describe('켜기/끄기 토글', () => {
     expect(button.getAttribute('role')).toBe('switch');
     act(() => button.click());
     expect(checked).toBe(true);
+  });
+});
+
+/**
+ * 「오픈소스 라이선스」 탭 (요청 2026-08-21).
+ *
+ * 🔴 예전에는 시트를 통째로 갈아 끼우는 별도 화면이었다. 탭으로 접으면서 확인할 것이 둘 생겼다.
+ * 1. 탭을 눌렀을 때 고지 내용이 **실제로** 그려지는가 (진입점만 옮기고 본문이 안 나오면 고지 누락이다).
+ * 2. 되돌릴 설정이 없는 탭이라 `[ 이 탭 초기화 ]` 가 사라지는가 (죽은 버튼 금지 — FR-15).
+ */
+describe('오픈소스 라이선스 탭', () => {
+  function installFakeChrome() {
+    // jsdom 에는 matchMedia 가 없다 — `onViewportChange` 가 방향 변화를 여기로 듣는다.
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }) as unknown as typeof window.matchMedia;
+    (globalThis as unknown as { chrome: unknown }).chrome = {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({ [STORAGE_KEY]: DEFAULT_SETTINGS })),
+          set: vi.fn(async () => {}),
+        },
+        onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+    };
+  }
+
+  async function mountPanel(initialTab: TabId) {
+    installFakeChrome();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(
+        <SettingsPanel
+          device={decideDevice('desktop')}
+          onClose={vi.fn()}
+          initialTab={initialTab}
+        />,
+      );
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis as unknown as { chrome?: unknown }, 'chrome');
+  });
+
+  const resetTabButton = () =>
+    document.querySelector<HTMLButtonElement>('button[aria-label="이 탭 초기화"]');
+
+  it('탭 레일에 `오픈소스 라이선스` 버튼이 있다', async () => {
+    await mountPanel('playback');
+    const rail = document.querySelector('.cm-sp__rail');
+    const titles = Array.from(rail?.querySelectorAll('.cm-sp__tab') ?? []).map((el) =>
+      el.textContent?.replace('▶ ', '').trim(),
+    );
+    expect(titles).toContain('오픈소스 라이선스');
+  });
+
+  it('탭을 열면 고지 본문이 그려진다 (진입점만 옮기고 내용이 비면 고지 누락이다)', async () => {
+    await mountPanel('licenses');
+
+    const body = document.querySelector('.cm-lic');
+    expect(body).not.toBeNull();
+    expect(body?.textContent).toContain('이 확장');
+    expect(body?.textContent).toContain('배포물에 포함');
+    // 목록은 생성물에서 온다 — 항목이 0개면 `licenses:gen` 이 깨진 것이다.
+    expect(body?.querySelectorAll('.cm-lic__item, .cm-lic__brief').length).toBeGreaterThan(0);
+  });
+
+  it('라이선스 탭에서는 `이 탭 초기화` 가 사라진다 (되돌릴 설정이 없다)', async () => {
+    await mountPanel('licenses');
+    expect(resetTabButton()).toBeNull();
+  });
+
+  it('설정이 있는 탭에서는 `이 탭 초기화` 가 그대로 있다', async () => {
+    await mountPanel('playback');
+    expect(resetTabButton()).not.toBeNull();
+  });
+
+  it('시트 제목은 하나뿐이다 — 라이선스 탭이 시트를 갈아 끼우지 않는다', async () => {
+    await mountPanel('licenses');
+    const titles = Array.from(document.querySelectorAll('.cm-sheet__head h2, h2')).map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(titles.filter((t) => t?.includes('이지직 설정'))).toHaveLength(1);
+    expect(document.querySelectorAll('.cm-sheet').length).toBe(1);
   });
 });

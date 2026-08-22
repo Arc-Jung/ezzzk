@@ -27,7 +27,7 @@ import {
   type TabProps,
 } from './tabs';
 import { ChatTab, MultiViewTab, PresetTab, REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
-import { LicenseSheet } from './LicenseSheet';
+import { LicenseTab } from './LicenseTab';
 
 type Props = {
   device: DeviceDecision;
@@ -51,12 +51,6 @@ export function SettingsPanel({ device, onClose, initialTab = 'playback' }: Prop
   const { settings, ready, update } = useSettings();
   const [tab, setTab] = useState<TabId>(initialTab);
   const [confirmingResetAll, setConfirmingResetAll] = useState(false);
-  /**
-   * 라이선스 화면은 설정 시트를 **대체**한다 (겹쳐 띄우지 않는다).
-   * 시트 두 장을 겹치면 Tab 순회가 뒤 시트로 새고 Esc 가 어느 쪽을 닫는지 모호해진다.
-   * 대체하면 닫을 때 설정 패널이 탭 선택까지 그대로 남은 채 복귀한다.
-   */
-  const [showLicenses, setShowLicenses] = useState(false);
   const [metrics, setMetrics] = useState(() => ({
     viewportWidth: readViewport().width,
     // 하단 배치의 유효 점유율 범위는 **높이**에서 나온다 (`chatRatioRangeFor`).
@@ -88,15 +82,6 @@ export function SettingsPanel({ device, onClose, initialTab = 'playback' }: Prop
 
   const tabProps: TabProps = { settings, device, update };
 
-  if (showLicenses) {
-    return (
-      <LicenseSheet
-        onClose={() => setShowLicenses(false)}
-        touchTargetPx={device.profile.touchTargetPx}
-      />
-    );
-  }
-
   return (
     <Sheet
       title="이지직 설정"
@@ -108,14 +93,18 @@ export function SettingsPanel({ device, onClose, initialTab = 'playback' }: Prop
           <span className="cm-sheet__note" style={{ marginRight: 'auto' }}>
             변경은 즉시 저장됩니다.
           </span>
-          <button
-            type="button"
-            className="cm-sheet__btn"
-            aria-label="이 탭 초기화"
-            onClick={resetThisTab}
-          >
-            이 탭 초기화
-          </button>
+          {/* 되돌릴 설정이 없는 탭(라이선스 고지)에서는 아예 렌더하지 않는다 —
+              눌러도 아무 일이 없는 버튼을 남기지 않는다 (FR-15). */}
+          {sections.length > 0 ? (
+            <button
+              type="button"
+              className="cm-sheet__btn"
+              aria-label="이 탭 초기화"
+              onClick={resetThisTab}
+            >
+              이 탭 초기화
+            </button>
+          ) : null}
           {confirmingResetAll ? (
             <>
               <span className="cm-sheet__warn">모든 설정을 기본값으로 되돌립니다.</span>
@@ -209,23 +198,12 @@ export function SettingsPanel({ device, onClose, initialTab = 'playback' }: Prop
             <ChatTab {...tabProps} scrollerHeightPx={metrics.scrollerHeightPx} />
           ) : tab === 'misc' ? (
             <MiscTab {...tabProps} />
-          ) : (
+          ) : tab === 'preset' ? (
             <PresetTab {...tabProps} />
+          ) : (
+            <LicenseTab />
           )}
         </div>
-      </div>
-
-      {/* 맨 아래 진입점. 탭 구조 바깥에 두어 어느 탭에서든 같은 자리에 보인다. */}
-      <div className="cm-sp-foot">
-        <span className="cm-sheet__note">오픈소스 라이선스 고지</span>
-        <button
-          type="button"
-          className="cm-sheet__btn"
-          aria-label="오픈소스 라이선스 보기"
-          onClick={() => setShowLicenses(true)}
-        >
-          오픈소스 라이선스 보기
-        </button>
       </div>
     </Sheet>
   );

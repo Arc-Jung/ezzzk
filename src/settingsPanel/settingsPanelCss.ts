@@ -48,6 +48,17 @@ export const SETTINGS_PANEL_CSS = `
 .cm-sp__list > li.cm-sp__list-item--stack { display: block; }
 .cm-sp__list input[type='text'] { flex: 1 1 auto; min-width: 0; }
 /*
+ * 프리셋 이름이 좁은 화면(모바일 세로)에서 글자 단위로 줄바꿈되는 문제(감사 보고서 보통 #4,
+ * 2026-08-21) — settings-프리셋-mobile-portrait.png 에서 "기본"이 "기"/"본" 두 줄로 쪼개져
+ * 찍혔다. 한글은 공백이 없어 브라우저 기본 줄바꿈 규칙이 음절마다 끊는다.
+ * word-break: keep-all 로 "단어"(공백 구분) 단위까지만 줄바꿈을 허용해 짧은 이름은 한 줄에
+ * 붙게 하고, 공백 없는 긴 이름이 들어와도 overflow-wrap: break-word 가 안전망으로 강제
+ * 줄바꿈해 가로 넘침은 막는다. 줄임표(ellipsis)를 쓰지 않은 이유: 이 목록은 값 자체가
+ * 정보라 잘라내면 title 없이는 (모바일 터치 환경엔 hover 가 없다) 전체 이름을 확인할 방법이
+ * 없다 — 대신 줄바꿈을 허용해 항상 전체 이름이 보이게 한다.
+ */
+.cm-sp__item-name { word-break: keep-all; overflow-wrap: break-word; }
+/*
  * 켜기/끄기 토글 스위치. 트랙(막대) + 노브(원) 로 그린다 — 예전엔 켜기 ●──/끄기 ──○ 처럼
  * 글자로 그린 그림이라 작은 크기에서 방향 구분이 안 됐고 폰트마다 폭도 들쑥날쑥했다(사용자 보고).
  * 표준 방향: OFF = 노브 왼쪽 · ON = 노브 오른쪽.
@@ -117,25 +128,10 @@ export const SETTINGS_PANEL_CSS = `
   background: ${FG.primary};
 }
 
-/*
-  설정 패널 맨 아래의 오픈소스 라이선스 진입점.
-  .cm-sp 는 탭 레일과 본문을 나란히 놓는 flex 행이라 그 **바깥**에 둔다 —
-  안에 넣으면 좁은 화면에서 레일이 세로 줄로 접힐 때 탭 하나처럼 보인다.
-*/
-.cm-sp-foot {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid ${BORDER.subtle};
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* 라이선스 화면. 본문 스크롤은 .cm-sheet__body 가 하므로 여기서 높이를 잡지 않는다. */
+/* 라이선스 탭. 본문 스크롤은 .cm-sheet__body 가 하므로 여기서 높이를 잡지 않는다. */
 .cm-lic h3 { margin: 14px 0 4px; font-size: 12px; color: ${FG.muted}; }
-.cm-lic h3:first-child { margin-top: 0; }
+/* 맨 위 요소는 출처 안내 문단이다 (예전에는 h3 였다) — 무엇이 오든 위 여백을 없앤다. */
+.cm-lic > :first-child { margin-top: 0; }
 .cm-lic__list { list-style: none; margin: 6px 0 0; padding: 0; }
 .cm-lic__item { padding: 6px 0; border-bottom: 1px solid ${BORDER.subtle}; }
 .cm-lic__head {

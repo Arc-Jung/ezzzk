@@ -19,6 +19,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { BETA_BADGE_TEXT, OURS } from '../constants/class';
 import { BG, BORDER, FG, RADIUS, ACCENT, FONT_FAMILY } from './tokens';
+import { CloseIcon } from './icons';
 
 export const SHEET_MAX_W = 920;
 export const SHEET_MAX_H = 600;
@@ -151,7 +152,7 @@ export function Sheet({
             {beta ? <span className={OURS.betaBadgeClass}>{BETA_BADGE_TEXT}</span> : null}
           </h2>
           <button type="button" className="cm-sheet__close" aria-label="닫기" onClick={onClose}>
-            ✕
+            <CloseIcon />
           </button>
         </header>
         <div className="cm-sheet__body">{children}</div>
