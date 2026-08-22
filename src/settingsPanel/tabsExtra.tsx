@@ -12,6 +12,7 @@ import {
   type SplitCount,
 } from '../constants/storage';
 import { emojiSizeForFont, lineHeightForFont, visibleLines } from '../features/chatFont';
+import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
 import { addPreset, removePreset, reorderPresets, updatePreset } from '../features/chatPreset';
 import {
   isSplitAvailable,
@@ -74,59 +75,72 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         onChange={(next) => patch({ restoreLastLayout: next })}
       />
 
-      <div className="cm-sheet__row">
-        <span>슬롯 채팅 줄 수</span>
-        <span className="cm-sp__controls">
-          <Stepper
-            label="슬롯 채팅 줄 수"
-            value={multiView.slotChatLines}
-            min={0}
-            max={5}
-            unit="줄"
-            onChange={(next) => patch({ slotChatLines: next as SlotLines })}
-          />
-          <span className="cm-sheet__note">(0~5)</span>
-        </span>
-      </div>
-      <div className="cm-sheet__row">
-        <span>└ 활성 슬롯</span>
-        <Stepper
-          label="활성 슬롯 채팅 줄 수"
-          value={multiView.slotChatLinesActive}
-          min={0}
-          max={5}
-          unit="줄"
-          onChange={(next) => patch({ slotChatLinesActive: next as SlotLines })}
-        />
-      </div>
+      {/*
+        멀티뷰 채팅은 임시로 꺼 두었다 (`features/multiView/chatFeature.ts`, 2026-08-22).
+        고르게 두면 "켰는데 아무 일도 없다"가 되므로 선택 UI 자체를 감춘다.
+      */}
+      {MULTIVIEW_CHAT_ENABLED ? (
+        <>
+          <div className="cm-sheet__row">
+            <span>슬롯 채팅 줄 수</span>
+            <span className="cm-sp__controls">
+              <Stepper
+                label="슬롯 채팅 줄 수"
+                value={multiView.slotChatLines}
+                min={0}
+                max={5}
+                unit="줄"
+                onChange={(next) => patch({ slotChatLines: next as SlotLines })}
+              />
+              <span className="cm-sheet__note">(0~5)</span>
+            </span>
+          </div>
+          <div className="cm-sheet__row">
+            <span>└ 활성 슬롯</span>
+            <Stepper
+              label="활성 슬롯 채팅 줄 수"
+              value={multiView.slotChatLinesActive}
+              min={0}
+              max={5}
+              unit="줄"
+              onChange={(next) => patch({ slotChatLinesActive: next as SlotLines })}
+            />
+          </div>
 
-      <div className="cm-sheet__row">
-        <span>└ 배치</span>
-        <span className="cm-sp__controls" role="radiogroup" aria-label="슬롯 채팅 배치">
-          <label>
-            <input
-              type="radio"
-              name="cm-sp-placement"
-              checked={multiView.slotChatPlacement === 'overlay'}
-              aria-label="영상 위에 겹쳐 표시"
-              onChange={() => patch({ slotChatPlacement: 'overlay' })}
-            />
-            영상 위에 겹쳐 표시
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="cm-sp-placement"
-              checked={multiView.slotChatPlacement === 'reserve'}
-              aria-label="영상 밑에 따로 표시"
-              onChange={() => patch({ slotChatPlacement: 'reserve' })}
-            />
-            영상 밑에 따로 표시
-          </label>
-        </span>
-      </div>
-      <p className="cm-sheet__note">{hints.four}</p>
-      <p className="cm-sheet__note">{hints.two}</p>
+          <div className="cm-sheet__row">
+            <span>└ 배치</span>
+            <span className="cm-sp__controls" role="radiogroup" aria-label="슬롯 채팅 배치">
+              <label>
+                <input
+                  type="radio"
+                  name="cm-sp-placement"
+                  checked={multiView.slotChatPlacement === 'overlay'}
+                  aria-label="영상 위에 겹쳐 표시"
+                  onChange={() => patch({ slotChatPlacement: 'overlay' })}
+                />
+                영상 위에 겹쳐 표시
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="cm-sp-placement"
+                  checked={multiView.slotChatPlacement === 'reserve'}
+                  aria-label="영상 밑에 따로 표시"
+                  onChange={() => patch({ slotChatPlacement: 'reserve' })}
+                />
+                영상 밑에 따로 표시
+              </label>
+            </span>
+          </div>
+          <p className="cm-sheet__note">{hints.four}</p>
+          <p className="cm-sheet__note">{hints.two}</p>
+        </>
+      ) : (
+        <p className="cm-sheet__note">
+          멀티뷰 채팅(슬롯 채팅 · 사이드 채팅)은 오류가 있어 임시로 꺼 두었습니다. 수정 후 다시
+          제공합니다.
+        </p>
+      )}
 
       <h3>
         저장된 조합 ({multiView.sets.length}/{LIMITS.multiViewSets})

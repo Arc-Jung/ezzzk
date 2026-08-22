@@ -10,6 +10,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
 import { ConfigSheet } from './ConfigSheet';
 import { decideDevice } from '../../device';
 import { DEFAULT_SETTINGS } from '../../constants/storage';
@@ -194,8 +195,12 @@ describe('ConfigSheet — 아이콘 버튼 접근성', () => {
     });
 
     // 시트는 `document.body` 직계로 렌더된다 — host 가 아니라 document 를 훑는다.
-    // 닫기 + 스테퍼 `−`/`+` 셋이 최소선이다.
-    auditIconButtons(document, { expectAtLeast: 3, context: 'multiview config sheet' });
+    // 닫기 + 슬롯 채팅 스테퍼 `−`/`+` 셋이 최소선이다. 멀티뷰 채팅을 임시로 끈 동안
+    // (`chatFeature.ts`, 2026-08-22) 스테퍼가 없으므로 `닫기` 하나만 남는다.
+    auditIconButtons(document, {
+      expectAtLeast: MULTIVIEW_CHAT_ENABLED ? 3 : 1,
+      context: 'multiview config sheet',
+    });
 
     const close = document.querySelector<HTMLButtonElement>('.cm-sheet__close');
     expect(close?.textContent?.trim()).toBe('');

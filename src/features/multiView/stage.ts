@@ -12,11 +12,12 @@
 
 import { createIconElement } from '../../ui/icons';
 import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
-import type { MultiViewSlot, Settings, SlotIndex } from '../../constants/storage';
+import type { MultiViewSlot, Settings, SlotIndex, SlotLines } from '../../constants/storage';
 import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
 import { readViewport } from '../../utils/viewport';
 import { info, warning } from '../../utils/log';
+import { effectiveChatMode, effectiveSlotChatLines } from './chatFeature';
 import { slotFromAudioShortcut } from './messages';
 import {
   MV_CHANNEL,
@@ -38,6 +39,11 @@ import {
 const STAGE_STYLE_ID = 'cm-multiview-stage-style';
 /** 슬롯 컨트롤러가 이 시간 안에 `ready` 를 보내지 않으면 해당 슬롯을 실패로 표시한다. */
 const FRAME_LOAD_TIMEOUT_MS = 15_000;
+
+/** 초점(활성) 슬롯 표시 클래스. CSS(`buildStageCss`)와 `updateFocusMarks()` 가 공유한다. */
+export const FOCUSED_SLOT_CLASS = 'cm-slot--focused';
+/** 우리 강조색. BETA 뱃지(`#00ffa3`)와 같은 값을 쓴다 — 스테이지 안에서 색을 늘리지 않는다. */
+const STAGE_ACCENT = '#00ffa3';
 
 /**
  * 사이드 채팅(BETA)을 켰을 때 무대에 남아야 하는 최소 폭.
@@ -84,6 +90,8 @@ type SlotRuntime = {
   frame: HTMLIFrameElement;
   strip: HTMLElement;
   header: HTMLElement;
+  /** 헤더의 `초점`(⊙) 버튼. 초점 상태를 `aria-pressed` 로 드러낸다. */
+  focusButton: HTMLButtonElement;
   /** iframe `load` 이벤트가 발화했는가. **로드 성공을 뜻하지 않는다** (아래 `ready` 주석 참조). */
   loaded: boolean;
   /**
@@ -126,6 +134,21 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   overflow: hidden;
   background: #000;
   outline: 1px solid #1c1f22;
+}
+/*
+  초점(활성) 슬롯 표시 (2026-08-22).
+  🔴 실측에서 초점 버튼을 눌러도 DOM 이 전혀 바뀌지 않아 버튼이 먹통으로 보였다.
+  ⚠️ "소리 나는 슬롯" 표시가 아니다 — 오디오는 모든 슬롯이 낸다(2026-08-20 정책).
+  아웃라인만 바꾼다: 레이아웃에 영향을 주지 않아 슬롯 크기·겹침 계약이 흔들리지 않는다.
+*/
+#${OURS.multiViewStageId} .cm-slot.${FOCUSED_SLOT_CLASS} {
+  outline: 2px solid ${STAGE_ACCENT};
+  outline-offset: -2px;
+}
+#${OURS.multiViewStageId} .cm-slot.${FOCUSED_SLOT_CLASS} .cm-slot__head {
+  /* 초점 슬롯은 헤더도 항상 보이게 해 어느 슬롯이 대상인지 한눈에 알 수 있게 한다. */
+  opacity: 1;
+  color: ${STAGE_ACCENT};
 }
 #${OURS.multiViewStageId} .cm-slot iframe {
   display: block;
@@ -518,6 +541,8 @@ export class MultiViewStage {
     this.bar = null;
 
     for (const slot of slots) this.createSlot(slot);
+    // 슬롯이 다 붙은 뒤 초점 표시를 한 번 찍는다 — 프레임 `load` 를 기다리면 그때까지 표시가 없다.
+    this.updateFocusMarks();
     this.createBar();
     this.bindMessages();
     this.bindShortcuts();
@@ -601,7 +626,8 @@ export class MultiViewStage {
    * 폭 계산은 `sideChatWidthPx` (뷰포트 비율 기반) 가 한다.
    */
   private currentChatWidth(): number {
-    if (!this.chatOpen || this.settings.multiView.chatMode === 'none') return 0;
+    // 멀티뷰 채팅 임시 비활성화 중에는 저장값과 무관하게 폭 0 이다 (`chatFeature.ts`).
+    if (!this.chatOpen || effectiveChatMode(this.settings.multiView.chatMode) === 'none') return 0;
     if (!this.sideChatFits()) return 0;
     const { width, height } = readViewport();
     return sideChatWidthPx(width, height, this.chatSteps);
@@ -642,7 +668,8 @@ export class MultiViewStage {
      * 상태가 됐다 (하네스 M-01: inViewport false, 해제 클릭 타임아웃).
      * 사이드 채팅이 들어갈 수 없는 폭이면(자동 접힘) 컨트롤도 만들지 않는다.
      */
-    const enabled = this.settings.multiView.chatMode !== 'none' && this.sideChatFits();
+    const enabled =
+      effectiveChatMode(this.settings.multiView.chatMode) !== 'none' && this.sideChatFits();
     this.chatControls.style.display = enabled ? 'inline-flex' : 'none';
     const width = this.currentChatWidth();
     if (this.chatLabel) {
@@ -757,10 +784,11 @@ export class MultiViewStage {
   private linesFor(slot: SlotIndex, slotWidth: number): number {
     const config = this.settings.multiView;
     const override = config.slots.find((s) => s.index === slot)?.chatLines;
-    const requested =
+    const requested = effectiveSlotChatLines(
       override ??
-      (slot === this.getFocusedSlot() ? config.slotChatLinesActive : config.slotChatLines);
-    return resolveSlotChatLines(requested, slotWidth, this.device.deviceClass);
+        (slot === this.getFocusedSlot() ? config.slotChatLinesActive : config.slotChatLines),
+    );
+    return resolveSlotChatLines(requested as SlotLines, slotWidth, this.device.deviceClass);
   }
 
   private createSlot(slot: MultiViewSlot): void {
@@ -781,6 +809,8 @@ export class MultiViewStage {
     // ⚠️ 2026-08-20 정책 변경: 오디오는 모든 슬롯이 항상 낸다 — 이 버튼은 초점(사이드채팅
     // 대상·화질 우선순위)만 옮긴다. "소리" 문구를 없애 오해를 막는다.
     audioButton.setAttribute('aria-label', `슬롯 ${slot.index} 초점`);
+    // 초점은 켜짐/꺼짐이 있는 상태다 — 토글 버튼으로 노출한다 (`updateFocusMarks` 가 갱신).
+    audioButton.setAttribute('aria-pressed', 'false');
     audioButton.appendChild(createIconElement('target'));
     audioButton.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -829,6 +859,7 @@ export class MultiViewStage {
       frame,
       strip,
       header,
+      focusButton: audioButton,
       loaded: false,
       ready: false,
       failed: false,
@@ -1025,16 +1056,40 @@ export class MultiViewStage {
   /** 슬롯 프레임이 떴다. 희망 슬롯이 이번에야 등록됐으면 실효 초점이 바뀔 수 있다. */
   private registerFocus(slot: SlotIndex): void {
     this.focusRegistered.add(slot);
+    this.updateFocusMarks();
   }
 
   /** 고장난 슬롯을 초점 후보에서 뺀다 — 초점이 남은 슬롯으로 넘어갈 수 있다. */
   private unregisterFocus(slot: SlotIndex): void {
     this.focusRegistered.delete(slot);
     this.focusDesired = nextActiveSlot([...this.focusRegistered], this.focusDesired);
+    this.updateFocusMarks();
+  }
+
+  /**
+   * 초점 슬롯을 **화면에 드러낸다** (2026-08-22 수정).
+   *
+   * 🔴 실측 2026-08-22: `초점`(⊙) 버튼을 눌러도 3프로필 전부에서 `className`·`outline`·
+   * `box-shadow`·`aria-pressed` 가 클릭 전후 완전히 동일했다 — 상태는 바뀌는데 표시가 없어
+   * **버튼이 먹통으로 보였다.** 초점은 사이드 채팅 대상·화질 우선순위를 실제로 바꾸는 상태다.
+   *
+   * ⚠️ 이 표시는 "소리 나는 슬롯"이 아니다 (2026-08-20 정책: 오디오는 모든 슬롯이 낸다).
+   * 예전 초록 아웃라인이 오디오 표시였기 때문에 지웠던 것이고, 여기서는 **초점 표시**로
+   * 되살린다 — 라벨(`슬롯 N 초점`)·`aria-pressed` 와 의미가 일치한다.
+   */
+  private updateFocusMarks(): void {
+    const focused = this.getFocusedSlot();
+    for (const runtime of this.runtimes.values()) {
+      const isFocused = runtime.slot === focused;
+      runtime.cell.classList.toggle(FOCUSED_SLOT_CLASS, isFocused);
+      runtime.focusButton.setAttribute('aria-pressed', isFocused ? 'true' : 'false');
+    }
   }
 
   setActiveSlot(slot: SlotIndex): void {
     this.focusDesired = slot;
+    // 초점이 어디로 갔는지 즉시 보이게 한다 — 표시가 없으면 버튼이 먹통으로 보인다.
+    this.updateFocusMarks();
     /*
      * 사이드 채팅은 활성 슬롯을 따라간다. 채널이 바뀌면 이전 채널의 줄이 섞이지 않게 비우고,
      * 새 활성 슬롯의 첫 배치가 오기를 기다린다(200ms 배치 — `slotFrame.ts`).
