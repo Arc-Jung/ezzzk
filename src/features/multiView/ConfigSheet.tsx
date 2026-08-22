@@ -20,6 +20,7 @@ import type {
 import { Sheet } from '../../ui/Sheet';
 import { CloseIcon, LiveDotIcon, MinusIcon, PlusIcon } from '../../ui/icons';
 import { OURS } from '../../constants/class';
+import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
 import { CONFIG_SHEET_CSS } from './configSheetCss';
 import { upsertStyle } from '../../utils/dom';
 import {
@@ -408,56 +409,64 @@ export function ConfigSheet({
         실제로 목록이 230개까지 자라 아래 설정에 접근할 수 없었다.
         아래 2단 영역(슬롯 배치 · 채널 목록)은 화면을 채우며 스크롤되는 부분이라 마지막에 둔다.
       */}
-      <div className="cm-mv-options">
-        <span>슬롯 채팅 줄</span>
-        <span className="cm-stepper">
-          <button
-            type="button"
-            aria-label="슬롯 채팅 줄 줄이기"
-            disabled={slotChatLines <= 0}
-            onClick={() => setSlotChatLines((n) => Math.max(0, n - 1) as SlotLines)}
-          >
-            <MinusIcon />
-          </button>
-          <output>{slotChatLines}</output>
-          <button
-            type="button"
-            aria-label="슬롯 채팅 줄 늘리기"
-            disabled={slotChatLines >= 5}
-            onClick={() => setSlotChatLines((n) => Math.min(5, n + 1) as SlotLines)}
-          >
-            <PlusIcon />
-          </button>
-        </span>
-        <label>
-          <input
-            type="radio"
-            name="cm-placement"
-            checked={placement === 'overlay'}
-            onChange={() => setPlacement('overlay')}
-          />
-          영상 위 겹침
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="cm-placement"
-            checked={placement === 'reserve'}
-            onChange={() => setPlacement('reserve')}
-          />
-          영상 밑에 따로 표시(영상이 작아집니다)
-        </label>
-      </div>
-      {preview && preview.lines !== slotChatLines ? (
-        <p className="cm-sheet__note">
-          슬롯 폭 {preview.rect.width}px 에서는 최대 {preview.lines}줄까지 표시됩니다.
-        </p>
+      {/*
+        멀티뷰 채팅은 임시로 꺼 두었다 (`chatFeature.ts`, 2026-08-22) — 줄 수·배치를 고를 수
+        있게 두면 "설정했는데 아무것도 안 나온다"가 된다. 선택 UI 자체를 감춘다.
+      */}
+      {MULTIVIEW_CHAT_ENABLED ? (
+        <>
+          <div className="cm-mv-options">
+            <span>슬롯 채팅 줄</span>
+            <span className="cm-stepper">
+              <button
+                type="button"
+                aria-label="슬롯 채팅 줄 줄이기"
+                disabled={slotChatLines <= 0}
+                onClick={() => setSlotChatLines((n) => Math.max(0, n - 1) as SlotLines)}
+              >
+                <MinusIcon />
+              </button>
+              <output>{slotChatLines}</output>
+              <button
+                type="button"
+                aria-label="슬롯 채팅 줄 늘리기"
+                disabled={slotChatLines >= 5}
+                onClick={() => setSlotChatLines((n) => Math.min(5, n + 1) as SlotLines)}
+              >
+                <PlusIcon />
+              </button>
+            </span>
+            <label>
+              <input
+                type="radio"
+                name="cm-placement"
+                checked={placement === 'overlay'}
+                onChange={() => setPlacement('overlay')}
+              />
+              영상 위 겹침
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="cm-placement"
+                checked={placement === 'reserve'}
+                onChange={() => setPlacement('reserve')}
+              />
+              영상 밑에 따로 표시(영상이 작아집니다)
+            </label>
+          </div>
+          {preview && preview.lines !== slotChatLines ? (
+            <p className="cm-sheet__note">
+              슬롯 폭 {preview.rect.width}px 에서는 최대 {preview.lines}줄까지 표시됩니다.
+            </p>
+          ) : null}
+          <p className="cm-sheet__note">
+            {split === 2
+              ? '2분할은 세로에 여유가 있어 영상 밑 배치를 권장합니다 (손실 0%).'
+              : '4분할 슬롯은 이미 16:9 라 영상 위 겹침을 권장합니다.'}
+          </p>
+        </>
       ) : null}
-      <p className="cm-sheet__note">
-        {split === 2
-          ? '2분할은 세로에 여유가 있어 영상 밑 배치를 권장합니다 (손실 0%).'
-          : '4분할 슬롯은 이미 16:9 라 영상 위 겹침을 권장합니다.'}
-      </p>
 
       <div className="cm-mv-options">
         <label>

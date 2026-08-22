@@ -104,6 +104,25 @@ export function computeSlotRects(
   const rects = ((): SlotRect[] => {
     if (split === 2) {
       if (orientation === 'portrait') {
+        /*
+         * 🔴 **높이를 균등 분할하면 슬롯의 절반이 검은 띠가 된다** (실측 2026-08-22,
+         * mobile-portrait 412×915: 슬롯 412×421 인데 16:9 영상은 412×232 — 슬롯마다
+         * 189px, 두 슬롯 합쳐 378px 이 죽었다).
+         * 세로 자세에서는 폭이 제약이므로 필요한 높이는 `width × 9/16` 뿐이다.
+         * 그만큼만 주고 남는 높이는 위아래로 균등 분배해 두 슬롯을 가운데에 모은다 —
+         * 슬롯 사각형이 영상과 일치하므로 슬롯 안의 레터박스가 사라지고, 헤더·스트립도
+         * 영상 가장자리에 붙는다.
+         */
+        const ideal = Math.round((stageW * 9) / 16);
+        const needed = ideal * 2 + gap;
+        if (ideal > 0 && needed <= usableH) {
+          const pad = Math.floor((usableH - needed) / 2);
+          return [
+            { index: 1, x: 0, y: pad, width: stageW, height: ideal },
+            { index: 2, x: 0, y: pad + ideal + gap, width: stageW, height: ideal },
+          ];
+        }
+        // 16:9 두 장이 안 들어갈 만큼 좁으면 균등 분할이 최선이다 (기존 동작).
         return [
           { index: 1, x: 0, y: 0, width: stageW, height: halfH },
           { index: 2, x: 0, y: bottomY, width: stageW, height: usableH - bottomY },

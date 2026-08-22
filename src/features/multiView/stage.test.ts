@@ -9,9 +9,11 @@ import { DEFAULT_SETTINGS } from '../../constants/storage';
 import { decideDevice } from '../../device';
 import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
 import { auditIconButtons } from '../../ui/iconButtonAudit.test-utils';
+import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
 import { MV_CHANNEL } from './messages';
 import { INACTIVE_SLOT_QUALITY } from './slotLayout';
 import {
+  FOCUSED_SLOT_CLASS,
   FS_CHAT_STEP_PX,
   STRIP_BAR_GAP_PX,
   buildStageCss,
@@ -329,6 +331,58 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     stage.close();
   });
 
+  /**
+   * 🔴 회귀 고정 (실측 2026-08-22) — `초점`(⊙) 버튼을 눌러도 3프로필 전부에서 슬롯의
+   * `className`·`outline`·`box-shadow`·`aria-pressed` 가 **클릭 전후 완전히 동일**했다.
+   * 초점은 사이드 채팅 대상·화질 우선순위를 실제로 바꾸는 상태인데 피드백이 0 이었다.
+   */
+  describe('초점 슬롯 시각 표시', () => {
+    const focusedCells = () =>
+      [...document.querySelectorAll(`#cm-multiview-stage .${FOCUSED_SLOT_CLASS}`)].map(
+        (cell) => (cell as HTMLElement).dataset.slot,
+      );
+    const pressedOf = (slot: number) =>
+      document
+        .querySelector(`.cm-slot[data-slot="${slot}"] [aria-label$="초점"]`)
+        ?.getAttribute('aria-pressed');
+
+    it('열자마자 초점 슬롯 하나에만 표시가 붙는다', () => {
+      const { stage } = openStage();
+      expect(focusedCells()).toEqual(['1']);
+      expect(pressedOf(1)).toBe('true');
+      expect(pressedOf(2)).toBe('false');
+      stage.close();
+    });
+
+    it('초점을 옮기면 표시도 따라 옮겨진다 (동시에 둘이 켜지지 않는다)', () => {
+      const { stage } = openStage();
+
+      stage.setActiveSlot(2);
+
+      expect(focusedCells()).toEqual(['2']);
+      expect(pressedOf(1)).toBe('false');
+      expect(pressedOf(2)).toBe('true');
+      stage.close();
+    });
+
+    it('헤더의 초점 버튼을 눌러도 표시가 바뀐다 (사용자 경로)', () => {
+      const { stage } = openStage();
+
+      document
+        .querySelector<HTMLButtonElement>('.cm-slot[data-slot="2"] [aria-label$="초점"]')
+        ?.click();
+
+      expect(focusedCells()).toEqual(['2']);
+      stage.close();
+    });
+
+    it('CSS 에 초점 슬롯 규칙이 있다 — 클래스만 붙고 보이지 않으면 의미가 없다', () => {
+      const css = buildStageCss(44, true);
+      expect(css).toContain(`.cm-slot.${FOCUSED_SLOT_CLASS}`);
+      expect(css).toMatch(/\.cm-slot\.cm-slot--focused\s*\{[^}]*outline:/);
+    });
+  });
+
   describe('슬롯 로드 실패 표시', () => {
     afterEach(() => {
       vi.useRealTimers();
@@ -442,65 +496,98 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   const panelLines = () =>
     [...document.querySelectorAll('.cm-stage-chat__line')].map((n) => n.textContent);
 
-  it('사이드 채팅 패널에 BETA 뱃지가 붙고 활성 슬롯 채널명이 보인다', () => {
-    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
-    const { stage } = openStage({ chatMode: 'active' });
+  it.skipIf(!MULTIVIEW_CHAT_ENABLED)(
+    '사이드 채팅 패널에 BETA 뱃지가 붙고 활성 슬롯 채널명이 보인다',
+    () => {
+      // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+      const { stage } = openStage({ chatMode: 'active' });
 
-    expect(panel()).not.toBeNull();
-    expect(panel()?.querySelector(`.${OURS.betaBadgeClass}`)?.textContent).toBe(BETA_BADGE_TEXT);
-    expect(panel()?.querySelector('.cm-stage-chat__title')?.textContent).toContain('로마러');
+      expect(panel()).not.toBeNull();
+      expect(panel()?.querySelector(`.${OURS.betaBadgeClass}`)?.textContent).toBe(BETA_BADGE_TEXT);
+      expect(panel()?.querySelector('.cm-stage-chat__title')?.textContent).toContain('로마러');
 
-    stage.close();
-  });
+      stage.close();
+    },
+  );
 
-  it('활성 슬롯 채팅만 패널에 들어간다 (비활성 슬롯은 스트립 전용)', () => {
-    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
-    const { stage } = openStage({ chatMode: 'active' });
+  it.skipIf(!MULTIVIEW_CHAT_ENABLED)(
+    '활성 슬롯 채팅만 패널에 들어간다 (비활성 슬롯은 스트립 전용)',
+    () => {
+      // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+      const { stage } = openStage({ chatMode: 'active' });
 
-    sendFromSlot(chat(2, '비활성'));
-    expect(panelLines()).toEqual([]);
+      sendFromSlot(chat(2, '비활성'));
+      expect(panelLines()).toEqual([]);
 
-    sendFromSlot(chat(1, '활성'));
-    expect(panelLines().join()).toContain('활성');
+      sendFromSlot(chat(1, '활성'));
+      expect(panelLines().join()).toContain('활성');
 
-    stage.close();
-  });
+      stage.close();
+    },
+  );
 
-  it('활성 슬롯을 바꾸면 제목이 따라가고 이전 채널 줄이 남지 않는다', () => {
-    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
-    const { stage } = openStage({ chatMode: 'active' });
-    sendFromSlot(chat(1, '슬롯1사람'));
-    expect(panelLines().join()).toContain('슬롯1사람');
+  it.skipIf(!MULTIVIEW_CHAT_ENABLED)(
+    '활성 슬롯을 바꾸면 제목이 따라가고 이전 채널 줄이 남지 않는다',
+    () => {
+      // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+      const { stage } = openStage({ chatMode: 'active' });
+      sendFromSlot(chat(1, '슬롯1사람'));
+      expect(panelLines().join()).toContain('슬롯1사람');
 
-    stage.setActiveSlot(2);
+      stage.setActiveSlot(2);
 
-    expect(panel()?.querySelector('.cm-stage-chat__title')?.textContent).toContain('따효니');
-    expect(panelLines()).toEqual([]);
-    sendFromSlot(chat(2, '슬롯2사람'));
-    expect(panelLines().join()).toContain('슬롯2사람');
+      expect(panel()?.querySelector('.cm-stage-chat__title')?.textContent).toContain('따효니');
+      expect(panelLines()).toEqual([]);
+      sendFromSlot(chat(2, '슬롯2사람'));
+      expect(panelLines().join()).toContain('슬롯2사람');
 
-    stage.close();
-  });
+      stage.close();
+    },
+  );
 
-  it('`채팅 끄기` 는 토글이다 — 끄면 패널이 사라지고 다시 켤 수 있다', () => {
-    // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
-    const { stage } = openStage({ chatMode: 'active' });
-    const toggle = () =>
-      document.querySelector<HTMLButtonElement>(
-        '.cm-stage-bar [aria-label="채팅 끄기"], .cm-stage-bar [aria-label="채팅 켜기"]',
-      );
+  it.skipIf(!MULTIVIEW_CHAT_ENABLED)(
+    '`채팅 끄기` 는 토글이다 — 끄면 패널이 사라지고 다시 켤 수 있다',
+    () => {
+      // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
+      const { stage } = openStage({ chatMode: 'active' });
+      const toggle = () =>
+        document.querySelector<HTMLButtonElement>(
+          '.cm-stage-bar [aria-label="채팅 끄기"], .cm-stage-bar [aria-label="채팅 켜기"]',
+        );
 
-    expect(toggle()?.getAttribute('aria-label')).toBe('채팅 끄기');
-    toggle()?.click();
-    expect(panel()).toBeNull();
-    expect(toggle()?.getAttribute('aria-label')).toBe('채팅 켜기');
+      expect(toggle()?.getAttribute('aria-label')).toBe('채팅 끄기');
+      toggle()?.click();
+      expect(panel()).toBeNull();
+      expect(toggle()?.getAttribute('aria-label')).toBe('채팅 켜기');
 
-    toggle()?.click();
-    expect(panel()).not.toBeNull();
-    expect(toggle()?.getAttribute('aria-label')).toBe('채팅 끄기');
-    expect(toggle()?.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
-    stage.close();
-  });
+      toggle()?.click();
+      expect(panel()).not.toBeNull();
+      expect(toggle()?.getAttribute('aria-label')).toBe('채팅 끄기');
+      expect(toggle()?.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
+      stage.close();
+    },
+  );
+
+  /**
+   * 멀티뷰 채팅 임시 비활성화 (2026-08-22, `chatFeature.ts`).
+   * 저장값이 `chatMode: 'active'` 이고 슬롯 채팅 줄 수가 남아 있어도 **아무것도 보이지 않아야**
+   * 한다 — 마이그레이션 없이 런타임에서만 막았기 때문에 이 경로가 회귀 감시 지점이다.
+   */
+  it.skipIf(MULTIVIEW_CHAT_ENABLED)(
+    '채팅 비활성화 중에는 저장값이 active 여도 패널·컨트롤·스트립이 모두 꺼진다',
+    () => {
+      const { stage } = openStage({ chatMode: 'active' });
+
+      expect(panel()).toBeNull();
+      const controls = document.querySelector<HTMLElement>('.cm-stage-chat-controls');
+      expect(controls?.style.display).toBe('none');
+      const strips = [...document.querySelectorAll<HTMLElement>('.cm-slot-chat-strip')];
+      expect(strips.length).toBeGreaterThan(0);
+      for (const strip of strips) expect(strip.style.display).toBe('none');
+
+      stage.close();
+    },
+  );
 
   it('조작 바·슬롯 헤더의 +/− 버튼은 문자가 아니라 aria-hidden svg 아이콘이다', () => {
     const { stage } = openStage();
