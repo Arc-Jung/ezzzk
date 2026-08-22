@@ -8,6 +8,7 @@
       "version": "24.18.0"
     },
     "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "moby": false
     },
@@ -17,6 +18,9 @@
     }
   },
 
+  // sshd 는 VS Code 웹/데스크톱 접속에는 필요 없지만 `gh codespace ssh`(CLI 접속)는 컨테이너
+  // 안에 실제 SSH 데몬이 있어야 동작한다 (실측 2026-08-22 — sshd 없이는 "failed to start SSH
+  // server" 로 거부됨).
   // docker-in-docker 는 컨테이너 안에서 다시 컨테이너를 띄우는 구조라 privileged 모드가 필요하다.
   // 기본값 moby(Microsoft 포크)는 Ubuntu 26.04(resolute)용 패키지가 아직 없어 feature 설치가
   // 실패한다 (실측 2026-08-22, Codespace 생성 로그) — moby:false 로 공식 Docker CE 를 쓴다.
