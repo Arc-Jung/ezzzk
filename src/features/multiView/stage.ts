@@ -925,6 +925,22 @@ export class MultiViewStage {
     bar.appendChild(configButton);
 
     /**
+     * 🔴 스테이지가 화면 전체를 덮어 호스트 컨트롤바의 설정(⚙) 버튼이 가려진다 —
+     * 멀티뷰 중에는 마스터 볼륨·음량 평탄화(컴프레서) 등 설정에 접근할 방법이 없었다
+     * (사용자 보고 2026-08-23). 설정 패널 자체는 z-index 가 스테이지보다 높아(`OURS.topZIndex`)
+     * 열리기만 하면 스테이지 위에 뜬다 — `settingsPanel` 기능에 열기 요청만 보내면 된다.
+     */
+    const settingsButton = document.createElement('button');
+    settingsButton.type = 'button';
+    settingsButton.setAttribute('aria-label', '이지직 설정 열기');
+    settingsButton.appendChild(createIconElement('hammer'));
+    settingsButton.appendChild(barLabel('설정'));
+    settingsButton.addEventListener('click', () => {
+      window.dispatchEvent(new Event(OURS.openSettingsEventName));
+    });
+    bar.appendChild(settingsButton);
+
+    /**
      * 사이드 채팅 컨트롤 — `−`/`+`(폭 조절) · 토글.
      * BETA 사이드 채팅이 생기면서 **전체 화면 전용이 아니게** 됐다 (요청 2026-08-18).
      * 실제 노출 여부는 `updateChatControls()` 가 `chatMode` 로 결정한다.

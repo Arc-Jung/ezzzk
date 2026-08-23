@@ -256,7 +256,24 @@ export function collectRecentChat(
  */
 async function unmuteOnceAtRegistration(getVideo: () => HTMLVideoElement | null): Promise<void> {
   const video = await retry(() => getVideo() ?? undefined);
-  if (video?.muted) video.muted = false;
+  if (!video) return;
+  if (video.muted) video.muted = false;
+  /**
+   * ⚠️ 사용자 보고 (2026-08-23, 미검증): 멀티뷰 구성을 바꾸면 슬롯이 다시 로드된 뒤 자동재생이
+   * 안 되고 재생 버튼을 한 번 눌러야 한다고 함. 실브라우저 반복 재현에서는 재현하지 못했으나
+   * (구성 변경 시나리오·최초 진입 모두 자동재생 성공, 6회) — 언마요트가 어떤 타이밍·환경에서
+   * 재생을 멈추게 할 가능성을 배제할 수 없어 안전망으로 `play()` 를 한 번 더 시도한다.
+   * 이미 재생 중이면 아무 효과가 없고, 자동재생 정책이 막으면 그냥 무시된다(`hostPlayer.ts` 와
+   * 같은 처리).
+   */
+  if (video.paused) {
+    try {
+      const started: unknown = video.play();
+      if (started instanceof Promise) started.catch(() => {});
+    } catch {
+      // 자동재생 정책 등으로 거부돼도 여기서 할 수 있는 건 없다 — 조용히 넘어간다.
+    }
+  }
 }
 
 /**

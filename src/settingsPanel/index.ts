@@ -74,11 +74,19 @@ export const settingsPanelFeature: Feature = {
     };
     chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
+    /**
+     * 멀티뷰 스테이지가 호스트 설정 버튼을 가릴 때 쓰는 우회 경로.
+     * `constants/class.ts` 의 `OURS.openSettingsEventName` 주석 참조.
+     */
+    const onOpenSettingsEvent = () => open();
+    window.addEventListener(OURS.openSettingsEventName, onOpenSettingsEvent);
+
     info(`settings panel ready (shortcut ${shortcutsEnabled ? 'Alt+Comma' : 'disabled'})`);
 
     return () => {
       if (shortcutsEnabled) window.removeEventListener('keydown', onKeyDown);
       chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+      window.removeEventListener(OURS.openSettingsEventName, onOpenSettingsEvent);
       stopButton();
       close();
       removeStyle(STYLE_ID);

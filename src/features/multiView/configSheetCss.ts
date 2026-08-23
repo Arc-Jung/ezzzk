@@ -190,10 +190,8 @@ export const CONFIG_SHEET_CSS = `
 }
 .cm-mv-channels > li > span:not(:first-child) { flex: 0 0 auto; }
 .cm-mv-channels .cm-sheet__btn { padding: 2px 7px; }
-.cm-offline { opacity: 0.55; }
 /* 방송 상태 점(LiveDotIcon) 색 — currentColor 라 부모에서 color 만 정한다. 빨강은 볼륨 과증폭 경고에 이미 쓰여 의미가 충돌하므로 우리 강조색(ACCENT)을 쓴다. */
 .cm-mv-live--on { color: ${ACCENT}; }
-.cm-mv-live--off { color: ${FG.disabled}; }
 /* 텍스트와 나란히 놓이는 아이콘(빈 슬롯 +, 방송 상태 점) 은 글자 기준선에 맞춰 살짝 내린다. */
 .cm-mv-cell__head svg,
 .cm-mv-channels svg { vertical-align: -1px; }

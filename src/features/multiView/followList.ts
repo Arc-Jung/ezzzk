@@ -193,8 +193,8 @@ export type LivePage = {
 
 export type LiveCursor = Record<string, string | number>;
 
-/** 인기 방송 목록 한 번에 불러오는 개수 (요청 사양). */
-export const LIVES_PAGE_SIZE = 10;
+/** 인기 방송 목록 한 번에 불러오는 개수 (사용자 요청 2026-08-23 — 10개는 너무 적었다). */
+export const LIVES_PAGE_SIZE = 30;
 
 /**
  * 목록 요청 URL 을 만든다. **순수 함수 — 테스트 대상.**

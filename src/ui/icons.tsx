@@ -80,6 +80,11 @@ export const ICON_PATHS = {
       d: 'M8 2.5v1.6M8 11.9v1.6M13.5 8h-1.6M4.1 8H2.5M11.66 4.34l-1.13 1.13M5.47 10.53l-1.13 1.13M11.66 11.66l-1.13-1.13M5.47 5.47L4.34 4.34',
     },
   ],
+  /**
+   * 멀티뷰 스테이지의 설정 버튼 전용 (2026-08-23). 톱니(gear)는 이미 치지직 순정 설정
+   * 아이콘과 같은 모양이라 헷갈린다는 지적으로, 망치 모양으로 구분했다.
+   */
+  hammer: 'M9.2 6.8L3 13M7.6 3.4L9 2l3 3-1.4 1.4zM8.3 4.1l2.6 2.6',
   compressor: [
     { tag: 'path', d: 'M2 6.3h2.2L7.7 3.2v9.6L4.2 9.7H2z' },
     { tag: 'path', d: 'M9.6 5.6a3.2 3.2 0 0 1 0 4.8' },
@@ -230,6 +235,11 @@ export function SlotsIcon({ size = 16, className }: IconProps) {
 /** `⚙` 대체 — 설정. 원 + 톱니 6개. */
 export function GearIcon({ size = 16, className }: IconProps) {
   return <svg {...strokeSvgProps(size, className)}>{renderIconShapes(ICON_PATHS.gear)}</svg>;
+}
+
+/** 멀티뷰 스테이지 설정 버튼 전용 — 치지직 순정 설정(톱니)과 구분하려고 망치 모양을 쓴다. */
+export function HammerIcon({ size = 16, className }: IconProps) {
+  return <svg {...strokeSvgProps(size, className)}>{renderIconShapes(ICON_PATHS.hammer)}</svg>;
 }
 
 /**

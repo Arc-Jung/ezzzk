@@ -68,11 +68,11 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function followChannel(n: number): FollowChannel {
+function followChannel(n: number, { live = true }: { live?: boolean } = {}): FollowChannel {
   return {
     channelId: `follow-${n}`,
     channelName: `팔로우채널${n}`,
-    live: true,
+    live,
     concurrentUserCount: n,
   };
 }
@@ -177,6 +177,45 @@ describe('ConfigSheet — 채널 목록 섹션은 하나만 렌더된다', () =>
     );
     expect(headings.some((t) => t?.includes('시청자 수 많은 방송'))).toBe(true);
     expect(document.querySelectorAll('.cm-mv-channels > li').length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 🔴 사용자 요청 (2026-08-23): 멀티뷰는 지금 방송 중인 채널을 고르는 화면이라, 팔로우한
+ * 채널이라도 지금 오프라인이면 골라도 빈 슬롯만 남는다 — 목록에서 아예 뺀다.
+ */
+describe('ConfigSheet — 팔로우 채널 목록에서 오프라인은 뺀다 (2026-08-23)', () => {
+  it('오프라인 팔로우 채널은 목록에 나타나지 않는다', async () => {
+    vi.mocked(fetchFollowings).mockResolvedValue({
+      ok: true,
+      channels: [followChannel(1, { live: true }), followChannel(2, { live: false })],
+    });
+    vi.mocked(fetchLivePage).mockResolvedValue({ channels: [popularChannel(1)], next: null });
+
+    await mount(<ConfigSheet {...baseProps()} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain('팔로우채널1');
+    expect(document.body.textContent).not.toContain('팔로우채널2');
+  });
+
+  it('팔로우한 채널이 전부 오프라인이면 안내 문구를 보여주고 인기 방송으로 넘어간다', async () => {
+    vi.mocked(fetchFollowings).mockResolvedValue({
+      ok: true,
+      channels: [followChannel(1, { live: false })],
+    });
+    vi.mocked(fetchLivePage).mockResolvedValue({ channels: [popularChannel(1)], next: null });
+
+    await mount(<ConfigSheet {...baseProps()} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain('지금 방송 중인 팔로우 채널이 없습니다.');
+    expect(document.body.textContent).toContain('시청자 수 많은 방송');
+    expect(document.body.textContent).not.toContain('팔로우채널1');
   });
 });
 

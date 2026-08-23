@@ -181,11 +181,18 @@ export function ConfigSheet({
     setFollowVisible(FOLLOW_PAGE_SIZE);
   }, [query]);
 
+  /**
+   * 🔴 오프라인 팔로우 채널은 목록에서 아예 뺀다 (사용자 요청 2026-08-23).
+   * 멀티뷰 슬롯은 지금 방송 중인 채널을 고르는 화면이라, 꺼진 채널을 골라도 빈 슬롯만
+   * 남는다 — 정렬로 뒤로 미루는 것(`followList.ts` 의 `live` 우선 정렬)만으로는
+   * 목록 절반이 고를 수 없는 항목으로 채워지는 문제가 그대로 남는다.
+   */
   const visibleChannels = useMemo(() => {
     if (list.kind !== 'ready') return [];
+    const live = list.channels.filter((c) => c.live);
     const q = query.trim().toLowerCase();
-    if (q.length === 0) return list.channels;
-    return list.channels.filter((c) => c.channelName.toLowerCase().includes(q));
+    if (q.length === 0) return live;
+    return live.filter((c) => c.channelName.toLowerCase().includes(q));
   }, [list, query]);
 
   /** 팔로우를 끝까지 보여 줬는가 — 인기 방송을 이어 붙일지 판단한다. */
@@ -555,24 +562,28 @@ export function ConfigSheet({
                     onChange={(e) => setQuery(e.target.value)}
                   />
                 </div>
+                {visibleChannels.length === 0 ? (
+                  <p className="cm-sheet__note">
+                    {list.channels.length === 0
+                      ? '팔로우한 채널이 없습니다.'
+                      : query.trim().length > 0
+                        ? '검색 결과가 없습니다.'
+                        : '지금 방송 중인 팔로우 채널이 없습니다.'}
+                  </p>
+                ) : null}
                 <ul className="cm-mv-channels">
                   {visibleChannels.slice(0, followVisible).map((channel) => {
                     const placedAt = placedIndexOf(channel.channelId);
                     return (
-                      <li key={channel.channelId} className={channel.live ? '' : 'cm-offline'}>
+                      <li key={channel.channelId}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <LiveDotIcon
-                            size={10}
-                            className={channel.live ? 'cm-mv-live--on' : 'cm-mv-live--off'}
-                          />
+                          <LiveDotIcon size={10} className="cm-mv-live--on" />
                           {/* 🔴 색만으로 상태를 전달하지 않는다 — 색약 사용자를 위해 텍스트를 남긴다. */}
-                          <span className={OURS.srOnlyClass}>
-                            {channel.live ? '방송중' : '오프라인'}
-                          </span>
+                          <span className={OURS.srOnlyClass}>방송중</span>
                           {channel.channelName}
                         </span>
                         <span className="cm-sheet__note">
-                          {channel.live ? formatViewers(channel.concurrentUserCount) : '오프라인'}
+                          {formatViewers(channel.concurrentUserCount)}
                         </span>
                         {placedAt !== null ? (
                           <span className="cm-sheet__note">· 배치됨 {CIRCLED[placedAt - 1]}</span>
@@ -672,7 +683,7 @@ export function ConfigSheet({
                     className="cm-sheet__btn"
                     onClick={() => void loadMorePopular()}
                   >
-                    더 보기 (10개)
+                    더 보기 (30개)
                   </button>
                 ) : null}
               </>
