@@ -57,27 +57,31 @@ describe('clampChatRatio', () => {
 });
 
 describe('stepChatRatio', () => {
-  it('기본 단계는 5% 다', () => {
-    expect(STEP).toBe(5);
-    expect(stepChatRatio(30, 1, STEP, MIN, MAX)).toBe(35);
-    expect(stepChatRatio(30, -1, STEP, MIN, MAX)).toBe(25);
+  /**
+   * 🔴 기본 단계는 5 → 2 로 낮췄다 (사용자 보고 2026-08-24: "+/− 한 번 클릭마다 지금의 절반
+   * 정도로 조정되게 해줘 — 지금 너무 크게 움직여").
+   */
+  it('기본 단계는 2% 다', () => {
+    expect(STEP).toBe(2);
+    expect(stepChatRatio(30, 1, STEP, MIN, MAX)).toBe(32);
+    expect(stepChatRatio(30, -1, STEP, MIN, MAX)).toBe(28);
   });
 
   it('상한·하한을 넘지 않는다', () => {
-    expect(stepChatRatio(48, 1, STEP, MIN, MAX)).toBe(50);
+    expect(stepChatRatio(49, 1, STEP, MIN, MAX)).toBe(50);
     expect(stepChatRatio(50, 1, STEP, MIN, MAX)).toBe(50);
     expect(stepChatRatio(16, -1, STEP, MIN, MAX)).toBe(15);
     expect(stepChatRatio(15, -1, STEP, MIN, MAX)).toBe(15);
   });
 
   it('현재값이 범위를 벗어나 있으면 먼저 범위로 들인다', () => {
-    expect(stepChatRatio(90, -1, STEP, MIN, MAX)).toBe(45);
-    expect(stepChatRatio(0, 1, STEP, MIN, MAX)).toBe(20);
+    expect(stepChatRatio(90, -1, STEP, MIN, MAX)).toBe(48);
+    expect(stepChatRatio(0, 1, STEP, MIN, MAX)).toBe(17);
   });
 
   it('delta 부호만 본다 — 크기는 step 이 결정한다', () => {
-    expect(stepChatRatio(30, 10, STEP, MIN, MAX)).toBe(35);
-    expect(stepChatRatio(30, -10, STEP, MIN, MAX)).toBe(25);
+    expect(stepChatRatio(30, 10, STEP, MIN, MAX)).toBe(32);
+    expect(stepChatRatio(30, -10, STEP, MIN, MAX)).toBe(28);
   });
 
   it('step 이 0·음수·NaN 이면 현재값을 유지한다', () => {
@@ -722,9 +726,9 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
     click('채팅 폭 늘리기');
     await flush();
 
-    // 기기 기본값 25% → 30%
-    expect(layoutCss()).toContain(`width: ${ratioToPx(30, VIEWPORT_WIDTH)}px !important`);
-    expect(savedChatWidth()).toMatchObject({ ratio: 30, ratioSource: 'manual' });
+    // 기기 기본값 25% → 27% (STEP=2)
+    expect(layoutCss()).toContain(`width: ${ratioToPx(25 + STEP, VIEWPORT_WIDTH)}px !important`);
+    expect(savedChatWidth()).toMatchObject({ ratio: 25 + STEP, ratioSource: 'manual' });
     dispose?.();
   });
 
@@ -868,7 +872,7 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       click('채팅 폭 늘리기');
       await flush();
       const plus2 = heightOf();
-      expect(plus1).toBe(ratioToPx(AUTO + 5, 960));
+      expect(plus1).toBe(ratioToPx(AUTO + STEP, 960));
       expect(plus2).toBeGreaterThan(plus1);
 
       click('채팅 폭 줄이기');
@@ -888,7 +892,7 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       await flush();
 
       expect(layoutCss()).toContain('flex-direction: column !important');
-      expect(layoutCss()).toContain(`height: ${ratioToPx(AUTO + 5, 960)}px !important`);
+      expect(layoutCss()).toContain(`height: ${ratioToPx(AUTO + STEP, 960)}px !important`);
       // 폭만 사용자 값이 된다 — 배치는 계속 자동이다.
       expect(savedChatWidth()).toMatchObject({ ratioSource: 'manual', placementSource: 'auto' });
       dispose?.();
@@ -901,14 +905,14 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       click('채팅 폭 늘리기');
       await flush();
       const saved = savedChatWidth();
-      expect(saved.ratio).toBe(AUTO + 5);
+      expect(saved.ratio).toBe(AUTO + STEP);
 
       dispose?.();
       resetLayoutArbiterForTest();
       document.getElementById('cm-chat-width-control')?.remove();
 
       const restarted = chatWidthFeature.start(portraitCtx(saved));
-      expect(layoutCss()).toContain(`height: ${ratioToPx(AUTO + 5, 960)}px !important`);
+      expect(layoutCss()).toContain(`height: ${ratioToPx(AUTO + STEP, 960)}px !important`);
       restarted?.();
     });
 

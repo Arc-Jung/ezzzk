@@ -245,7 +245,8 @@ export const DEFAULT_SETTINGS: Settings = {
     placement: 'right',
     ratioSource: 'auto',
     placementSource: 'auto',
-    step: 5,
+    // 🔴 5%(2026-08-24 이전 기본값)는 클릭 한 번에 너무 크게 움직인다는 사용자 보고로 절반 수준인 2로 낮췄다.
+    step: 2,
     min: 15,
     max: 50,
     collapsed: false,

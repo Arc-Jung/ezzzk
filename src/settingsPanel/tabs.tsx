@@ -399,7 +399,7 @@ export function SoundTab({ settings, update }: TabProps) {
 }
 
 /** 조절 단위 후보(%) — FR-05. */
-const CHAT_WIDTH_STEPS = [1, 5, 10] as const;
+const CHAT_WIDTH_STEPS = [1, 2, 5, 10] as const;
 
 export function LayoutTab({
   settings,
