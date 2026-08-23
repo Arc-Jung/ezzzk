@@ -35,6 +35,15 @@ import {
   targetHeightPx,
   type QualityPick,
 } from '../quality';
+import {
+  applyCompressorParams,
+  DEFAULT_COMPRESSOR,
+  ensureGraph,
+  resumeGraph,
+  setCompressorEnabled,
+  type CompressorParams,
+} from '../audioPipeline';
+import { loadSettings, onSettingsChanged } from '../../storage';
 
 const SLOT_STYLE_ID = 'cm-slot-mode-style';
 /** 슬롯 스트립 렌더는 부모가 한다. 여기서는 200ms 배치로 데이터만 넘긴다 (저사양 프레임 예산). */
@@ -277,6 +286,57 @@ async function unmuteOnceAtRegistration(getVideo: () => HTMLVideoElement | null)
 }
 
 /**
+ * 슬롯 오디오에 FR-19 음량 평탄화(컴프레서)를 적용한다.
+ *
+ * 🔴 실측 확정 (2026-08-23): 컴프레서는 호스트 페이지(`volume.ts`)에만 있었고 멀티뷰 슬롯에는
+ * 아예 그래프가 없었다 — 멀티뷰를 켜면 컨트롤바 자체가 스테이지에 가려지는 것과 별개로,
+ * 슬롯 오디오는 켜져 있어도 컴프레서를 절대 거치지 않았다(사용자 보고: "컴프레서 버튼이 사라진다").
+ *
+ * `chrome.storage` 는 확장 전체에서 공유되므로, 슬롯 프레임도 부모의 메시지를 기다리지 않고
+ * 설정을 직접 읽고 구독한다 — 스테이지 조작 바 버튼이든 설정 패널이든, 어느 쪽에서 토글해도
+ * 같은 `audio.compressor` 저장값을 통해 슬롯까지 그대로 전파된다.
+ *
+ * `volume.ts` 의 `applyAudioGraph` 와 같은 원칙 — **그래프는 컴프레서를 실제로 켤 때만** 만든다.
+ */
+export function setupSlotCompressor(getVideo: () => HTMLVideoElement | null): {
+  reattach: () => void;
+  dispose: Disposer;
+} {
+  let enabled = false;
+  let params: CompressorParams = DEFAULT_COMPRESSOR;
+  /** 한 번이라도 켜서 그래프를 만든 적이 있는가 — 껐다 켰다 토글할 때만 다시 그래프를 만진다. */
+  let everEnabled = false;
+
+  const apply = () => {
+    if (!enabled && !everEnabled) return;
+    const video = getVideo();
+    if (!video) return;
+    const graph = ensureGraph(video);
+    if (!graph) return;
+    everEnabled = true;
+    if (enabled) resumeGraph(graph);
+    applyCompressorParams(graph, params);
+    setCompressorEnabled(graph, enabled);
+  };
+
+  const readAndApply = (compressor: (CompressorParams & { enabled: boolean }) | undefined) => {
+    if (!compressor) return;
+    enabled = compressor.enabled;
+    params = compressor;
+    apply();
+  };
+
+  void loadSettings().then((settings) => readAndApply(settings.audio?.compressor));
+  const stopSettings = onSettingsChanged((settings) => readAndApply(settings.audio?.compressor));
+
+  return {
+    // 리렌더로 video 요소가 교체됐을 수 있으니 `createSlotAudio.reattach()` 와 같은 시점에 부른다.
+    reattach: apply,
+    dispose: stopSettings,
+  };
+}
+
+/**
  * 슬롯 컨트롤러를 시작한다. 슬롯 프레임에서만 호출된다.
  * 부모와의 통신은 postMessage 이고 origin 을 치지직으로 검증한다.
  */
@@ -298,6 +358,9 @@ export function startSlotController(slot: SlotIndex): Disposer {
   audio.reattach();
   // 등록 시 1회 언마요트 (위 `unmuteOnceAtRegistration` 참조). `audio.reattach()` 와 별개다.
   void unmuteOnceAtRegistration(currentVideo);
+
+  const compressor = setupSlotCompressor(currentVideo);
+  compressor.reattach();
 
   /**
    * 🔴 **슬롯을 눌러 활성 전환하는 경로는 부모에서 동작하지 않는다** (실측 2026-08-18,
@@ -396,6 +459,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
       if (!document.getElementById(SLOT_STYLE_ID)) upsertStyle(SLOT_STYLE_ID, buildSlotModeCss());
       // 리렌더로 video 요소가 교체됐을 수 있으니 리스너를 다시 붙인다 (음소거는 건드리지 않는다).
       audio.reattach();
+      compressor.reattach();
     },
     { debounceMs: 500 },
   );
@@ -409,6 +473,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
     stopChatObserve?.();
     stopStyleGuard();
     audio.dispose();
+    compressor.dispose();
     removeStyle(SLOT_STYLE_ID);
   };
 }

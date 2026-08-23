@@ -9,18 +9,51 @@
  * ⚠️ jsdom 은 `video.muted` 를 바꿔도 `volumechange` 를 쏘지 않는다. 실제 브라우저는
  * **값이 바뀔 때만** 쏘므로 `setMuted` 헬퍼가 그 동작을 흉내낸다.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   applySlotQuality,
   buildSlotModeCss,
   createSlotAudio,
+  setupSlotCompressor,
   startSlotController,
 } from './slotFrame';
+import {
+  STORAGE_KEY,
+  SCHEMA_VERSION_KEY,
+  SCHEMA_VERSION,
+  DEFAULT_SETTINGS,
+} from '../../constants/storage';
 
 function mountVideo(): HTMLVideoElement {
   document.body.innerHTML = '<div id="live_player_layout"><video></video></div>';
   return document.querySelector('video') as HTMLVideoElement;
 }
+
+/**
+ * `startSlotController` 는 이제 컴프레서 저장값을 읽으려고 `chrome.storage` 를 건드린다
+ * (`setupSlotCompressor`, 2026-08-23) — jsdom 에는 `chrome` 이 없어 매 테스트에 심어 준다.
+ * `store` 를 미리 채워 두면 `loadSettings()` 의 스키마 버전 불일치 재저장 경로를 피할 수 있다.
+ */
+function installFakeChrome(store: Record<string, unknown> = {}): void {
+  const fake = {
+    storage: {
+      local: {
+        get: vi.fn(async (keys: string[]) => {
+          const out: Record<string, unknown> = {};
+          for (const key of keys) if (key in store) out[key] = store[key];
+          return out;
+        }),
+        set: vi.fn(async (patch: Record<string, unknown>) => Object.assign(store, patch)),
+      },
+      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
+  };
+  (globalThis as unknown as { chrome: unknown }).chrome = fake;
+}
+
+beforeEach(() => {
+  installFakeChrome();
+});
 
 /** 실제 브라우저처럼 값이 바뀔 때만 `volumechange` 를 쏜다. */
 function setMuted(video: HTMLVideoElement, next: boolean): void {
@@ -40,6 +73,7 @@ function setUserActivation(isActive: boolean): void {
 afterEach(() => {
   document.body.innerHTML = '';
   Reflect.deleteProperty(navigator, 'userActivation');
+  Reflect.deleteProperty(globalThis as unknown as { chrome?: unknown }, 'chrome');
   vi.useRealTimers();
 });
 
@@ -512,5 +546,116 @@ describe('applySlotQuality — 설정 메뉴를 열어야 하는 경로 (실측 
       'li.pzp-ui-setting-quality-item.pzp-ui-setting-pane-item--checked',
     );
     expect(checked?.textContent).toBe('480p');
+  });
+});
+
+/**
+ * 🔴 회귀 고정 — 실측 확정 (2026-08-23): 컴프레서는 호스트 페이지에만 있었고 멀티뷰 슬롯
+ * 오디오에는 그래프 자체가 없었다("컴프레서 버튼이 사라진다"는 사용자 보고의 근본 원인).
+ * `jsdom` 에는 Web Audio 가 없으므로 `audioPipeline.test.ts` 와 같은 `FakeContext` 로
+ * 배선 계약만 고정한다.
+ */
+describe('setupSlotCompressor — 슬롯 오디오에도 컴프레서를 적용한다 (2026-08-23)', () => {
+  class FakeContext {
+    currentTime = 0;
+    destination = {};
+    createMediaElementSource() {
+      return { connect: vi.fn(), disconnect: vi.fn() };
+    }
+    createGain() {
+      return { connect: vi.fn(), disconnect: vi.fn(), gain: { setValueAtTime: vi.fn() } };
+    }
+    createDynamicsCompressor() {
+      return {
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        threshold: { setValueAtTime: vi.fn() },
+        knee: { setValueAtTime: vi.fn() },
+        ratio: { setValueAtTime: vi.fn() },
+        attack: { setValueAtTime: vi.fn() },
+        release: { setValueAtTime: vi.fn() },
+      };
+    }
+    resume = vi.fn(async () => undefined);
+  }
+
+  function seedSettingsStore(compressorEnabled: boolean): Record<string, unknown> {
+    const store: Record<string, unknown> = {};
+    store[SCHEMA_VERSION_KEY] = SCHEMA_VERSION;
+    store[STORAGE_KEY] = {
+      ...DEFAULT_SETTINGS,
+      audio: {
+        ...DEFAULT_SETTINGS.audio,
+        compressor: { ...DEFAULT_SETTINGS.audio.compressor, enabled: compressorEnabled },
+      },
+    };
+    return store;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('컴프레서가 꺼져 있으면 그래프를 만들지 않는다 (필요할 때만 만든다는 원칙)', async () => {
+    installFakeChrome(seedSettingsStore(false));
+    const created = vi.fn();
+    class SpyContext extends FakeContext {
+      createMediaElementSource() {
+        created();
+        return super.createMediaElementSource();
+      }
+    }
+    vi.stubGlobal('AudioContext', SpyContext);
+
+    const video = mountVideo();
+    const compressor = setupSlotCompressor(() => video);
+    compressor.reattach();
+    await vi.waitFor(() => {});
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(created).not.toHaveBeenCalled();
+    compressor.dispose();
+  });
+
+  it('컴프레서가 켜져 있으면 슬롯 video 에 그래프를 만들어 연결한다', async () => {
+    installFakeChrome(seedSettingsStore(true));
+    const sourceConnect = vi.fn();
+    const compressorConnect = vi.fn();
+    const createSource = vi.fn();
+    const createCompressorNode = vi.fn();
+    class SpyContext extends FakeContext {
+      createMediaElementSource() {
+        createSource();
+        return { connect: sourceConnect, disconnect: vi.fn() };
+      }
+      createDynamicsCompressor() {
+        createCompressorNode();
+        return {
+          connect: compressorConnect,
+          disconnect: vi.fn(),
+          threshold: { setValueAtTime: vi.fn() },
+          knee: { setValueAtTime: vi.fn() },
+          ratio: { setValueAtTime: vi.fn() },
+          attack: { setValueAtTime: vi.fn() },
+          release: { setValueAtTime: vi.fn() },
+        };
+      }
+    }
+    vi.stubGlobal('AudioContext', SpyContext);
+
+    const video = mountVideo();
+    const compressor = setupSlotCompressor(() => video);
+    compressor.reattach();
+    // `loadSettings()` 가 비동기라 마이크로태스크를 흘려보낸다.
+    await new Promise((r) => setTimeout(r, 0));
+    compressor.reattach();
+
+    expect(createSource).toHaveBeenCalledTimes(1);
+    expect(createCompressorNode).toHaveBeenCalledTimes(1);
+    // 켜진 상태라면 source 가 compressor 쪽으로 연결돼 있어야 한다
+    // (`setCompressorEnabled` 배선 — `audioPipeline.ts` 참조).
+    expect(sourceConnect).toHaveBeenCalled();
+    expect(compressorConnect).toHaveBeenCalled();
+    compressor.dispose();
   });
 });
