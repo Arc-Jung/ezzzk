@@ -23,6 +23,7 @@ import { chatWidthFeature } from './chatWidth';
 import { chzzkCleanBotFeature } from './chzzkCleanBot';
 import { mobileWebNoticeFeature } from './mobileWebNotice';
 import { multiViewFeature } from './multiView';
+import { playbackStallFeature } from './playbackStall';
 import { powerCollectFeature } from './powerCollect';
 import { promoHideFeature } from './promoHide';
 import { qualityFeature } from './quality';
@@ -41,6 +42,7 @@ export const FEATURES: Feature[] = [
   chatFontFeature, // FR-15
   qualityFeature, // FR-01
   volumeFeature, // FR-02, FR-03
+  playbackStallFeature, // 검은 화면 재생 실패 재시도
   wideScreenFeature, // FR-07
   ultraWideFeature, // FR-10
   chatWidthFeature, // FR-05

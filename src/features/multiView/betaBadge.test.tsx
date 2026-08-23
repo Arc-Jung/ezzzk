@@ -151,7 +151,6 @@ describe('③ 스테이지 조작 바', () => {
       onRequestConfig: () => {},
       onExit: () => {},
       onActiveSlotChange: () => {},
-      onVolumeChange: () => {},
       onChatLinesChange: () => {},
       onChatWidthChange: () => {},
     });
@@ -169,8 +168,6 @@ describe('③ 스테이지 조작 바', () => {
       b.getAttribute('aria-label'),
     );
     for (const expected of [
-      '볼륨 줄이기',
-      '볼륨 늘리기',
       '멀티뷰 구성 열기',
       '채팅 영역 좁히기',
       '채팅 영역 넓히기',

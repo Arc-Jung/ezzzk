@@ -254,12 +254,7 @@ function isTextEntry(target: EventTarget | null): boolean {
 export const volumeFeature: Feature = {
   id: 'volume',
   watches: ['volume'],
-  supports: (ctx) => {
-    if (!hasPlayer(ctx.page.type)) return false;
-    // 멀티뷰 슬롯의 소리는 FR-14(활성 슬롯만 소리)가 관리한다 — 슬롯 4개를 동시에 켜면 안 된다.
-    if (ctx.page.isSlotFrame) return false;
-    return true;
-  },
+  supports: (ctx) => hasPlayer(ctx.page.type),
   start: (ctx) => {
     const dom = domFor(ctx.page.type);
     const step = normalizeStep(ctx.settings.volume.step);
