@@ -243,7 +243,6 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       onRequestConfig: vi.fn(),
       onExit: vi.fn(),
       onActiveSlotChange,
-      onVolumeChange: vi.fn(),
       onChatLinesChange: vi.fn(),
       onChatWidthChange: vi.fn(),
     });
@@ -377,19 +376,24 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     });
   });
 
-  describe('슬롯 로드 실패 표시', () => {
+  /**
+   * 🔴 사용자 보고 (2026-08-23): "멀티뷰를 설정할 때 가끔 4개 중 1~2개 방송이 요청이 실패한다."
+   * 타임아웃마다 곧장 실패로 확정하지 않고 `MAX_SLOT_LOAD_RETRIES`(2)회 프레임을 다시 로드한다 —
+   * 총 대기 시간은 최초 15s + (2s 백오프 + 15s) + (4s 백오프 + 15s) = 51s.
+   */
+  describe('슬롯 로드 실패 표시 — 재시도 (2026-08-23)', () => {
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it('load 만 발화하고 ready 가 오지 않으면 실패로 표시한다 (오류 페이지)', () => {
+    it('load 만 발화하고 ready 가 오지 않으면 재시도를 거쳐 결국 실패로 표시한다 (오류 페이지)', () => {
       vi.useFakeTimers();
       const { stage } = openStage();
       const frames = document.querySelectorAll('#cm-multiview-stage .cm-slot iframe');
       // 오류 페이지도 load 를 발화시킨다 — 이것만으로 성공이라고 보면 안 된다.
       frames.forEach((frame) => frame.dispatchEvent(new Event('load')));
 
-      vi.advanceTimersByTime(20_000);
+      vi.advanceTimersByTime(52_000);
 
       const errors = document.querySelectorAll('#cm-multiview-stage .cm-slot__error');
       expect(errors.length).toBe(2);
@@ -397,7 +401,38 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       stage.close();
     });
 
-    it('ready 를 보낸 슬롯은 실패로 표시하지 않는다', () => {
+    it('첫 타임아웃에서는 아직 실패로 확정하지 않고 재시도 상태를 보여준다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      const frames = document.querySelectorAll('#cm-multiview-stage .cm-slot iframe');
+      frames.forEach((frame) => frame.dispatchEvent(new Event('load')));
+
+      vi.advanceTimersByTime(15_000);
+
+      const cell1 = document.querySelector('#cm-multiview-stage .cm-slot[data-slot="1"]');
+      expect(cell1?.querySelector('.cm-slot__error')).toBeNull();
+      expect(cell1?.querySelector('.cm-slot__retry')?.textContent).toContain('다시 시도');
+      stage.close();
+    });
+
+    it('재시도 중 frame.src 를 다시 대입해 실제로 다시 불러온다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      const frame = document.querySelector<HTMLIFrameElement>(
+        '#cm-multiview-stage .cm-slot[data-slot="1"] iframe',
+      );
+      expect(frame).not.toBeNull();
+      frame?.dispatchEvent(new Event('load'));
+      const srcBefore = frame?.src;
+
+      // 첫 타임아웃(15s) + 재시도 백오프(2s) 뒤 재로드가 일어난다.
+      vi.advanceTimersByTime(17_000);
+
+      expect(frame?.src).toBe(srcBefore); // 채널·슬롯이 같으니 URL 자체는 동일하다.
+      stage.close();
+    });
+
+    it('ready 를 보낸 슬롯은 재시도 없이 실패로 표시하지 않는다', () => {
       vi.useFakeTimers();
       const { stage } = openStage();
       document
@@ -405,13 +440,33 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
         .forEach((frame) => frame.dispatchEvent(new Event('load')));
       sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
 
-      vi.advanceTimersByTime(20_000);
+      vi.advanceTimersByTime(52_000);
 
       const cell1 = document.querySelector('#cm-multiview-stage .cm-slot[data-slot="1"]');
       const cell2 = document.querySelector('#cm-multiview-stage .cm-slot[data-slot="2"]');
       expect(cell1?.querySelector('.cm-slot__error')).toBeNull();
-      // ready 를 안 보낸 슬롯만 실패다.
+      expect(cell1?.querySelector('.cm-slot__retry')).toBeNull();
+      // ready 를 안 보낸 슬롯만 재시도 끝에 실패로 확정된다.
       expect(cell2?.querySelector('.cm-slot__error')).not.toBeNull();
+      stage.close();
+    });
+
+    it('재시도 도중에 ready 가 오면 재시도 상태를 지우고 실패로 확정하지 않는다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      document
+        .querySelectorAll('#cm-multiview-stage .cm-slot iframe')
+        .forEach((frame) => frame.dispatchEvent(new Event('load')));
+
+      vi.advanceTimersByTime(15_000);
+      const cell1 = document.querySelector('#cm-multiview-stage .cm-slot[data-slot="1"]');
+      expect(cell1?.querySelector('.cm-slot__retry')).not.toBeNull();
+
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
+      vi.advanceTimersByTime(40_000);
+
+      expect(cell1?.querySelector('.cm-slot__retry')).toBeNull();
+      expect(cell1?.querySelector('.cm-slot__error')).toBeNull();
       stage.close();
     });
   });
@@ -584,10 +639,10 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   );
 
   it('조작 바·슬롯 헤더의 +/− 버튼은 문자가 아니라 aria-hidden svg 아이콘이다', () => {
-    const { stage } = openStage();
+    const { stage } = openStage({ chatMode: 'active' });
     const bar = document.querySelector('.cm-stage-bar');
     expect(bar?.textContent).not.toMatch(/[+−]/);
-    for (const label of ['볼륨 줄이기', '볼륨 늘리기']) {
+    for (const label of ['채팅 영역 좁히기', '채팅 영역 넓히기']) {
       const button = bar?.querySelector(`[aria-label="${label}"]`);
       const svg = button?.querySelector('svg');
       expect(svg).toBeTruthy();
@@ -697,7 +752,6 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       onRequestConfig: vi.fn(),
       onExit: vi.fn(),
       onActiveSlotChange,
-      onVolumeChange: vi.fn(),
       onChatLinesChange: vi.fn(),
       onChatWidthChange: vi.fn(),
     });

@@ -17,8 +17,6 @@ import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
 import { readViewport } from '../../utils/viewport';
 import { info, warning } from '../../utils/log';
-import { updateSection } from '../../storage';
-import { ACCENT } from '../../ui/tokens';
 import { effectiveChatMode, effectiveSlotChatLines } from './chatFeature';
 import { slotFromAudioShortcut } from './messages';
 import {
@@ -39,8 +37,17 @@ import {
 } from './slotLayout';
 
 const STAGE_STYLE_ID = 'cm-multiview-stage-style';
-/** 슬롯 컨트롤러가 이 시간 안에 `ready` 를 보내지 않으면 해당 슬롯을 실패로 표시한다. */
+/** 슬롯 컨트롤러가 이 시간 안에 `ready` 를 보내지 않으면 재시도(또는 최종 실패)로 넘어간다. */
 const FRAME_LOAD_TIMEOUT_MS = 15_000;
+/**
+ * 🔴 사용자 보고 (2026-08-23): "멀티뷰를 설정할 때 가끔 4개 중 1~2개 방송이 요청이 실패한다."
+ * 타임아웃마다 곧장 에러로 확정하지 않고, 프레임을 다시 로드해 몇 차례 더 기회를 준다 —
+ * 방송 시작 직후처럼 치지직 쪽이 일시적으로 느린 경우가 실제로 있었다(실측 없이 영구 실패로
+ * 단정하지 않는다는 이 저장소 원칙).
+ */
+const MAX_SLOT_LOAD_RETRIES = 2;
+/** 재시도 간격을 점점 늘린다 — 연속 재로드로 같은 요청을 몰아붙이지 않는다. */
+const SLOT_RETRY_BACKOFF_MS = [2_000, 4_000];
 
 /** 초점(활성) 슬롯 표시 클래스. `updateFocusMarks()` 가 토글한다(시각 강조는 없음, aria-pressed 용). */
 export const FOCUSED_SLOT_CLASS = 'cm-slot--focused';
@@ -73,7 +80,6 @@ export type StageCallbacks = {
   onRequestConfig: () => void;
   onExit: (activeChannelId: string | null) => void;
   onActiveSlotChange: (slot: SlotIndex) => void;
-  onVolumeChange: (percent: number) => void;
   onChatLinesChange: (lines: number) => void;
   /**
    * 전체 화면에서 기존 채팅 aside 에 줄 폭. 0 이면 접는다.
@@ -105,6 +111,8 @@ type SlotRuntime = {
    */
   ready: boolean;
   failed: boolean;
+  /** 지금까지 재시도한 횟수. `MAX_SLOT_LOAD_RETRIES` 에 닿으면 더 시도하지 않고 최종 에러로 넘어간다. */
+  retryCount: number;
 };
 
 /**
@@ -199,6 +207,18 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   text-align: center;
   padding: 12px;
   color: #ffb454;
+}
+#${OURS.multiViewStageId} .cm-slot__retry {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
 }
 /**
  * 스테이지 조작 바. **가운데 상단**에 둔다 (사용자 요청 2026-08-15).
@@ -491,21 +511,18 @@ export class MultiViewStage {
   /** 마지막 배치에 쓴 조작 바 높이. 줄바꿈으로 높이가 바뀌면 한 번 더 배치한다. */
   private lastBarHeight = 0;
   private runtimes = new Map<SlotIndex, SlotRuntime>();
+  /** 재시도 후 로드 타임아웃을 다시 거는 함수. 슬롯마다 최신 타이머 클로저를 가리킨다. */
+  private slotRetryRearm = new Map<SlotIndex, () => void>();
   /** 초점 슬롯(오디오 아님) 계산용 상태 — 등록 여부와 무관하게 희망 슬롯을 기억한다. */
   private focusDesired: SlotIndex = 1;
   private focusRegistered = new Set<SlotIndex>();
   private disposers: (() => void)[] = [];
-  private volumePercent: number;
-  /** 컴프레서 토글 버튼. 다른 창·설정 패널에서 값이 바뀌어도 `updateSettings()` 가 다시 칠한다. */
-  private compressorButtonEl: HTMLButtonElement | null = null;
 
   constructor(
     private settings: Settings,
     private device: DeviceDecision,
     private callbacks: StageCallbacks,
-  ) {
-    this.volumePercent = settings.volume.defaultLevel;
-  }
+  ) {}
 
   /** 스테이지를 만들고 슬롯 iframe 을 붙인다. */
   open(slots: MultiViewSlot[]): void {
@@ -559,6 +576,7 @@ export class MultiViewStage {
       this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'exitSlotMode', slot: runtime.slot });
     }
     this.runtimes.clear();
+    this.slotRetryRearm.clear();
     this.container?.remove();
     this.container = null;
     this.bar = null;
@@ -568,7 +586,6 @@ export class MultiViewStage {
     this.chatPanel = null;
     this.chatPanelTitle = null;
     this.chatPanelList = null;
-    this.compressorButtonEl = null;
     // 스테이지가 사라졌으니 폭 주장도 되돌린다 (남기면 aside 가 접힌 채 방치된다).
     this.callbacks.onChatWidthChange(0);
     removeStyle(STAGE_STYLE_ID);
@@ -588,17 +605,6 @@ export class MultiViewStage {
     this.settings = next;
     this.layout();
     for (const runtime of this.runtimes.values()) this.applyQuality(runtime.slot);
-    this.syncCompressorButton();
-  }
-
-  /** 컴프레서 버튼의 `aria-pressed`·색을 지금 설정값으로 맞춘다 (`volume.ts` 와 같은 표시 규약). */
-  private syncCompressorButton(): void {
-    const button = this.compressorButtonEl;
-    if (!button) return;
-    const enabled = this.settings.audio?.compressor?.enabled === true;
-    button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-    button.setAttribute('aria-label', enabled ? '음량 평탄화 끄기' : '음량 평탄화 켜기');
-    button.style.color = enabled ? ACCENT : '#fff';
   }
 
   /**
@@ -862,6 +868,7 @@ export class MultiViewStage {
       loaded: false,
       ready: false,
       failed: false,
+      retryCount: 0,
     };
     this.runtimes.set(slot.index, runtime);
 
@@ -872,23 +879,66 @@ export class MultiViewStage {
       this.applyQuality(slot.index);
     });
 
-    /**
-     * 치지직이 이후 iframe 임베드를 차단하면(X-Frame-Options·CSP 추가) 이 경로가 무력화된다.
-     * 그때는 멀티뷰만 degrade 하고 다른 기능은 계속 동작시킨다.
-     */
-    const timer = setTimeout(() => {
-      // 성공 판정은 `ready` 로 한다 — `loaded` 는 오류 페이지에서도 참이 된다.
-      if (runtime.ready) return;
-      runtime.failed = true;
-      const error = document.createElement('div');
-      error.className = 'cm-slot__error';
-      error.textContent = '이 슬롯을 불러올 수 없습니다. 치지직이 임베드를 차단했을 수 있습니다.';
-      cell.appendChild(error);
-      warning(
-        `slot ${slot.index} did not report ready within ${FRAME_LOAD_TIMEOUT_MS}ms (loaded=${runtime.loaded})`,
-      );
-    }, FRAME_LOAD_TIMEOUT_MS);
+    let timer: ReturnType<typeof setTimeout>;
+    const armLoadTimeout = () => {
+      timer = setTimeout(() => this.handleSlotLoadTimeout(runtime, cell, slot), FRAME_LOAD_TIMEOUT_MS);
+    };
+    armLoadTimeout();
+    // 재시도가 새 타이머를 다시 걸므로, 정리 시점의 최신 타이머를 읽도록 함수로 감싼다.
     this.disposers.push(() => clearTimeout(timer));
+    this.slotRetryRearm.set(slot.index, armLoadTimeout);
+  }
+
+  /**
+   * 치지직이 이후 iframe 임베드를 차단하면(X-Frame-Options·CSP 추가) 이 경로가 무력화된다.
+   * 그때는 멀티뷰만 degrade 하고 다른 기능은 계속 동작시킨다.
+   *
+   * 🔴 사용자 보고 (2026-08-23): "멀티뷰를 설정할 때 가끔 4개 중 1~2개 방송이 요청이 실패한다."
+   * 타임아웃 = 곧장 실패가 아니라 `MAX_SLOT_LOAD_RETRIES` 만큼 프레임을 다시 로드해 본다.
+   */
+  private handleSlotLoadTimeout(
+    runtime: SlotRuntime,
+    cell: HTMLElement,
+    slot: MultiViewSlot,
+  ): void {
+    // 성공 판정은 `ready` 로 한다 — `loaded` 는 오류 페이지에서도 참이 된다.
+    if (runtime.ready) return;
+
+    if (runtime.retryCount < MAX_SLOT_LOAD_RETRIES) {
+      runtime.retryCount += 1;
+      const backoff = SLOT_RETRY_BACKOFF_MS[runtime.retryCount - 1] ?? SLOT_RETRY_BACKOFF_MS.at(-1)!;
+      warning(
+        `slot ${slot.index} did not report ready within ${FRAME_LOAD_TIMEOUT_MS}ms — retrying ` +
+          `(${runtime.retryCount}/${MAX_SLOT_LOAD_RETRIES})`,
+      );
+      this.showSlotRetryStatus(cell, runtime.retryCount);
+      const rearm = this.slotRetryRearm.get(slot.index);
+      const retryTimer = setTimeout(() => {
+        runtime.loaded = false;
+        runtime.frame.src = slotFrameUrl(slot.channelId, slot.index);
+        rearm?.();
+      }, backoff);
+      this.disposers.push(() => clearTimeout(retryTimer));
+      return;
+    }
+
+    runtime.failed = true;
+    const error = document.createElement('div');
+    error.className = 'cm-slot__error';
+    error.textContent = '이 슬롯을 불러올 수 없습니다. 치지직이 임베드를 차단했을 수 있습니다.';
+    cell.appendChild(error);
+    warning(
+      `slot ${slot.index} gave up after ${MAX_SLOT_LOAD_RETRIES} retries (loaded=${runtime.loaded})`,
+    );
+  }
+
+  /** 재시도 중임을 알리는 일시 상태. 다음 로드가 붙거나 최종 실패로 넘어가면 스스로 사라진다. */
+  private showSlotRetryStatus(cell: HTMLElement, attempt: number): void {
+    cell.querySelector('.cm-slot__retry')?.remove();
+    const status = document.createElement('div');
+    status.className = 'cm-slot__retry';
+    status.textContent = `불러오는 데 실패했습니다. 다시 시도하는 중… (${attempt}/${MAX_SLOT_LOAD_RETRIES})`;
+    cell.appendChild(status);
   }
 
   private createBar(): void {
@@ -901,64 +951,6 @@ export class MultiViewStage {
     beta.className = OURS.betaBadgeClass;
     beta.textContent = BETA_BADGE_TEXT;
     bar.appendChild(beta);
-
-    const volumeLabel = document.createElement('output');
-    volumeLabel.textContent = `${this.volumePercent}%`;
-
-    for (const [label, delta] of [
-      ['볼륨 줄이기', -1],
-      ['볼륨 늘리기', 1],
-    ] as const) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.setAttribute('aria-label', label);
-      button.appendChild(createIconElement(delta < 0 ? 'minus' : 'plus'));
-      button.addEventListener('click', () => {
-        const step = this.settings.volume.step;
-        this.volumePercent = Math.max(0, Math.min(100, this.volumePercent + delta * step));
-        volumeLabel.textContent = `${this.volumePercent}%`;
-        for (const runtime of this.runtimes.values()) {
-          this.post({
-            channel: MV_CHANNEL,
-            dir: 'p2s',
-            kind: 'setVolume',
-            slot: runtime.slot,
-            percent: this.volumePercent,
-          });
-        }
-        this.callbacks.onVolumeChange(this.volumePercent);
-      });
-      bar.appendChild(button);
-    }
-    bar.appendChild(volumeLabel);
-
-    /**
-     * 🔴 실측 확정 (2026-08-23): 컴프레서는 호스트 컨트롤바에만 있었다 — 멀티뷰가 그 컨트롤바를
-     * 가려도 스테이지 자체에는 대응하는 버튼이 없어 "컴프레서 버튼이 사라진다"는 보고로 이어졌다.
-     * `volume.ts` 의 컨트롤바 버튼과 같은 저장 키(`audio.compressor`)를 그대로 쓴다 — 슬롯의
-     * 실제 오디오 그래프 적용은 `slotFrame.ts` 의 `setupSlotCompressor` 가 저장값 변화를 구독해서
-     * 처리한다(스테이지는 저장만 하면 된다).
-     */
-    const compressorButton = document.createElement('button');
-    compressorButton.type = 'button';
-    compressorButton.appendChild(createIconElement('compressor'));
-    compressorButton.appendChild(barLabel('컴프레서'));
-    compressorButton.addEventListener('click', () => {
-      const current = this.settings.audio?.compressor;
-      if (!current) return;
-      const nextCompressor = { ...current, enabled: !current.enabled };
-      // 🔴 저장 → `onSettingsChanged` → `updateSettings()` 왕복을 기다리지 않고 즉시 칠한다 —
-      // 그래야 버튼을 눌렀는데 반응이 늦어 먹통처럼 보이지 않는다(`volume.ts` 와 같은 이유).
-      this.settings = {
-        ...this.settings,
-        audio: { ...this.settings.audio, compressor: nextCompressor },
-      };
-      this.syncCompressorButton();
-      void updateSection('audio', { compressor: nextCompressor });
-    });
-    bar.appendChild(compressorButton);
-    this.compressorButtonEl = compressorButton;
-    this.syncCompressorButton();
 
     const configButton = document.createElement('button');
     configButton.type = 'button';
@@ -1188,6 +1180,7 @@ export class MultiViewStage {
       if (message.kind === 'ready') {
         info(`slot ${message.slot} controller is ready; re-sending slot directives`);
         runtime.ready = true;
+        runtime.cell.querySelector('.cm-slot__retry')?.remove();
         this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'enterSlotMode', slot: message.slot });
         this.registerFocus(message.slot);
         this.applyQuality(message.slot);
