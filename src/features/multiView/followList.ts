@@ -89,6 +89,15 @@ export function parseFollowings(body: unknown): FollowChannel[] | null {
 
   if (!rows) return null;
 
+  /*
+   * 🔴 임시 디버그 로그 (2026-08-23): 사용자 보고 — 팔로우 목록은 썸네일·방송 제목이 안 나오는데
+   * 인기 방송(`parseLivePage`, 스키마 확정)은 잘 나온다. 팔로우 응답 스키마가 미확인이라 후보
+   * 경로(`liveInfo.liveImageUrl` 등)로 추측해 짰는데 실제 필드명이 다를 가능성이 높다.
+   * 설정 → 기타 → 디버그 로그를 켠 뒤 재현하면 첫 행의 실제 구조가 콘솔에 남는다 — 그 값을
+   * 보고 후보 경로를 실측값으로 교체한 뒤 이 로그는 지운다.
+   */
+  info('followings raw row sample (first item)', JSON.stringify(rows[0], null, 2));
+
   const channels: FollowChannel[] = [];
   for (const row of rows) {
     // 채널 정보가 한 단계 안에 들어 있는 형태와 평평한 형태를 모두 받는다.
