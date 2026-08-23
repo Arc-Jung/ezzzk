@@ -27,6 +27,7 @@ import { findChatClient, readChatMessage } from '../../utils/reactFiber';
 import { MV_CHANNEL, parseMvMessage, slotFromAudioShortcut, type SlotToParent } from './messages';
 import { isUserInitiated } from './userIntent';
 import {
+  activateQualityItem,
   matchesTarget,
   normalizeQualityLabel,
   parseQualityLabel,
@@ -115,9 +116,13 @@ export interface SlotAudio {
  * - 사용자가 이 슬롯의 음소거를 직접 풀면 초점 승격을 요청한다(사이드채팅 대상·화질
  *   우선순위용 — 오디오와는 무관하다. `messages.ts` `requestAudio` 주석 참조).
  *
- * ⚠️ (실측 진행 중) 슬롯 등록 시 자동으로 보내던 언마요트 지시도 함께 없앴다.
- * 브라우저 자동재생 정책이 슬롯을 음소거 상태로 띄우면 지금은 아무도 그것을 풀어주지 않는다 —
- * 이게 재생을 막는지는 별도 에이전트가 실측 중이다.
+ * ⚠️ 위 정책 변경 때 "슬롯 등록 시 자동으로 보내던 언마요트 지시"도 함께 사라져, 브라우저
+ * 자동재생 정책(또는 치지직 자체 초기화)이 슬롯을 음소거 상태로 띄우면 아무도 그것을 풀어주지
+ * 않는 문제가 있었다 — "모든 슬롯이 소리를 낸다" 정책의 전제가 깨진 상태였다. 이 함수(그리고
+ * `attach()`)는 **여전히 음소거를 건드리지 않는다** — 위 원칙은 그대로 유지한다. 등록 시 1회
+ * 언마요트는 별도 함수 `unmuteOnceAtRegistration` 이 `startSlotController` 에서 담당한다
+ * (여기 섞으면 "attach 는 음소거를 안 건드린다"를 검증하는 기존 테스트들과 충돌한다 — 그 테스트들은
+ * 음소거 상태를 먼저 만들고서 `attach`/`reattach` 를 부르는 순서로 짜여 있다).
  */
 export function createSlotAudio(
   getVideo: () => HTMLVideoElement | null,
@@ -237,6 +242,24 @@ export function collectRecentChat(
 }
 
 /**
+ * 슬롯 등록 시 **딱 한 번**, 음소거 상태면 풀어준다 (FR-14 "모든 슬롯이 소리를 낸다").
+ *
+ * 🔴 실측 확정 (2026-08-23): 2026-08-20 정책 변경으로 "슬롯 등록 시 자동 언마요트 지시"가
+ * `createSlotAudio` 와 함께 통째로 사라져, 브라우저 자동재생 정책(또는 치지직 자체 초기화)이
+ * 슬롯을 음소거로 띄우면 아무도 풀어주지 않았다. `createSlotAudio.attach()` 안에 넣지 않는
+ * 이유: 그 함수는 "attach 는 음소거를 절대 안 건드린다"를 명시적으로 테스트하는 계약이 이미
+ * 있고(`slotFrame.test.ts`), 그 테스트들은 "음소거 상태를 먼저 만든 뒤 attach/reattach 를
+ * 부르는" 순서로 짜여 있어 attach 안에서 풀면 그 테스트들이 깨진다. 등록 시점의 1회성 보정을
+ * 별도 함수로 분리해 이후의 "attach 는 음소거를 안 건드린다" 계약과 부딪히지 않게 한다.
+ *
+ * 비디오가 아직 없으면 `retry` 로 잠깐 기다린다 — 슬롯 컨트롤러가 플레이어보다 먼저 뜬다.
+ */
+async function unmuteOnceAtRegistration(getVideo: () => HTMLVideoElement | null): Promise<void> {
+  const video = await retry(() => getVideo() ?? undefined);
+  if (video?.muted) video.muted = false;
+}
+
+/**
  * 슬롯 컨트롤러를 시작한다. 슬롯 프레임에서만 호출된다.
  * 부모와의 통신은 postMessage 이고 origin 을 치지직으로 검증한다.
  */
@@ -255,6 +278,9 @@ export function startSlotController(slot: SlotIndex): Disposer {
     info(`slot ${slot} was unmuted by the user; requesting audio promotion`);
     post({ channel: MV_CHANNEL, dir: 's2p', kind: 'requestAudio', slot });
   });
+  audio.reattach();
+  // 등록 시 1회 언마요트 (위 `unmuteOnceAtRegistration` 참조). `audio.reattach()` 와 별개다.
+  void unmuteOnceAtRegistration(currentVideo);
 
   /**
    * 🔴 **슬롯을 눌러 활성 전환하는 경로는 부모에서 동작하지 않는다** (실측 2026-08-18,
@@ -436,24 +462,43 @@ export function pickCappedQualityItem(labels: string[], target: QualityTarget): 
  * (기본을 "올림"으로) 방향을 모르는 상태에서 화질을 올려버려 대역폭 절약이 깨질 수 있다.
  */
 export async function applySlotQuality(target: string, raiseIfMissing: boolean): Promise<void> {
-  const items = await ensureQualityList();
+  const { items, close } = await ensureQualityList();
   if (items.length === 0) {
     warning('slot quality list not found; skipping quality change');
+    close();
     return;
   }
-  const labels = items.map((item) => item.textContent ?? '');
-  const pick =
-    raiseIfMissing === true
-      ? pickQualityItem(labels, target as QualityTarget)
-      : pickCappedQualityItem(labels, target as QualityTarget);
-  if (!pick) {
-    warning(`slot quality "${target}" not in list; leaving as-is`);
-    return;
+  try {
+    const labels = items.map((item) => item.textContent ?? '');
+    const pick =
+      raiseIfMissing === true
+        ? pickQualityItem(labels, target as QualityTarget)
+        : pickCappedQualityItem(labels, target as QualityTarget);
+    if (!pick) {
+      warning(`slot quality "${target}" not in list; leaving as-is`);
+      return;
+    }
+    const wanted = items[pick.index];
+    if (!wanted || wanted.classList.contains(PLAYER.qualityItemChecked)) return;
+    info(`slot quality: ${pick.reason}`);
+
+    /**
+     * 🔴 실측 확정 (2026-08-23): 여기서 목표 항목을 정확히 찾고도 `wanted.click()` 만으로는
+     * 거의 항상 반영되지 않았다(실측 6회 중 5회, 목표 360p 지시에도 1080p 유지). 원인은
+     * 복붙 누락이었다 — `quality.ts` 의 `activateQualityItem` 은 **키보드 Enter 를 우선
+     * 시도하고(치지직 메뉴가 실제로 반응하는 경로), `.click()` 은 그것이 안 먹혔을 때만
+     * 쓰는 폴백**인데, 여기서는 라벨 매칭 함수만 공유하고 활성화 방식은 `.click()` 만
+     * 새로 짠 것이 갈라져 있었다 (바로 위 함수 docstring이 "복붙 금지"를 경고했던 지점인데
+     * 활성화 로직 자체가 빠져 있었다). 공유 함수를 그대로 쓴다.
+     */
+    await activateQualityItem(wanted, PLAYER.qualityItemChecked);
+  } finally {
+    // 🔴 실측 확정 (2026-08-23): 예전엔 `ensureQualityList` 가 목록을 읽자마자 메뉴를
+    // 다시 닫아 버려, 그 뒤에 여기서 누른 항목이 **이미 닫힌 메뉴 안**이었다 — 목표 화질을
+    // 매번 정확히 찾아내고도 클릭이 반영되지 않았다(실측: 목표 360p 지시에도 1080p 유지).
+    // `quality.ts` 의 `applyOnce` 와 같은 순서로, **누른 뒤에만** 닫는다.
+    close();
   }
-  const wanted = items[pick.index];
-  if (!wanted || wanted.classList.contains(PLAYER.qualityItemChecked)) return;
-  info(`slot quality: ${pick.reason}`);
-  wanted.click();
 }
 
 /**
@@ -465,20 +510,33 @@ export async function applySlotQuality(target: string, raiseIfMissing: boolean):
  *
  * ⚠️ 설정 버튼은 `button[aria-label="설정"]` 으로 찾는다. `.pzp-pc__setting-button` 은 3개 매칭되고
  * 첫 번째가 `display: none` 인 상점 버튼이다 (실측) — `qsVisible` 로 보이는 것만 고른다.
+ *
+ * 🔴 실측 확정 (2026-08-23): 부모가 슬롯 `ready` 직후 화질을 딱 한 번만 지시하는데
+ * (`stage.ts` `applyQuality`), 그 시점엔 플레이어가 아직 컨트롤 바를 렌더하지 않아
+ * 설정 버튼이 안 보일 때가 있었다. 이전 코드는 버튼이 안 보이면 즉시 포기하고 재시도가
+ * 전혀 없어 — 설정한 목표 화질이 다시는 적용되지 않고 치지직 자체 기본 화질(대개 최고 화질)
+ * 로 영구히 남았다. 목록과 마찬가지로 **버튼이 나타날 때까지도 재시도**한다.
+ *
+ * 🔴 실측 확정 (2026-08-23, 더 치명적인 쪽): 우리가 연 메뉴는 **호출자가 목표 항목을 누른
+ * 뒤에** 닫아야 한다. 예전에는 이 함수가 목록을 다 읽자마자 스스로 닫아 버려서, 호출자
+ * (`applySlotQuality`)가 반환된 `HTMLElement` 를 눌러도 이미 닫힌(숨겨진) 메뉴 안이었다 —
+ * 목표 매칭 자체는 매번 성공하는데 클릭만 반영되지 않아 화질이 영원히 치지직 기본값에
+ * 머물렀다. 그래서 여기서는 **닫지 않고**, 우리가 연 경우에만 호출자가 나중에 부를 수 있는
+ * `close` 콜백을 함께 돌려준다.
  */
-async function ensureQualityList(): Promise<HTMLElement[]> {
+async function ensureQualityList(): Promise<{ items: HTMLElement[]; close: () => void }> {
+  const noop = () => {};
   const existing = qsa<HTMLElement>(PLAYER.qualityItem);
-  if (existing.length > 0) return existing;
+  if (existing.length > 0) return { items: existing, close: noop };
 
-  const settingButton = qsVisible<HTMLElement>(PLAYER.settingButton);
-  if (!settingButton) return [];
+  const settingButton = await retry(() => qsVisible<HTMLElement>(PLAYER.settingButton));
+  if (!settingButton) return { items: [], close: noop };
 
   settingButton.click();
   const rendered = await retry(() => {
     const items = qsa<HTMLElement>(PLAYER.qualityItem);
     return items.length > 0 ? items : undefined;
   });
-  // 메뉴를 열어 둔 채로 두면 슬롯 영상을 가린다 → 다시 눌러 닫는다.
-  settingButton.click();
-  return rendered ?? [];
+  // 메뉴를 열어 둔 채로 두면 슬롯 영상을 가린다 — 목표 항목을 누른 뒤 호출자가 닫는다.
+  return { items: rendered ?? [], close: () => settingButton.click() };
 }
