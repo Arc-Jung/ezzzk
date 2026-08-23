@@ -12,15 +12,7 @@
 
 import { ID, OURS, PLAYER } from '../../constants/class';
 import type { QualityTarget, SlotIndex } from '../../constants/storage';
-import {
-  qs,
-  qsa,
-  qsVisible,
-  retry,
-  upsertStyle,
-  removeStyle,
-  normalizeText,
-} from '../../utils/dom';
+import { qs, qsa, qsVisible, retry, upsertStyle, removeStyle, normalizeText } from '../../utils/dom';
 import { debounce, observe, type Disposer } from '../../utils/observe';
 import { info, warning } from '../../utils/log';
 import { findChatClient, readChatMessage } from '../../utils/reactFiber';
@@ -35,15 +27,6 @@ import {
   targetHeightPx,
   type QualityPick,
 } from '../quality';
-import {
-  applyCompressorParams,
-  DEFAULT_COMPRESSOR,
-  ensureGraph,
-  resumeGraph,
-  setCompressorEnabled,
-  type CompressorParams,
-} from '../audioPipeline';
-import { loadSettings, onSettingsChanged } from '../../storage';
 
 const SLOT_STYLE_ID = 'cm-slot-mode-style';
 /** 슬롯 스트립 렌더는 부모가 한다. 여기서는 200ms 배치로 데이터만 넘긴다 (저사양 프레임 예산). */
@@ -104,40 +87,29 @@ function currentVideo(): HTMLVideoElement | null {
 const PROMOTE_COOLDOWN_MS = 1_000;
 
 export interface SlotAudio {
-  setVolume(percent: number): void;
   /** 리렌더로 video 요소가 교체됐을 수 있으니 리스너를 다시 붙인다. */
   reattach(): void;
   dispose(): void;
 }
 
 /**
- * 슬롯 하나의 볼륨 적용 + 사용자 언마요트 승격 신호.
+ * 사용자가 슬롯의 음소거를 직접 풀면 초점 승격을 요청한다(사이드채팅 대상·화질 우선순위용 —
+ * 오디오와는 무관하다. `messages.ts` `requestAudio` 주석 참조). 이게 이 함수의 유일한 역할이다.
  *
- * 🔴 정책 변경 (요청 2026-08-20): **모든 슬롯이 소리를 낸다.**
- * 예전에는 활성 슬롯 하나만 소리를 내고 나머지를 강제 음소거했다(`setActive`/`appliedMuted`/
- * `userMuted` 로 우리 조작과 사용자 조작을 가르던 로직). 슬롯마다 음소거·볼륨 버튼이 이미 있어
- * 사용자가 직접 조절할 수 있으므로 강제 음소거를 없앴다 — 2026-08-15 "켜도 다시 음소거로
- * 돌아간다" 사용자 보고의 원인이기도 했다.
- *
- * 남은 역할은 두 가지뿐이다.
- * - 조작 바 볼륨(마스터 볼륨)을 이 슬롯의 `video.volume` 에 적용한다. **음소거는 건드리지
- *   않는다** — 사용자가 치지직 음소거 버튼을 직접 눌러 만든 상태를 존중한다.
- * - 사용자가 이 슬롯의 음소거를 직접 풀면 초점 승격을 요청한다(사이드채팅 대상·화질
- *   우선순위용 — 오디오와는 무관하다. `messages.ts` `requestAudio` 주석 참조).
- *
- * ⚠️ 위 정책 변경 때 "슬롯 등록 시 자동으로 보내던 언마요트 지시"도 함께 사라져, 브라우저
- * 자동재생 정책(또는 치지직 자체 초기화)이 슬롯을 음소거 상태로 띄우면 아무도 그것을 풀어주지
- * 않는 문제가 있었다 — "모든 슬롯이 소리를 낸다" 정책의 전제가 깨진 상태였다. 이 함수(그리고
- * `attach()`)는 **여전히 음소거를 건드리지 않는다** — 위 원칙은 그대로 유지한다. 등록 시 1회
- * 언마요트는 별도 함수 `unmuteOnceAtRegistration` 이 `startSlotController` 에서 담당한다
- * (여기 섞으면 "attach 는 음소거를 안 건드린다"를 검증하는 기존 테스트들과 충돌한다 — 그 테스트들은
- * 음소거 상태를 먼저 만들고서 `attach`/`reattach` 를 부르는 순서로 짜여 있다).
+ * 🔴 실측 확정 (2026-08-23): 볼륨·음소거 자동 해제·컴프레서는 더 이상 여기서 다루지 않는다.
+ * 슬롯도 결국 `chzzk.naver.com` 의 같은 페이지를 그대로 iframe 으로 로드하므로, 싱글뷰와
+ * 완전히 같은 `volumeFeature`(`volume.ts`, FR-02·FR-03·FR-19) 가 슬롯 안에서도 그대로 돈다
+ * (`volumeFeature.supports` 에서 슬롯 프레임 제외를 걷어냈다). 예전에는 부모가 마스터 볼륨을
+ * 브로드캐스트하고, 슬롯 등록 시 1회 언마요트하고, 슬롯마다 별도 컴프레서 그래프를 만드는
+ * 세 벌의 축소판을 따로 유지했다 — 사용자 지적대로 "따로 두면 파편화돼 오류가 생긴다"가
+ * 정확히 이 상황이었다(예: 컴프레서 토글 버튼이 통째로 빠진 채 여러 번 세션이 지나갔다).
+ * 싱글뷰 기능을 그대로 재사용하면 이 세 벌이 전부 없어도 된다 — 오직 "초점 승격 신호"만
+ * 멀티뷰 고유 개념이라 남긴다.
  */
 export function createSlotAudio(
   getVideo: () => HTMLVideoElement | null,
   onPromotionRequest: () => void,
 ): SlotAudio {
-  let volumePercent = 50;
   let watched: HTMLVideoElement | null = null;
   let lastRequestAt = 0;
   /** 마지막으로 관찰한 `muted`. **음소거 → 해제**로 실제로 바뀐 순간만 승격 요청 대상이다. */
@@ -148,9 +120,9 @@ export function createSlotAudio(
     if (!video) return;
     const wasMuted = lastMuted;
     lastMuted = video.muted;
-    // 우리가 볼륨만 바꿔도 `volumechange` 가 온다 — 음소거가 실제로 풀린 경우만 승격 대상이다.
+    // 볼륨만 바뀌어도 `volumechange` 가 온다 — 음소거가 실제로 풀린 경우만 승격 대상이다.
     if (wasMuted !== true || video.muted) return;
-    // 플레이어 자체 초기화로 바뀐 값이면 승격 요청을 보내지 않는다.
+    // 플레이어(또는 volumeFeature 의 자동 음소거 해제)가 스스로 바꾼 값이면 승격 요청을 보내지 않는다.
     if (!isUserInitiated()) return;
 
     const now = Date.now();
@@ -169,13 +141,6 @@ export function createSlotAudio(
   };
 
   return {
-    setVolume(percent: number): void {
-      volumePercent = percent;
-      const video = getVideo();
-      if (!video) return;
-      attach(video);
-      video.volume = Math.min(1, Math.max(0, volumePercent / 100));
-    },
     reattach(): void {
       const video = getVideo();
       if (!video) return;
@@ -251,94 +216,11 @@ export function collectRecentChat(
 }
 
 /**
- * 슬롯 등록 시 **딱 한 번**, 음소거 상태면 풀어준다 (FR-14 "모든 슬롯이 소리를 낸다").
- *
- * 🔴 실측 확정 (2026-08-23): 2026-08-20 정책 변경으로 "슬롯 등록 시 자동 언마요트 지시"가
- * `createSlotAudio` 와 함께 통째로 사라져, 브라우저 자동재생 정책(또는 치지직 자체 초기화)이
- * 슬롯을 음소거로 띄우면 아무도 풀어주지 않았다. `createSlotAudio.attach()` 안에 넣지 않는
- * 이유: 그 함수는 "attach 는 음소거를 절대 안 건드린다"를 명시적으로 테스트하는 계약이 이미
- * 있고(`slotFrame.test.ts`), 그 테스트들은 "음소거 상태를 먼저 만든 뒤 attach/reattach 를
- * 부르는" 순서로 짜여 있어 attach 안에서 풀면 그 테스트들이 깨진다. 등록 시점의 1회성 보정을
- * 별도 함수로 분리해 이후의 "attach 는 음소거를 안 건드린다" 계약과 부딪히지 않게 한다.
- *
- * 비디오가 아직 없으면 `retry` 로 잠깐 기다린다 — 슬롯 컨트롤러가 플레이어보다 먼저 뜬다.
- */
-async function unmuteOnceAtRegistration(getVideo: () => HTMLVideoElement | null): Promise<void> {
-  const video = await retry(() => getVideo() ?? undefined);
-  if (!video) return;
-  if (video.muted) video.muted = false;
-  /**
-   * ⚠️ 사용자 보고 (2026-08-23, 미검증): 멀티뷰 구성을 바꾸면 슬롯이 다시 로드된 뒤 자동재생이
-   * 안 되고 재생 버튼을 한 번 눌러야 한다고 함. 실브라우저 반복 재현에서는 재현하지 못했으나
-   * (구성 변경 시나리오·최초 진입 모두 자동재생 성공, 6회) — 언마요트가 어떤 타이밍·환경에서
-   * 재생을 멈추게 할 가능성을 배제할 수 없어 안전망으로 `play()` 를 한 번 더 시도한다.
-   * 이미 재생 중이면 아무 효과가 없고, 자동재생 정책이 막으면 그냥 무시된다(`hostPlayer.ts` 와
-   * 같은 처리).
-   */
-  if (video.paused) {
-    try {
-      const started: unknown = video.play();
-      if (started instanceof Promise) started.catch(() => {});
-    } catch {
-      // 자동재생 정책 등으로 거부돼도 여기서 할 수 있는 건 없다 — 조용히 넘어간다.
-    }
-  }
-}
-
-/**
- * 슬롯 오디오에 FR-19 음량 평탄화(컴프레서)를 적용한다.
- *
- * 🔴 실측 확정 (2026-08-23): 컴프레서는 호스트 페이지(`volume.ts`)에만 있었고 멀티뷰 슬롯에는
- * 아예 그래프가 없었다 — 멀티뷰를 켜면 컨트롤바 자체가 스테이지에 가려지는 것과 별개로,
- * 슬롯 오디오는 켜져 있어도 컴프레서를 절대 거치지 않았다(사용자 보고: "컴프레서 버튼이 사라진다").
- *
- * `chrome.storage` 는 확장 전체에서 공유되므로, 슬롯 프레임도 부모의 메시지를 기다리지 않고
- * 설정을 직접 읽고 구독한다 — 스테이지 조작 바 버튼이든 설정 패널이든, 어느 쪽에서 토글해도
- * 같은 `audio.compressor` 저장값을 통해 슬롯까지 그대로 전파된다.
- *
- * `volume.ts` 의 `applyAudioGraph` 와 같은 원칙 — **그래프는 컴프레서를 실제로 켤 때만** 만든다.
- */
-export function setupSlotCompressor(getVideo: () => HTMLVideoElement | null): {
-  reattach: () => void;
-  dispose: Disposer;
-} {
-  let enabled = false;
-  let params: CompressorParams = DEFAULT_COMPRESSOR;
-  /** 한 번이라도 켜서 그래프를 만든 적이 있는가 — 껐다 켰다 토글할 때만 다시 그래프를 만진다. */
-  let everEnabled = false;
-
-  const apply = () => {
-    if (!enabled && !everEnabled) return;
-    const video = getVideo();
-    if (!video) return;
-    const graph = ensureGraph(video);
-    if (!graph) return;
-    everEnabled = true;
-    if (enabled) resumeGraph(graph);
-    applyCompressorParams(graph, params);
-    setCompressorEnabled(graph, enabled);
-  };
-
-  const readAndApply = (compressor: (CompressorParams & { enabled: boolean }) | undefined) => {
-    if (!compressor) return;
-    enabled = compressor.enabled;
-    params = compressor;
-    apply();
-  };
-
-  void loadSettings().then((settings) => readAndApply(settings.audio?.compressor));
-  const stopSettings = onSettingsChanged((settings) => readAndApply(settings.audio?.compressor));
-
-  return {
-    // 리렌더로 video 요소가 교체됐을 수 있으니 `createSlotAudio.reattach()` 와 같은 시점에 부른다.
-    reattach: apply,
-    dispose: stopSettings,
-  };
-}
-
-/**
  * 슬롯 컨트롤러를 시작한다. 슬롯 프레임에서만 호출된다.
  * 부모와의 통신은 postMessage 이고 origin 을 치지직으로 검증한다.
+ *
+ * ⚠️ 볼륨·자동 음소거 해제·컴프레서는 여기서 다루지 않는다 — 슬롯도 같은 페이지를 그대로
+ * 불러오므로 `volumeFeature`(`volume.ts`)가 슬롯 안에서도 독립적으로 돈다(2026-08-23).
  */
 export function startSlotController(slot: SlotIndex): Disposer {
   upsertStyle(SLOT_STYLE_ID, buildSlotModeCss());
@@ -356,11 +238,6 @@ export function startSlotController(slot: SlotIndex): Disposer {
     post({ channel: MV_CHANNEL, dir: 's2p', kind: 'requestAudio', slot });
   });
   audio.reattach();
-  // 등록 시 1회 언마요트 (위 `unmuteOnceAtRegistration` 참조). `audio.reattach()` 와 별개다.
-  void unmuteOnceAtRegistration(currentVideo);
-
-  const compressor = setupSlotCompressor(currentVideo);
-  compressor.reattach();
 
   /**
    * 🔴 **슬롯을 눌러 활성 전환하는 경로는 부모에서 동작하지 않는다** (실측 2026-08-18,
@@ -420,9 +297,6 @@ export function startSlotController(slot: SlotIndex): Disposer {
       case 'exitSlotMode':
         removeStyle(SLOT_STYLE_ID);
         break;
-      case 'setVolume':
-        audio.setVolume(message.percent);
-        break;
       case 'setQuality':
         void applySlotQuality(message.target, message.raiseIfMissing);
         break;
@@ -459,7 +333,6 @@ export function startSlotController(slot: SlotIndex): Disposer {
       if (!document.getElementById(SLOT_STYLE_ID)) upsertStyle(SLOT_STYLE_ID, buildSlotModeCss());
       // 리렌더로 video 요소가 교체됐을 수 있으니 리스너를 다시 붙인다 (음소거는 건드리지 않는다).
       audio.reattach();
-      compressor.reattach();
     },
     { debounceMs: 500 },
   );
@@ -473,7 +346,6 @@ export function startSlotController(slot: SlotIndex): Disposer {
     stopChatObserve?.();
     stopStyleGuard();
     audio.dispose();
-    compressor.dispose();
     removeStyle(SLOT_STYLE_ID);
   };
 }

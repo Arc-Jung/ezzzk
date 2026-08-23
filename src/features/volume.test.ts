@@ -20,6 +20,43 @@ import {
   volumeStorageValues,
 } from './volume';
 
+/**
+ * 🔴 실측 확정 (2026-08-23): 멀티뷰 슬롯도 `chzzk.naver.com` 의 같은 페이지를 그대로 iframe 으로
+ * 불러온다 — 슬롯을 이유로 볼륨/컴프레서 기능을 제외하면 슬롯 안에서 소리를 조절할 방법이
+ * 없어진다(그래서 별도의 슬롯 전용 볼륨/컴프레서 구현이 파편화·중복으로 이어졌었다). 슬롯이든
+ * 아니든 플레이어가 있으면 지원한다.
+ */
+describe('volumeFeature.supports', () => {
+  const baseCtx: FeatureContext = {
+    page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    device: {
+      deviceClass: 'desktop',
+      profile: DEVICE_PROFILES.desktop,
+      signals: {
+        longSide: 1920,
+        shortSide: 1080,
+        hasTouch: false,
+        canHover: true,
+        coarsePointer: false,
+        devicePixelRatio: 1,
+        uaMobile: null,
+      },
+      reason: 'test fixture',
+    },
+    settings: DEFAULT_SETTINGS,
+  };
+
+  it('멀티뷰 슬롯 프레임에서도 지원한다', () => {
+    expect(volumeFeature.supports({ ...baseCtx, page: { ...baseCtx.page, isSlotFrame: true } })).toBe(
+      true,
+    );
+  });
+
+  it('일반(비 슬롯) 페이지에서도 그대로 지원한다', () => {
+    expect(volumeFeature.supports(baseCtx)).toBe(true);
+  });
+});
+
 describe('clampVolumePercent', () => {
   /**
    * 🔴 상한이 100 → **200** 으로 바뀌었다 (요청 2026-08-20 볼륨 증폭).

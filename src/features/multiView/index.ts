@@ -106,12 +106,6 @@ export const multiViewFeature: Feature = {
         onRequestConfig: openSheet,
         onExit: (channelId) => exitStage(channelId),
         onActiveSlotChange: (slot) => void updateSection('multiView', { activeSlot: slot }),
-        onVolumeChange: (percent) => {
-          // volume.ts 와 같은 이유로 `restoreLast` 가 꺼져 있으면 저장하지 않는다 —
-          // 저장하면 볼륨 기능이 재시작되며 기본값을 다시 적용해 되돌아간다.
-          if (!live.volume.restoreLast) return;
-          void updateSection('volume', { lastLevel: percent });
-        },
         onChatLinesChange: (lines) =>
           void updateSection('multiView', { slotChatLines: lines as SlotLines }),
         /**

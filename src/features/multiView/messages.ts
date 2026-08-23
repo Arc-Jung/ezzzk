@@ -19,7 +19,6 @@ export const MV_CHANNEL = 'ezzzk/multiview' as const;
 export type ParentToSlot =
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'enterSlotMode'; slot: SlotIndex }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'exitSlotMode'; slot: SlotIndex }
-  | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'setVolume'; slot: SlotIndex; percent: number }
   | {
       channel: typeof MV_CHANNEL;
       dir: 'p2s';
