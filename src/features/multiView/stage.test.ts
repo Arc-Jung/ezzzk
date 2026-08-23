@@ -243,7 +243,6 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       onRequestConfig: vi.fn(),
       onExit: vi.fn(),
       onActiveSlotChange,
-      onChatLinesChange: vi.fn(),
       onChatWidthChange: vi.fn(),
     });
     stage.open(SLOTS);
@@ -331,25 +330,18 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   /**
-   * 🔴 회귀 고정 (실측 2026-08-22) — `초점`(⊙) 버튼을 눌러도 3프로필 전부에서 슬롯의
-   * `className`·`outline`·`box-shadow`·`aria-pressed` 가 **클릭 전후 완전히 동일**했다.
-   * 초점은 사이드 채팅 대상·화질 우선순위를 실제로 바꾸는 상태인데 피드백이 0 이었다.
+   * 🔴 헤더의 전용 `초점` 버튼은 채팅이 임시 비활성화된 뒤로 쓸모가 없어져 제거했다
+   * (사용자 요청 2026-08-23) — 슬롯을 직접 클릭해도 같은 경로(`setActiveSlot`)로 초점이 옮겨간다.
    */
   describe('초점 슬롯 시각 표시', () => {
     const focusedCells = () =>
       [...document.querySelectorAll(`#cm-multiview-stage .${FOCUSED_SLOT_CLASS}`)].map(
         (cell) => (cell as HTMLElement).dataset.slot,
       );
-    const pressedOf = (slot: number) =>
-      document
-        .querySelector(`.cm-slot[data-slot="${slot}"] [aria-label$="초점"]`)
-        ?.getAttribute('aria-pressed');
 
     it('열자마자 초점 슬롯 하나에만 표시가 붙는다', () => {
       const { stage } = openStage();
       expect(focusedCells()).toEqual(['1']);
-      expect(pressedOf(1)).toBe('true');
-      expect(pressedOf(2)).toBe('false');
       stage.close();
     });
 
@@ -359,17 +351,13 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       stage.setActiveSlot(2);
 
       expect(focusedCells()).toEqual(['2']);
-      expect(pressedOf(1)).toBe('false');
-      expect(pressedOf(2)).toBe('true');
       stage.close();
     });
 
-    it('헤더의 초점 버튼을 눌러도 표시가 바뀐다 (사용자 경로)', () => {
+    it('슬롯을 직접 클릭해도 표시가 바뀐다 (사용자 경로)', () => {
       const { stage } = openStage();
 
-      document
-        .querySelector<HTMLButtonElement>('.cm-slot[data-slot="2"] [aria-label$="초점"]')
-        ?.click();
+      document.querySelector<HTMLElement>('.cm-slot[data-slot="2"]')?.click();
 
       expect(focusedCells()).toEqual(['2']);
       stage.close();
@@ -693,19 +681,16 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   /**
    * `stage.ts` 는 문자·이모지 아이콘을 0개 써야 한다 (🎯·⛶·💬 전량 SVG 로 치환).
    */
-  it('초점·전체화면·채팅켜기 버튼은 이모지가 아니라 aria-hidden svg 다', () => {
+  it('전체화면·채팅켜기 버튼은 이모지가 아니라 aria-hidden svg 다', () => {
     const { stage } = openStage({ chatMode: 'active' });
     const stageRoot = document.getElementById('cm-multiview-stage');
     expect(stageRoot?.textContent).not.toMatch(/[🎯⛶💬]/u);
 
-    const audioButton = document.querySelector('.cm-slot__head button[aria-label$="초점"]');
     const fullscreenButton = document.querySelector('.cm-stage-bar [aria-label^="전체 화면"]');
-    for (const button of [audioButton, fullscreenButton]) {
-      const svg = button?.querySelector('svg');
-      expect(svg).toBeTruthy();
-      expect(svg?.getAttribute('aria-hidden')).toBe('true');
-      expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
-    }
+    const svg = fullscreenButton?.querySelector('svg');
+    expect(svg).toBeTruthy();
+    expect(svg?.getAttribute('aria-hidden')).toBe('true');
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
     stage.close();
   });
 
@@ -752,7 +737,6 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       onRequestConfig: vi.fn(),
       onExit: vi.fn(),
       onActiveSlotChange,
-      onChatLinesChange: vi.fn(),
       onChatWidthChange: vi.fn(),
     });
     stage.open([

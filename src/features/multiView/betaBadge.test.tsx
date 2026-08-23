@@ -151,7 +151,6 @@ describe('③ 스테이지 조작 바', () => {
       onRequestConfig: () => {},
       onExit: () => {},
       onActiveSlotChange: () => {},
-      onChatLinesChange: () => {},
       onChatWidthChange: () => {},
     });
     stage.open([
@@ -177,8 +176,6 @@ describe('③ 스테이지 조작 바', () => {
     ]) {
       expect(labels).toContain(expected);
     }
-    // 슬롯 헤더의 초점·줄 수 버튼 이름도 그대로다.
-    expect(document.querySelector('[aria-label="슬롯 1 초점"]')).not.toBeNull();
 
     stage.close();
   });

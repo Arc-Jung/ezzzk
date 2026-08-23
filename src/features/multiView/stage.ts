@@ -80,7 +80,6 @@ export type StageCallbacks = {
   onRequestConfig: () => void;
   onExit: (activeChannelId: string | null) => void;
   onActiveSlotChange: (slot: SlotIndex) => void;
-  onChatLinesChange: (lines: number) => void;
   /**
    * 전체 화면에서 기존 채팅 aside 에 줄 폭. 0 이면 접는다.
    * 폭 적용은 layoutArbiter 를 쥐고 있는 쪽(index.ts)이 한다 — 폭 결정 지점을 한 곳으로 묶는다.
@@ -96,8 +95,6 @@ type SlotRuntime = {
   frame: HTMLIFrameElement;
   strip: HTMLElement;
   header: HTMLElement;
-  /** 헤더의 `초점`(⊙) 버튼. 초점 상태를 `aria-pressed` 로 드러낸다. */
-  focusButton: HTMLButtonElement;
   /** iframe `load` 이벤트가 발화했는가. **로드 성공을 뜻하지 않는다** (아래 `ready` 주석 참조). */
   loaded: boolean;
   /**
@@ -809,39 +806,6 @@ export class MultiViewStage {
     title.textContent = `${slot.index} ${slot.channelName}`;
     header.appendChild(title);
 
-    const audioButton = document.createElement('button');
-    audioButton.type = 'button';
-    // ⚠️ 2026-08-20 정책 변경: 오디오는 모든 슬롯이 항상 낸다 — 이 버튼은 초점(사이드채팅
-    // 대상·화질 우선순위)만 옮긴다. "소리" 문구를 없애 오해를 막는다.
-    audioButton.setAttribute('aria-label', `슬롯 ${slot.index} 초점`);
-    // 초점은 켜짐/꺼짐이 있는 상태다 — 토글 버튼으로 노출한다 (`updateFocusMarks` 가 갱신).
-    audioButton.setAttribute('aria-pressed', 'false');
-    audioButton.appendChild(createIconElement('target'));
-    audioButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.setActiveSlot(slot.index);
-    });
-    header.appendChild(audioButton);
-
-    for (const [label, delta] of [
-      ['줄 수 줄이기', -1],
-      ['줄 수 늘리기', 1],
-    ] as const) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.setAttribute('aria-label', `슬롯 ${slot.index} 채팅 ${label}`);
-      button.appendChild(createIconElement(delta < 0 ? 'minus' : 'plus'));
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const current = this.settings.multiView.slots.find(
-          (s) => s.index === slot.index,
-        )?.chatLines;
-        const base = current ?? this.settings.multiView.slotChatLines;
-        this.callbacks.onChatLinesChange(Math.max(0, Math.min(5, base + delta)));
-      });
-      header.appendChild(button);
-    }
-
     const frame = document.createElement('iframe');
     frame.src = slotFrameUrl(slot.channelId, slot.index);
     frame.title = `${slot.channelName} 슬롯 ${slot.index}`;
@@ -864,7 +828,6 @@ export class MultiViewStage {
       frame,
       strip,
       header,
-      focusButton: audioButton,
       loaded: false,
       ready: false,
       failed: false,
@@ -1109,20 +1072,16 @@ export class MultiViewStage {
   /**
    * 초점 슬롯을 **화면에 드러낸다** (2026-08-22 수정).
    *
-   * 🔴 실측 2026-08-22: `초점`(⊙) 버튼을 눌러도 3프로필 전부에서 `className`·`outline`·
-   * `box-shadow`·`aria-pressed` 가 클릭 전후 완전히 동일했다 — 상태는 바뀌는데 표시가 없어
-   * **버튼이 먹통으로 보였다.** 초점은 사이드 채팅 대상·화질 우선순위를 실제로 바꾸는 상태다.
+   * 초점은 사이드 채팅 대상·화질 우선순위를 실제로 바꾸는 상태다. 헤더의 전용 `초점` 버튼은
+   * 채팅이 임시 비활성화된 뒤로 쓸모가 없어져 제거했다(2026-08-23) — 슬롯을 직접 클릭해도
+   * 같은 경로(`setActiveSlot`)로 초점이 옮겨간다.
    *
    * ⚠️ 이 표시는 "소리 나는 슬롯"이 아니다 (2026-08-20 정책: 오디오는 모든 슬롯이 낸다).
-   * 예전 초록 아웃라인이 오디오 표시였기 때문에 지웠던 것이고, 여기서는 **초점 표시**로
-   * 되살린다 — 라벨(`슬롯 N 초점`)·`aria-pressed` 와 의미가 일치한다.
    */
   private updateFocusMarks(): void {
     const focused = this.getFocusedSlot();
     for (const runtime of this.runtimes.values()) {
-      const isFocused = runtime.slot === focused;
-      runtime.cell.classList.toggle(FOCUSED_SLOT_CLASS, isFocused);
-      runtime.focusButton.setAttribute('aria-pressed', isFocused ? 'true' : 'false');
+      runtime.cell.classList.toggle(FOCUSED_SLOT_CLASS, runtime.slot === focused);
     }
   }
 
