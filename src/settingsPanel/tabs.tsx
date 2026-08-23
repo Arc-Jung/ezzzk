@@ -513,6 +513,24 @@ export function LayoutTab({
         checked={ultraWide.overlayFallback}
         onChange={(next) => update({ ultraWide: { ...ultraWide, overlayFallback: next } })}
       />
+      <div className="cm-sheet__row">
+        <span>└ 영상 위치 (초광폭 전체)</span>
+        <select
+          aria-label="초광폭 영상 위치"
+          value={ultraWide.videoAlign}
+          onChange={(event) =>
+            update({
+              ultraWide: {
+                ...ultraWide,
+                videoAlign: event.target.value as 'left' | 'center',
+              },
+            })
+          }
+        >
+          <option value="left">왼쪽</option>
+          <option value="center">가운데</option>
+        </select>
+      </div>
     </>
   );
 }

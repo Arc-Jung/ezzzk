@@ -52,10 +52,18 @@ export type WidthClaim = {
    * FR-10 의 계산값은 어디까지나 **기본값**이고, 사용자가 명시적으로 조절한 값은 그보다 우선한다.
    */
   userOverride?: boolean;
+  /**
+   * 영상 그림을 어디에 붙일지 (21:9·32:9 초광폭 설정, `ultraWide.videoAlign`).
+   * 생략하면 기존 동작(`left`)을 유지한다 — `ultraWide` 이외의 source(`multiView`·`chatWidth`)는
+   * 이 값을 세팅하지 않으므로 이번 옵션 도입 전과 결과가 같다.
+   */
+  videoAlign?: VideoAlign;
 };
 
+export type VideoAlign = 'left' | 'center';
+
 /**
- * 🔴 영상 그림을 **왼쪽으로 붙인다.** 우리가 폭을 주장하는 동안에만 적용된다.
+ * 🔴 영상 그림 정렬. 우리가 폭을 주장하는 동안에만 적용된다.
  *
  * 실측으로 확정한 기전 (2026-08-13, `chzzk-dom-36-fullscreen-chat.json`, 모바일 가로 실사이트):
  *
@@ -75,14 +83,22 @@ export type WidthClaim = {
  *
  * → 그림을 왼쪽 끝에 붙이면 남는 폭이 **오른쪽에 한 덩어리로** 모여 채팅이 그 폭을 온전히 쓴다.
  *
+ * 2026-08-23: 21:9·32:9 데스크톱 모니터도 같은 히스테리시스(비율 ≥1.8)로 이 경로를 타는데,
+ * 데스크톱은 오버레이가 아니라 흐름 안 사이드 배치라 "가운데가 낫다"는 사용자가 있었다
+ * → `ultraWide.videoAlign` 설정으로 왼쪽/가운데를 고를 수 있게 열어 둔다. 기본값은 기존 동작
+ * 그대로 `left` 다.
+ *
  * ⚠️ `object-position` 은 **rect 를 바꾸지 않는다.** 그래서 이 수정은 좌표로 검증할 수 없고
  * 픽셀 비교로 확인해야 한다 (`scripts/probe-fullscreen-chat.mjs` 의 픽셀 판정).
  */
-export const VIDEO_ALIGN_CSS = [
-  `${PLAYER.rootPc} ${PLAYER.video},`,
-  `${ID.livePlayerLayout} ${PLAYER.video},`,
-  `${ID.vodPlayerLayout} ${PLAYER.video} { object-position: 0% 50% !important; }`,
-].join('\n');
+export function buildVideoAlignCss(align: VideoAlign = 'left'): string {
+  const position = align === 'center' ? '50% 50%' : '0% 50%';
+  return [
+    `${PLAYER.rootPc} ${PLAYER.video},`,
+    `${ID.livePlayerLayout} ${PLAYER.video},`,
+    `${ID.vodPlayerLayout} ${PLAYER.video} { object-position: ${position} !important; }`,
+  ].join('\n');
+}
 
 /** 앞에 있을수록 우선한다 (FR-10.7). */
 export const WIDTH_PRIORITY: readonly WidthSource[] = ['multiView', 'ultraWide', 'chatWidth'];
@@ -227,7 +243,7 @@ export function buildLayoutCss(claim: WidthClaim | null): string {
   const direction =
     collapsed || overlay ? '' : `${CHZZK.layoutWrapper} { flex-direction: row !important; }`;
 
-  return [base, wrapper, direction, asideRule, mainRule, VIDEO_ALIGN_CSS]
+  return [base, wrapper, direction, asideRule, mainRule, buildVideoAlignCss(claim.videoAlign)]
     .filter((part) => part.length > 0)
     .join('\n');
 }
@@ -263,9 +279,9 @@ export function claimWidth(
   widthPx: number,
   reason: string,
   mode: WidthMode = 'flex',
-  { userOverride = false }: { userOverride?: boolean } = {},
+  { userOverride = false, videoAlign }: { userOverride?: boolean; videoAlign?: VideoAlign } = {},
 ): void {
-  claims.set(source, { source, widthPx, reason, mode, userOverride });
+  claims.set(source, { source, widthPx, reason, mode, userOverride, videoAlign });
   applyClaims();
 }
 

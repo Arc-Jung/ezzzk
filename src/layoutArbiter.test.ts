@@ -227,6 +227,46 @@ describe('buildLayoutCss — 실험으로 검증된 CSS 를 그대로 만든다'
     expect(buildLayoutCss(claim('ultraWide', 182.56))).toContain('width: 183px !important');
   });
 
+  describe('영상 정렬 — 초광폭(21:9·32:9 등) 영상 위치 선택', () => {
+    it('videoAlign 을 안 주면 기존 동작대로 왼쪽(0% 50%)', () => {
+      const css = buildLayoutCss(claim('chatWidth', 420));
+      expect(css).toContain('object-position: 0% 50% !important');
+      expect(css).not.toContain('50% 50%');
+    });
+
+    it("videoAlign: 'left' 는 왼쪽", () => {
+      const css = buildLayoutCss({
+        source: 'ultraWide',
+        widthPx: 640,
+        reason: 'ultrawide',
+        videoAlign: 'left',
+      });
+      expect(css).toContain('object-position: 0% 50% !important');
+    });
+
+    it("videoAlign: 'center' 는 가운데(치지직 기본값)", () => {
+      const css = buildLayoutCss({
+        source: 'ultraWide',
+        widthPx: 640,
+        reason: 'ultrawide',
+        videoAlign: 'center',
+      });
+      expect(css).toContain('object-position: 50% 50% !important');
+      expect(css).not.toContain('object-position: 0% 50%');
+    });
+
+    it('오버레이 모드에서도 videoAlign 이 그대로 반영된다', () => {
+      const css = buildLayoutCss({
+        source: 'ultraWide',
+        widthPx: 140,
+        reason: 'narrow',
+        mode: 'overlay',
+        videoAlign: 'center',
+      });
+      expect(css).toContain('object-position: 50% 50% !important');
+    });
+  });
+
   it('같은 주장이면 같은 문자열이다 (멱등)', () => {
     expect(buildLayoutCss(claim('ultraWide', 183))).toBe(buildLayoutCss(claim('ultraWide', 183)));
   });

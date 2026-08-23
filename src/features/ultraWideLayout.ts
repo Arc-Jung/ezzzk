@@ -156,7 +156,7 @@ export const ultraWideFeature: Feature = {
   supports: (ctx) =>
     ctx.settings.ultraWide.enabled && hasSideChat(ctx.page.type) && !ctx.page.isSlotFrame,
   start: (ctx) => {
-    const { minChatPx, overlayFallback } = ctx.settings.ultraWide;
+    const { minChatPx, overlayFallback, videoAlign } = ctx.settings.ultraWide;
     const basePx = ctx.settings.chatFont.sidePx;
 
     /** 히스테리시스 판정에 쓰는 현재 적용 상태. 폭 값 자체는 캐시하지 않는다. */
@@ -227,6 +227,7 @@ export const ultraWideFeature: Feature = {
         widthPx,
         `viewport ${Math.round(width)}x${Math.round(height)} ratio ${ratio.toFixed(3)}`,
         overlay ? 'overlay' : 'flex',
+        { videoAlign },
       );
 
       applied = true;
