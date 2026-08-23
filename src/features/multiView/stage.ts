@@ -1000,6 +1000,7 @@ export class MultiViewStage {
     fullscreenButton.type = 'button';
     fullscreenButton.setAttribute('aria-label', '전체 화면 전환 (주소창 숨김)');
     fullscreenButton.appendChild(createIconElement('fullscreen'));
+    fullscreenButton.appendChild(barLabel('최대화'));
     fullscreenButton.addEventListener('click', () => {
       void this.toggleFullscreen();
     });
