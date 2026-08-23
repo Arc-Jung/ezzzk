@@ -130,6 +130,42 @@ describe('createSlotAudio — 음소거는 건드리지 않는다 (2026-08-20 �
   });
 });
 
+/**
+ * 🔴 회귀 고정 — 실측 확정 (2026-08-23): 2026-08-20 정책 변경 때 "슬롯 등록 시 자동 언마요트
+ * 지시"가 `createSlotAudio` 강제음소거 로직과 함께 통째로 사라져, 브라우저 자동재생 정책(또는
+ * 치지직 자체 초기화)이 슬롯을 음소거로 띄워도 아무도 풀어주지 않았다. `startSlotController` 가
+ * 등록 시 1회 풀어준다 — 위 "attach 는 음소거를 안 건드린다" 계약과는 별개 경로다.
+ */
+describe('startSlotController — 등록 시 음소거 해제 (2026-08-23)', () => {
+  function mountPlayer(): HTMLVideoElement {
+    document.body.innerHTML = '<div id="live_player_layout"><video></video></div>';
+    return document.querySelector('video') as HTMLVideoElement;
+  }
+
+  it('브라우저 자동재생 정책 등으로 음소거 상태로 뜬 슬롯을 등록 시 풀어준다', async () => {
+    const video = mountPlayer();
+    video.muted = true;
+    const dispose = startSlotController(1);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(video.muted).toBe(false);
+    } finally {
+      dispose();
+    }
+  });
+
+  it('처음부터 음소거가 아니었으면 그대로 둔다', async () => {
+    const video = mountPlayer();
+    const dispose = startSlotController(1);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(video.muted).toBe(false);
+    } finally {
+      dispose();
+    }
+  });
+});
+
 describe('createSlotAudio — 사용자 조작 구분 (사용자 보고 2026-08-15)', () => {
   it('(a) 사용자가 이 슬롯의 음소거를 풀면 초점 승격을 요청한다', () => {
     const video = mountVideo();
@@ -381,5 +417,100 @@ describe('applySlotQuality — 목표가 없을 때의 폴백 (사용자 보고 
     const clicks = items.map((item) => vi.spyOn(item, 'click'));
     await applySlotQuality('720p', undefined as unknown as boolean);
     expect(clicks[0]).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 🔴 회귀 고정 — 실측 확정 (2026-08-23): 멀티뷰 슬롯에서 화질 목표를 정확히 찾고도 반영되지
+ * 않는 두 가지 독립된 결함이 있었다. 위 `applySlotQuality` 테스트들은 화질 목록이 처음부터
+ * DOM 에 있는 상태(`mountQualityList`)만 다뤄 두 결함 모두 통과시켰다 — 실사이트처럼 설정
+ * 버튼을 눌러야 목록이 뜨는 경로를 재현해야만 잡힌다.
+ *
+ * jsdom 은 레이아웃을 계산하지 않아 rect 가 0 이다 → `qsVisible` 이 통과하도록 크기를 주입한다
+ * (`quality.test.ts` 의 `giveSize` 와 같은 패턴).
+ */
+describe('applySlotQuality — 설정 메뉴를 열어야 하는 경로 (실측 2026-08-23)', () => {
+  function giveSize(el: Element): void {
+    el.getBoundingClientRect = () =>
+      ({ width: 32, height: 32, top: 0, left: 0, right: 32, bottom: 32, x: 0, y: 0 }) as DOMRect;
+  }
+
+  /**
+   * 실사이트를 본뜬 플레이어. 설정 버튼을 눌러야 화질 목록이 렌더되고, 항목은
+   * **`keydown` Enter 에만** 반응한다 — 합성 `click()` 은 무시한다(`quality.ts` 의
+   * `activateQualityItem` 이 이미 이 경로를 처리하는 이유).
+   */
+  function mountKeydownOnlyPlayer(
+    labels: string[],
+    checkedIndex = 0,
+  ): { settingButton: HTMLButtonElement } {
+    document.body.innerHTML = '';
+    const bar = document.createElement('div');
+    const button = document.createElement('button');
+    button.setAttribute('aria-label', '설정');
+    giveSize(button);
+
+    // 🔴 실사이트는 메뉴를 `visibility` 로만 토글하고 DOM 에서 지우지 않는다
+    // (`slotFrame.ts` `buildSlotModeCss` 주석 참조) — 여기서도 지우지 않고 open/closed 만 반영한다.
+    let opened = false;
+    button.addEventListener('click', () => {
+      opened = !opened;
+      const existingList = bar.querySelector('ul');
+      if (existingList) {
+        existingList.setAttribute('data-open', String(opened));
+        return;
+      }
+      if (!opened) return;
+      const list = document.createElement('ul');
+      list.setAttribute('data-open', 'true');
+      labels.forEach((label, index) => {
+        const item = document.createElement('li');
+        item.className = 'pzp-ui-setting-quality-item';
+        if (index === checkedIndex) item.classList.add('pzp-ui-setting-pane-item--checked');
+        item.textContent = label;
+        item.addEventListener('keydown', (event) => {
+          if ((event as KeyboardEvent).key !== 'Enter') return;
+          for (const other of Array.from(list.children)) {
+            other.classList.remove('pzp-ui-setting-pane-item--checked');
+          }
+          item.classList.add('pzp-ui-setting-pane-item--checked');
+        });
+        // 합성 click() 은 아무 반응도 하지 않는다 — 실사이트 재현.
+        list.appendChild(item);
+      });
+      bar.appendChild(list);
+    });
+
+    bar.appendChild(button);
+    document.body.appendChild(bar);
+    return { settingButton: button };
+  }
+
+  it('메뉴를 직접 열어야 하는 목록에서도 keydown 경로로 목표 화질이 실제로 반영된다', async () => {
+    mountKeydownOnlyPlayer(['1080p(원본)', '720p', '480p'], 0);
+    await applySlotQuality('480p', true);
+
+    const checked = document.querySelector(
+      'li.pzp-ui-setting-quality-item.pzp-ui-setting-pane-item--checked',
+    );
+    expect(checked?.textContent).toBe('480p');
+  });
+
+  it('우리가 연 메뉴는 목표 항목을 활성화한 뒤에만 닫는다', async () => {
+    const { settingButton } = mountKeydownOnlyPlayer(['1080p(원본)', '720p', '480p'], 0);
+    const clickSpy = vi.spyOn(settingButton, 'click');
+
+    await applySlotQuality('480p', true);
+
+    // 열기 1회 + 닫기 1회 = 총 2회. 열자마자(항목을 누르기 전에) 닫아 버리면 이 값이
+    // 어긋나거나(닫기 누락) 목표 항목이 이미 닫힌 메뉴 안에서 눌리게 된다.
+    expect(clickSpy).toHaveBeenCalledTimes(2);
+    // 메뉴는 결국 다시 닫혀 있어야 한다 (영상을 가리면 안 된다).
+    expect(document.querySelector('ul')?.getAttribute('data-open')).toBe('false');
+    // 그리고 그 사이에 목표 화질은 실제로 반영돼 있어야 한다.
+    const checked = document.querySelector(
+      'li.pzp-ui-setting-quality-item.pzp-ui-setting-pane-item--checked',
+    );
+    expect(checked?.textContent).toBe('480p');
   });
 });
