@@ -548,6 +548,102 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
 });
 
 /**
+ * 🔴 사용자 보고 (2026-08-23): "멀티뷰 → 싱글뷰 전환 시 음소거가 되는 문제."
+ *
+ * 실측 근거: `localStorage['player-volume'/'player-volume-muted']` 는 origin 전체가 공유한다.
+ * 슬롯도 같은 페이지를 iframe 으로 불러와 `volumeFeature` 가 그대로 돌기 때문에, 슬롯이 이
+ * 전역 키에 쓰면 호스트 페이지·다른 슬롯의 값을 덮어쓴다 — 특히 슬롯은 매번 새로 로드되는
+ * 페이지라 "자동재생 차단 → 강제 음소거" 경로를 자주 타는데, 그때마다 전역 키를 `muted:true`
+ * 로 덮어써 멀티뷰를 나간 뒤(또는 다음 새로고침) 호스트 페이지가 음소거로 시작했다.
+ */
+describe('volumeFeature — 슬롯 프레임은 localStorage(origin 공유) 를 건드리지 않는다 (2026-08-23)', () => {
+  function mountPlayer(): HTMLElement {
+    const layout = document.createElement('div');
+    layout.id = 'live_player_layout';
+    const root = document.createElement('div');
+    root.className = 'pzp-pc';
+    const bar = document.createElement('div');
+    bar.className = 'pzp-pc__bottom-buttons-right';
+    root.appendChild(bar);
+    layout.appendChild(root);
+    document.body.appendChild(layout);
+    return root;
+  }
+
+  function addVideo(root: HTMLElement): HTMLVideoElement {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    root.appendChild(video);
+    return video;
+  }
+
+  function ctxFor(isSlotFrame: boolean): FeatureContext {
+    return {
+      page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame },
+      device: {
+        deviceClass: 'desktop',
+        profile: DEVICE_PROFILES.desktop,
+        signals: {
+          longSide: 1920,
+          shortSide: 1080,
+          hasTouch: false,
+          canHover: true,
+          coarsePointer: false,
+          devicePixelRatio: 1,
+          uaMobile: null,
+        },
+        reason: 'test fixture',
+      },
+      settings: DEFAULT_SETTINGS,
+    };
+  }
+
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  it('호스트 페이지(슬롯 아님)는 평소대로 localStorage 를 쓴다', async () => {
+    vi.useFakeTimers();
+    const dispose = volumeFeature.start(ctxFor(false));
+    const root = mountPlayer();
+    addVideo(root);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(store['player-volume-muted']).toBeDefined();
+    dispose?.();
+  });
+
+  it('슬롯 프레임은 localStorage 를 전혀 건드리지 않는다', async () => {
+    vi.useFakeTimers();
+    const dispose = volumeFeature.start(ctxFor(true));
+    const root = mountPlayer();
+    addVideo(root);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(store['player-volume']).toBeUndefined();
+    expect(store['player-volume-muted']).toBeUndefined();
+    dispose?.();
+  });
+});
+
+/**
  * 🔴 사용자 보고 2026-08-19: "새로고침하거나 새 탭으로 치지직을 열면 바로 자동재생이 안 되고
  * 재생 버튼을 눌러줘야 한다."
  *
