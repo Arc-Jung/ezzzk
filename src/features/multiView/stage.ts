@@ -40,10 +40,8 @@ const STAGE_STYLE_ID = 'cm-multiview-stage-style';
 /** 슬롯 컨트롤러가 이 시간 안에 `ready` 를 보내지 않으면 해당 슬롯을 실패로 표시한다. */
 const FRAME_LOAD_TIMEOUT_MS = 15_000;
 
-/** 초점(활성) 슬롯 표시 클래스. CSS(`buildStageCss`)와 `updateFocusMarks()` 가 공유한다. */
+/** 초점(활성) 슬롯 표시 클래스. `updateFocusMarks()` 가 토글한다(시각 강조는 없음, aria-pressed 용). */
 export const FOCUSED_SLOT_CLASS = 'cm-slot--focused';
-/** 우리 강조색. BETA 뱃지(`#00ffa3`)와 같은 값을 쓴다 — 스테이지 안에서 색을 늘리지 않는다. */
-const STAGE_ACCENT = '#00ffa3';
 
 /**
  * 사이드 채팅(BETA)을 켰을 때 무대에 남아야 하는 최소 폭.
@@ -134,21 +132,6 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   overflow: hidden;
   background: #000;
   outline: 1px solid #1c1f22;
-}
-/*
-  초점(활성) 슬롯 표시 (2026-08-22).
-  🔴 실측에서 초점 버튼을 눌러도 DOM 이 전혀 바뀌지 않아 버튼이 먹통으로 보였다.
-  ⚠️ "소리 나는 슬롯" 표시가 아니다 — 오디오는 모든 슬롯이 낸다(2026-08-20 정책).
-  아웃라인만 바꾼다: 레이아웃에 영향을 주지 않아 슬롯 크기·겹침 계약이 흔들리지 않는다.
-*/
-#${OURS.multiViewStageId} .cm-slot.${FOCUSED_SLOT_CLASS} {
-  outline: 2px solid ${STAGE_ACCENT};
-  outline-offset: -2px;
-}
-#${OURS.multiViewStageId} .cm-slot.${FOCUSED_SLOT_CLASS} .cm-slot__head {
-  /* 초점 슬롯은 헤더도 항상 보이게 해 어느 슬롯이 대상인지 한눈에 알 수 있게 한다. */
-  opacity: 1;
-  color: ${STAGE_ACCENT};
 }
 #${OURS.multiViewStageId} .cm-slot iframe {
   display: block;
