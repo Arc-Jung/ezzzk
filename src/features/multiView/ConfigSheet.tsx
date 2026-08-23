@@ -141,6 +141,8 @@ export function ConfigSheet({
         channelName: c.channelName,
         live: false,
         concurrentUserCount: null,
+        liveTitle: null,
+        thumbnailUrl: null,
       }));
       setList({ kind: 'fallback', message: result.message, recent: [...recent, ...lives] });
     })();
@@ -329,7 +331,14 @@ export function ConfigSheet({
     setManualError(null);
     setManualInput('');
     assign(
-      { channelId, channelName: channelId.slice(0, 8), live: false, concurrentUserCount: null },
+      {
+        channelId,
+        channelName: channelId.slice(0, 8),
+        live: false,
+        concurrentUserCount: null,
+        liveTitle: null,
+        thumbnailUrl: null,
+      },
       index,
     );
   };
@@ -576,12 +585,7 @@ export function ConfigSheet({
                     const placedAt = placedIndexOf(channel.channelId);
                     return (
                       <li key={channel.channelId}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <LiveDotIcon size={10} className="cm-mv-live--on" />
-                          {/* 🔴 색만으로 상태를 전달하지 않는다 — 색약 사용자를 위해 텍스트를 남긴다. */}
-                          <span className={OURS.srOnlyClass}>방송중</span>
-                          {channel.channelName}
-                        </span>
+                        <ChannelInfo channel={channel} />
                         <span className="cm-sheet__note">
                           {formatViewers(channel.concurrentUserCount)}
                         </span>
@@ -627,7 +631,7 @@ export function ConfigSheet({
                   <ul className="cm-mv-channels">
                     {list.recent.map((channel) => (
                       <li key={channel.channelId}>
-                        <span>{channel.channelName}</span>
+                        <ChannelInfo channel={channel} />
                         <span>{slotButtons(channel)}</span>
                       </li>
                     ))}
@@ -655,10 +659,7 @@ export function ConfigSheet({
                     const placedAt = placedIndexOf(channel.channelId);
                     return (
                       <li key={channel.channelId}>
-                        <span>
-                          <span className="cm-sheet__note">{order + 1}</span>{' '}
-                          <LiveDotIcon size={10} className="cm-mv-live--on" /> {channel.channelName}
-                        </span>
+                        <ChannelInfo channel={channel} order={order + 1} />
                         <span className="cm-sheet__note">
                           {formatViewers(channel.concurrentUserCount)}
                         </span>
@@ -695,6 +696,42 @@ export function ConfigSheet({
         </section>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * 목록 한 행의 썸네일 + 채널명 + 방송 제목 (사용자 요청 2026-08-23).
+ * 팔로우 목록은 스키마가 미확인이라 `thumbnailUrl`·`liveTitle` 이 없을 수 있다 —
+ * 그때는 채널명만 보여 준다(레이아웃이 깨지지 않는다).
+ */
+function ChannelInfo({
+  channel,
+  order,
+}: {
+  channel: FollowChannel;
+  /** 인기 방송 목록의 순위. 팔로우 목록에는 없다. */
+  order?: number;
+}) {
+  return (
+    <span className="cm-mv-info">
+      {channel.thumbnailUrl ? (
+        <img className="cm-mv-thumb" src={channel.thumbnailUrl} alt="" aria-hidden="true" />
+      ) : null}
+      <span className="cm-mv-info__text">
+        <span className="cm-mv-info__name">
+          {order !== undefined ? <span className="cm-sheet__note">{order}</span> : null}
+          {channel.live ? (
+            <>
+              <LiveDotIcon size={10} className="cm-mv-live--on" />
+              {/* 🔴 색만으로 상태를 전달하지 않는다 — 색약 사용자를 위해 텍스트를 남긴다. */}
+              <span className={OURS.srOnlyClass}>방송중</span>
+            </>
+          ) : null}
+          {channel.channelName}
+        </span>
+        {channel.liveTitle ? <span className="cm-mv-info__title">{channel.liveTitle}</span> : null}
+      </span>
+    </span>
   );
 }
 

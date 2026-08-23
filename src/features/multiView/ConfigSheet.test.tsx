@@ -68,21 +68,38 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function followChannel(n: number, { live = true }: { live?: boolean } = {}): FollowChannel {
+function followChannel(
+  n: number,
+  {
+    live = true,
+    liveTitle = null,
+    thumbnailUrl = null,
+  }: { live?: boolean; liveTitle?: string | null; thumbnailUrl?: string | null } = {},
+): FollowChannel {
   return {
     channelId: `follow-${n}`,
     channelName: `팔로우채널${n}`,
     live,
     concurrentUserCount: n,
+    liveTitle,
+    thumbnailUrl,
   };
 }
 
-function popularChannel(n: number): FollowChannel {
+function popularChannel(
+  n: number,
+  {
+    liveTitle = null,
+    thumbnailUrl = null,
+  }: { liveTitle?: string | null; thumbnailUrl?: string | null } = {},
+): FollowChannel {
   return {
     channelId: `popular-${n}`,
     channelName: `인기채널${n}`,
     live: true,
     concurrentUserCount: 100 - n,
+    liveTitle,
+    thumbnailUrl,
   };
 }
 

@@ -180,15 +180,49 @@ export const CONFIG_SHEET_CSS = `
   border-radius: ${RADIUS.sm};
 }
 .cm-mv-channels > li:hover { background: ${BG.raised}; }
-/* 채널명이 남는 폭을 먹고, 시청자 수·배치 버튼은 밀리지 않는다 */
+/* 썸네일 + 채널명·방송 제목이 남는 폭을 먹고, 시청자 수·배치 버튼은 밀리지 않는다 */
 .cm-mv-channels > li > span:first-child {
   flex: 1 1 auto;
   min-width: 0;
+}
+.cm-mv-channels > li > span:not(:first-child) { flex: 0 0 auto; }
+/* 목록 썸네일 (사용자 요청 2026-08-23) — 16:9, 폭을 고정해 행 높이가 흔들리지 않는다. */
+.cm-mv-thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 27px;
+  border-radius: ${RADIUS.sm};
+  object-fit: cover;
+  background: ${BG.raised};
+}
+.cm-mv-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cm-mv-info__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.cm-mv-info__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cm-mv-channels > li > span:not(:first-child) { flex: 0 0 auto; }
+/* 방송 제목 — 채널명보다 한 단계 흐리게, 한 줄로 자른다. 팔로우 목록은 스키마 미확인이라 없을 수 있다. */
+.cm-mv-info__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: ${FG.muted};
+}
 .cm-mv-channels .cm-sheet__btn { padding: 2px 7px; }
 /* 방송 상태 점(LiveDotIcon) 색 — currentColor 라 부모에서 color 만 정한다. 빨강은 볼륨 과증폭 경고에 이미 쓰여 의미가 충돌하므로 우리 강조색(ACCENT)을 쓴다. */
 .cm-mv-live--on { color: ${ACCENT}; }
