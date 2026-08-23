@@ -11,6 +11,14 @@
  *   `volume=0.1758`, 슬라이더는 `30` 표시. → `video.muted` 또는 볼륨 버튼 `aria-label`
  *   (`음소거`=소리 켜짐 / `음소거 해제`=음소거됨)로 판별한다.
  * - ⚠️ 음소거 상태가 localStorage 로 라이브↔VOD 간 전파된다 → 이동마다 재적용.
+ * - 🔴 **`localStorage` 는 origin 전체가 공유한다 — 슬롯 iframe 에서는 절대 쓰지 않는다**
+ *   (사용자 보고 2026-08-23: "멀티뷰 → 싱글뷰 전환 시 음소거가 되는 문제"). 슬롯도 같은
+ *   `chzzk.naver.com` 페이지를 iframe 으로 불러와 이 기능이 그대로 도는데, 슬롯이 이
+ *   전역 키에 쓰면 호스트 페이지·다른 슬롯의 값을 덮어쓴다. 특히 슬롯은 매번 새로 로드되는
+ *   페이지라 "자동재생 차단 → 강제 음소거" 경로를 자주 타는데, 그때마다 `player-volume-muted`
+ *   를 전역으로 `true` 로 써 버리면 멀티뷰를 나간 뒤(또는 다음 새로고침) 호스트 페이지가
+ *   그 값을 읽어 음소거로 시작한다 — 실측(2026-08-23): 멀티뷰 세션 중 `localStorage` 값이
+ *   `true` 로 관측됨, 대조군(멀티뷰 미사용)은 새로고침해도 항상 `false` 유지.
  * - 초기 음소거가 페이지마다 다르다: 라이브 데스크톱 `false` / VOD `true` / 모바일 `true`.
  * - ⚠️ 삽입 노드는 컨트롤바 자동 숨김을 **따라가지 않는다** (1600×900 · 1920×1080 모두
  *   네이티브 opacity 0 / 우리 노드 1).
@@ -258,6 +266,14 @@ export const volumeFeature: Feature = {
   start: (ctx) => {
     const dom = domFor(ctx.page.type);
     const step = normalizeStep(ctx.settings.volume.step);
+    /**
+     * `localStorage['player-volume'/'player-volume-muted']` 는 origin 전체가 공유한다.
+     * 슬롯 프레임은 이 전역 값을 절대 쓰지 않는다 — 위 파일 머리말 주석 참조.
+     */
+    const persistNative = (percent: number, muted: boolean): void => {
+      if (ctx.page.isSlotFrame) return;
+      writeVolumeStorage(percent, muted);
+    };
 
     const disposers: (() => void)[] = [];
     let disposed = false;
@@ -432,7 +448,7 @@ export const volumeFeature: Feature = {
         video.volume = percentToElementUnit(percent);
         applyAudioGraph();
         // 0% 는 표시만 음소거다 — `muted` 플래그는 건드리지 않아 사용자의 음소거 토글과 싸우지 않는다.
-        writeVolumeStorage(Math.min(100, percent), video.muted);
+        persistNative(Math.min(100, percent), video.muted);
       }
       render();
       if (persistToSettings) persist(percent);
@@ -646,14 +662,14 @@ export const volumeFeature: Feature = {
       const wasPlaying = !el.paused;
       el.muted = false;
       el.volume = percentToUnit(percent);
-      writeVolumeStorage(percent, false);
+      persistNative(percent, false);
       await sleep(150);
 
       if (el.muted) return false;
       if (wasPlaying && el.paused) {
         // 자동재생 정책으로 정지됐다 → 원상 복구하고 사용자 제스처를 기다린다. 재생을 끊지 않는다.
         el.muted = true;
-        writeVolumeStorage(percent, true);
+        persistNative(percent, true);
         try {
           await el.play();
         } catch (e) {
@@ -772,7 +788,7 @@ export const volumeFeature: Feature = {
        */
       // ⚠️ `play()` 가 프로미스를 돌려주지 않는 환경(jsdom·구형)도 있다 — 옵셔널 체이닝으로 감싼다.
       void el.play()?.catch?.(() => undefined);
-      writeVolumeStorage(percent, true);
+      persistNative(percent, true);
       info('autoplay was blocked; started muted playback via the player button');
       // 소리는 첫 사용자 제스처 뒤에 되돌린다. 음소거 자동 해제를 끈 사용자는 그대로 둔다.
       if (!wasMuted && ctx.settings.volume.autoUnmute) armGestureRetry();
