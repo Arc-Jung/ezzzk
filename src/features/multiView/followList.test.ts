@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildLivesUrl,
+  buildThumbnailUrl,
   parseLivePage,
   fetchFollowings,
   parseChannelInput,
@@ -15,6 +16,31 @@ const FOLLOWINGS_URL = 'https://api.chzzk.naver.com/service/v1/channels/followin
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+/**
+ * 🔴 사용자 요청 (2026-08-23): 멀티뷰 선택 화면에 방송 썸네일·제목도 보여 달라는 요청.
+ * 실측(curl, 2026-08-23): 치지직 CDN 은 `image_{type}.jpg` 템플릿을 주고, `{type}` 을
+ * 90·270·360·480 어느 것으로 치환해도 200 OK — 목록이 수십 개로 늘어도 트래픽이 커지지
+ * 않게 가장 작은 90 을 쓴다.
+ */
+describe('buildThumbnailUrl', () => {
+  it('{type} 템플릿을 90 으로 치환한다', () => {
+    expect(
+      buildThumbnailUrl(
+        'https://livecloud-thumb.akamaized.net/chzzk/.../thumbnail/image_{type}.jpg',
+      ),
+    ).toBe('https://livecloud-thumb.akamaized.net/chzzk/.../thumbnail/image_90.jpg');
+  });
+
+  it('템플릿이 없는 URL 은 그대로 돌려준다', () => {
+    expect(buildThumbnailUrl('https://example.com/a.jpg')).toBe('https://example.com/a.jpg');
+  });
+
+  it('null·undefined 는 null 이다', () => {
+    expect(buildThumbnailUrl(null)).toBeNull();
+    expect(buildThumbnailUrl(undefined)).toBeNull();
+  });
 });
 
 describe('parseChannelInput — 화면 ⑤ 직접 입력', () => {
@@ -74,6 +100,8 @@ describe('parseFollowings — 스키마 미확인이라 관용적으로 읽는�
       channelName: '침착맨',
       live: true,
       concurrentUserCount: 12000,
+      liveTitle: null,
+      thumbnailUrl: null,
     });
   });
 
@@ -92,6 +120,38 @@ describe('parseFollowings — 스키마 미확인이라 관용적으로 읽는�
     const body = { content: [{ channelId: 'c'.repeat(32), channelName: '아이네' }] };
     const parsed = parseFollowings(body);
     expect(parsed?.[0]?.channelId).toBe('c'.repeat(32));
+  });
+
+  it('liveInfo 에 방송 제목·썸네일이 있으면 읽는다', () => {
+    const body = {
+      content: {
+        followingList: [
+          {
+            channel: { channelId: 'f'.repeat(32), channelName: '테스트' },
+            streamer: { openLive: true },
+            liveInfo: {
+              concurrentUserCount: 1,
+              liveTitle: '오늘의 방송',
+              liveImageUrl: 'https://img.example.com/thumb_{type}.jpg',
+            },
+          },
+        ],
+      },
+    };
+    const parsed = parseFollowings(body);
+    expect(parsed?.[0]?.liveTitle).toBe('오늘의 방송');
+    expect(parsed?.[0]?.thumbnailUrl).toBe('https://img.example.com/thumb_90.jpg');
+  });
+
+  it('방송 제목·썸네일이 없으면 null 이다 — 레이아웃이 깨지지 않아야 한다', () => {
+    const body = {
+      content: {
+        followingList: [{ channel: { channelId: 'g'.repeat(32), channelName: '테스트2' } }],
+      },
+    };
+    const parsed = parseFollowings(body);
+    expect(parsed?.[0]?.liveTitle).toBeNull();
+    expect(parsed?.[0]?.thumbnailUrl).toBeNull();
   });
 
   it('channelName 이 없으면 channelId 로 대체한다', () => {
@@ -120,6 +180,8 @@ describe('sortForSheet — 라이브 상단, 오프라인 하단', () => {
     channelName: name,
     live,
     concurrentUserCount: count,
+    liveTitle: null,
+    thumbnailUrl: null,
   });
 
   it('라이브가 오프라인보다 먼저 온다', () => {
@@ -337,6 +399,20 @@ describe('parseLivePage', () => {
     concurrentUserCount: viewers,
   });
 
+  it('방송 제목·썸네일을 읽고 {type} 을 치환한다', () => {
+    const page = parseLivePage(
+      body([
+        {
+          ...row('a'.repeat(32), '로마러', 1),
+          liveTitle: '오늘의 방송',
+          liveImageUrl: 'https://img.example.com/thumb_{type}.jpg',
+        },
+      ]),
+    );
+    expect(page.channels[0]?.liveTitle).toBe('오늘의 방송');
+    expect(page.channels[0]?.thumbnailUrl).toBe('https://img.example.com/thumb_90.jpg');
+  });
+
   it('채널 목록을 읽는다', () => {
     const page = parseLivePage(body([row('a'.repeat(32), '로마러', 3631)]));
     expect(page.channels).toHaveLength(1);
@@ -345,6 +421,8 @@ describe('parseLivePage', () => {
       channelName: '로마러',
       live: true,
       concurrentUserCount: 3631,
+      liveTitle: null,
+      thumbnailUrl: null,
     });
   });
 

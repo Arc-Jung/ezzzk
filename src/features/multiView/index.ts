@@ -6,7 +6,7 @@
  */
 
 import { OURS } from '../../constants/class';
-import type { Settings, SlotIndex, SlotLines } from '../../constants/storage';
+import type { Settings, SlotIndex } from '../../constants/storage';
 import { supportsMultiView } from '../../pageType';
 import { onSettingsChanged, updateSection } from '../../storage';
 import { claimWidth, ensureLayoutArbiter, releaseWidth } from '../../layoutArbiter';
@@ -106,8 +106,6 @@ export const multiViewFeature: Feature = {
         onRequestConfig: openSheet,
         onExit: (channelId) => exitStage(channelId),
         onActiveSlotChange: (slot) => void updateSection('multiView', { activeSlot: slot }),
-        onChatLinesChange: (lines) =>
-          void updateSection('multiView', { slotChatLines: lines as SlotLines }),
         /**
          * 전체 화면에서만 0 이 아닌 값이 온다. 폭 적용은 여기 한 곳에서만 한다 —
          * 스테이지가 직접 스타일을 쓰면 FR-05·FR-10 과 경합한다.

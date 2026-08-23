@@ -31,6 +31,10 @@ export type FollowChannel = {
   channelName: string;
   live: boolean;
   concurrentUserCount: number | null;
+  /** 방송 제목. 팔로우 목록은 스키마가 미확인이라 없을 수 있다(그때는 채널명만 보여 준다). */
+  liveTitle: string | null;
+  /** 방송 썸네일. `{type}` 템플릿을 이미 해상도 값으로 치환한 완성 URL이다. */
+  thumbnailUrl: string | null;
 };
 
 export type FollowListResult =
@@ -57,6 +61,20 @@ export function parseChannelInput(raw: string): string | null {
 }
 
 /**
+ * 목록 썸네일 크기. 치지직 CDN URL 은 `image_{type}.jpg` 템플릿을 준다 — `{type}` 을
+ * 실측으로 확인된 폭값(90·270·360·480 모두 200 OK, 2026-08-23)중 가장 작은 것으로 치환해
+ * 목록이 수십 개로 늘어나도 트래픽이 커지지 않게 한다.
+ */
+const THUMBNAIL_WIDTH = '90';
+
+/** `image_{type}.jpg` 템플릿을 실제 URL로 치환한다. **순수 함수 — 테스트 대상.** */
+export function buildThumbnailUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (!raw.includes('{type}')) return raw;
+  return raw.replace('{type}', THUMBNAIL_WIDTH);
+}
+
+/**
  * 관용적 파서. 스키마가 미확인이므로 흔한 형태를 모두 시도한다.
  * 하나도 못 읽으면 null 을 돌려주고 호출부가 폴백으로 전이한다.
  */
@@ -80,14 +98,19 @@ export function parseFollowings(body: unknown): FollowChannel[] | null {
 
     const streamStatus = pick(row, ['streamer', 'openLive']) ?? channel?.openLive;
     const liveInfo = pick(row, ['liveInfo']) as Record<string, unknown> | undefined;
+    const flatRow = row as Record<string, unknown>;
 
     channels.push({
       channelId,
       channelName: asString(channel?.channelName) ?? channelId,
       live: asBoolean(streamStatus) ?? asBoolean(liveInfo?.openLive) ?? false,
       concurrentUserCount:
-        asNumber(liveInfo?.concurrentUserCount) ??
-        asNumber((row as Record<string, unknown>)?.concurrentUserCount),
+        asNumber(liveInfo?.concurrentUserCount) ?? asNumber(flatRow.concurrentUserCount),
+      // 팔로우 응답 스키마가 미확인이라 흔한 후보 경로를 순서대로 시도한다 — 못 찾으면 null.
+      liveTitle: asString(liveInfo?.liveTitle) ?? asString(flatRow.liveTitle),
+      thumbnailUrl: buildThumbnailUrl(
+        asString(liveInfo?.liveImageUrl) ?? asString(flatRow.liveImageUrl),
+      ),
     });
   }
 
@@ -231,6 +254,8 @@ export function parseLivePage(body: unknown): LivePage {
       channelName: asString(channel?.channelName) ?? channelId,
       live: true,
       concurrentUserCount: asNumber(record.concurrentUserCount),
+      liveTitle: asString(record.liveTitle),
+      thumbnailUrl: buildThumbnailUrl(asString(record.liveImageUrl)),
     });
   }
 
