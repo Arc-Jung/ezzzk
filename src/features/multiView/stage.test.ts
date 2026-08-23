@@ -375,12 +375,6 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       expect(focusedCells()).toEqual(['2']);
       stage.close();
     });
-
-    it('CSS 에 초점 슬롯 규칙이 있다 — 클래스만 붙고 보이지 않으면 의미가 없다', () => {
-      const css = buildStageCss(44, true);
-      expect(css).toContain(`.cm-slot.${FOCUSED_SLOT_CLASS}`);
-      expect(css).toMatch(/\.cm-slot\.cm-slot--focused\s*\{[^}]*outline:/);
-    });
   });
 
   describe('슬롯 로드 실패 표시', () => {

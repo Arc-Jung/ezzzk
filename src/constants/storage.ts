@@ -104,7 +104,22 @@ export type Settings = {
   };
   wideScreen: { enabled: boolean };
   powerCollect: { enabled: boolean };
-  ultraWide: { enabled: boolean; minChatPx: number; overlayFallback: boolean };
+  ultraWide: {
+    enabled: boolean;
+    minChatPx: number;
+    overlayFallback: boolean;
+    /**
+     * 초광폭 판정(뷰포트 비율 ≥1.8, `ULTRA_WIDE_HYSTERESIS`)이 적용되는 동안 영상을 어디에
+     * 붙일지. 21:9(2.33)·32:9(3.56) 데스크톱 모니터뿐 아니라 이 비율 조건을 만족하는 모든
+     * 디스플레이(맥시마이즈한 16:9 노트북, 태블릿 가로 등)에 동일하게 적용된다 — 특정 비율에
+     * 하드코딩돼 있지 않다.
+     *
+     * `left`(기본)는 그림을 왼쪽 끝에 붙여 남는 폭을 채팅에 몰아준다
+     * (`layoutArbiter.ts` `buildVideoAlignCss` 참고). `center`는 치지직 기본값(가운데)을
+     * 그대로 둔다 — 좌우 필러박스가 넓게 남는 대신 영상이 시야 중앙에 온다.
+     */
+    videoAlign: 'left' | 'center';
+  };
   chatUserFilter: { enabled: boolean; persistPerChannel: boolean };
   /**
    * 치지직 내장 클린봇(욕설 필터)을 우리 확장이 기본으로 꺼 준다. 자체 필터를 만드는 게
@@ -238,7 +253,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wideScreen: { enabled: true },
   // ⚠️ 약관·계정 리스크가 있어 기본값은 끄기다 (요구사항 FR-06 · §9 리스크).
   powerCollect: { enabled: false },
-  ultraWide: { enabled: true, minChatPx: 150, overlayFallback: true },
+  ultraWide: { enabled: true, minChatPx: 150, overlayFallback: true, videoAlign: 'left' },
   chatUserFilter: { enabled: true, persistPerChannel: false },
   chzzkCleanBot: { disable: true },
   // 요청에 따라 기본으로 숨긴 상태로 시작한다.
