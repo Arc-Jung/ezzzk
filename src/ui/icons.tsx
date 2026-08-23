@@ -82,9 +82,8 @@ export const ICON_PATHS = {
   ],
   compressor: [
     { tag: 'path', d: 'M2 6.3h2.2L7.7 3.2v9.6L4.2 9.7H2z' },
-    { tag: 'path', d: 'M9.7 6.3a2.5 2.5 0 0 1 0 3.4' },
-    { tag: 'path', d: 'M11.7 4.6a5.1 5.1 0 0 1 0 6.8' },
-    { tag: 'path', d: 'M9.3 3h4.7' },
+    { tag: 'path', d: 'M9.6 5.6a3.2 3.2 0 0 1 0 4.8' },
+    { tag: 'path', d: 'M9.3 3.2h4.4M9.3 12.8h4.4' },
   ],
 } as const satisfies Record<string, string | readonly IconShape[]>;
 
@@ -233,7 +232,14 @@ export function GearIcon({ size = 16, className }: IconProps) {
   return <svg {...strokeSvgProps(size, className)}>{renderIconShapes(ICON_PATHS.gear)}</svg>;
 }
 
-/** 음량 평탄화(컴프레서) 토글 — 스피커 + 음파 두 겹 + 그 위 수평 상한선. 소리를 상한선까지만 눌러 고르게 만드는 모양. */
+/**
+ * 음량 평탄화(컴프레서) 토글 — 스피커 + 음파 하나를 위아래 수평 막대(천장·바닥)가 감싸는 모양.
+ * 소리가 그 사이로만 눌려 고르게 나온다는 뜻이다.
+ *
+ * 🔴 이전 버전은 음파 두 겹 위에 수평선 하나가 허공에 떠 있어(스피커·음파와 닿지 않음)
+ * "잘못 그려진 것" 처럼 보였다(사용자 보고 2026-08-23). 막대를 음파 위아래에 하나씩 붙여
+ * 실제로 감싸는 모양으로 바꿨다 — `etc/tmp/icon-preview*.html` 로 여러 후보를 렌더해 비교.
+ */
 export function CompressorIcon({ size = 16, className }: IconProps) {
   return <svg {...strokeSvgProps(size, className)}>{renderIconShapes(ICON_PATHS.compressor)}</svg>;
 }

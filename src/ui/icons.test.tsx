@@ -125,9 +125,10 @@ describe('아이콘 세트 — 공통 규약', () => {
     const circle = svg.querySelector('circle');
     expect(circle).toBeTruthy();
   });
-  it('CompressorIcon — 스피커 + 음파 두 겹 + 상한선으로 이루어진다 (색만으로 상태를 표시하지 않는 모양 근거)', () => {
+  it('CompressorIcon — 스피커 + 음파 + 위아래 막대로 이루어진다 (색만으로 상태를 표시하지 않는 모양 근거)', () => {
     const svg = mount(CompressorIcon);
-    expect(svg.querySelectorAll('path')).toHaveLength(4);
+    // 스피커 1 + 음파 1 + 위아래 막대(한 path 에 M...M... 두 서브패스) 1 = 3.
+    expect(svg.querySelectorAll('path')).toHaveLength(3);
     expect(svg.querySelectorAll('rect')).toHaveLength(0);
   });
 });
