@@ -13,7 +13,13 @@ import {
 } from '../constants/storage';
 import { emojiSizeForFont, lineHeightForFont, visibleLines } from '../features/chatFont';
 import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
-import { addPreset, removePreset, reorderPresets, updatePreset } from '../features/chatPreset';
+import {
+  CHAT_PRESET_ENABLED,
+  addPreset,
+  removePreset,
+  reorderPresets,
+  updatePreset,
+} from '../features/chatPreset';
 import {
   isSplitAvailable,
   recommendedPlacement,
@@ -296,150 +302,160 @@ export function ChatTab({
       </p>
       <p className="cm-sheet__note">└ 이모티콘도 함께 확대됩니다 (1.3em)</p>
 
-      <h3>
-        채팅 프리셋 ({chatPresets.length}/{LIMITS.chatPresets})
-      </h3>
-      <div className="cm-sheet__row">
-        <input
-          type="text"
-          aria-label="추가할 채팅 문구"
-          placeholder="문구를 입력"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <button
-          type="button"
-          className="cm-sheet__btn"
-          aria-label="채팅 프리셋 추가"
-          onClick={() => {
-            const result = addPreset(chatPresets, draft, LIMITS.chatPresets);
-            setListError(result.error ?? null);
-            if (result.error) return;
-            setDraft('');
-            update({ chatPresets: result.presets });
-          }}
-        >
-          + 추가
-        </button>
-      </div>
-      {listError ? <p className="cm-sheet__warn">{listError}</p> : null}
-
-      {chatPresets.length === 0 ? (
-        <p className="cm-sheet__note">저장된 문구가 없습니다.</p>
-      ) : (
-        <ul className="cm-sp__list">
-          {chatPresets.map((preset) => (
-            <li key={preset.id}>
-              {editingId === preset.id ? (
-                <>
-                  <input
-                    type="text"
-                    aria-label={`${preset.label} 문구 수정`}
-                    value={editText}
-                    onChange={(event) => setEditText(event.target.value)}
-                  />
-                  <span className="cm-sp__controls">
-                    <button
-                      type="button"
-                      className="cm-sheet__btn cm-sheet__btn--primary"
-                      aria-label="문구 수정 저장"
-                      onClick={() => {
-                        update({
-                          chatPresets: updatePreset(chatPresets, preset.id, { text: editText }),
-                        });
-                        setEditingId(null);
-                      }}
-                    >
-                      확인
-                    </button>
-                    <button
-                      type="button"
-                      className="cm-sheet__btn"
-                      aria-label="문구 수정 취소"
-                      onClick={() => setEditingId(null)}
-                    >
-                      취소
-                    </button>
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="cm-sp__item-name">· {preset.label}</span>
-                  <span className="cm-sp__controls">
-                    <button
-                      type="button"
-                      className="cm-sheet__btn"
-                      aria-label={`${preset.label} 수정`}
-                      onClick={() => {
-                        setEditingId(preset.id);
-                        setEditText(preset.text);
-                      }}
-                    >
-                      수정
-                    </button>
-                    <button
-                      type="button"
-                      className="cm-sheet__btn"
-                      aria-label={`${preset.label} 삭제`}
-                      onClick={() => update({ chatPresets: removePreset(chatPresets, preset.id) })}
-                    >
-                      <CloseIcon />
-                    </button>
-                    <button
-                      type="button"
-                      className="cm-sheet__btn"
-                      aria-label={`${preset.label} 위로`}
-                      disabled={preset.order <= 0}
-                      onClick={() =>
-                        update({ chatPresets: reorderPresets(chatPresets, preset.id, 'up') })
-                      }
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="cm-sheet__btn"
-                      aria-label={`${preset.label} 아래로`}
-                      disabled={preset.order >= chatPresets.length - 1}
-                      onClick={() =>
-                        update({ chatPresets: reorderPresets(chatPresets, preset.id, 'down') })
-                      }
-                    >
-                      ↓
-                    </button>
-                  </span>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="cm-sheet__row">
-        <span>클릭 동작</span>
-        <span className="cm-sp__controls" role="radiogroup" aria-label="채팅 프리셋 클릭 동작">
-          <label>
+      {/*
+        채팅 프리셋은 임시로 꺼 두었다 (`features/chatPreset.ts`, 2026-08-23).
+        고르게 두면 "켰는데 아무 일도 없다"가 되므로 선택 UI 자체를 감춘다.
+      */}
+      {CHAT_PRESET_ENABLED ? (
+        <>
+          <h3>
+            채팅 프리셋 ({chatPresets.length}/{LIMITS.chatPresets})
+          </h3>
+          <div className="cm-sheet__row">
             <input
-              type="radio"
-              name="cm-sp-preset-behavior"
-              checked={settings.chatPresetBehavior === 'send'}
-              aria-label="즉시 전송"
-              onChange={() => update({ chatPresetBehavior: 'send' })}
+              type="text"
+              aria-label="추가할 채팅 문구"
+              placeholder="문구를 입력"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
             />
-            즉시 전송
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="cm-sp-preset-behavior"
-              checked={settings.chatPresetBehavior === 'fill'}
-              aria-label="입력창에 채우기"
-              onChange={() => update({ chatPresetBehavior: 'fill' })}
-            />
-            입력창에 채우기
-          </label>
-        </span>
-      </div>
+            <button
+              type="button"
+              className="cm-sheet__btn"
+              aria-label="채팅 프리셋 추가"
+              onClick={() => {
+                const result = addPreset(chatPresets, draft, LIMITS.chatPresets);
+                setListError(result.error ?? null);
+                if (result.error) return;
+                setDraft('');
+                update({ chatPresets: result.presets });
+              }}
+            >
+              + 추가
+            </button>
+          </div>
+          {listError ? <p className="cm-sheet__warn">{listError}</p> : null}
+
+          {chatPresets.length === 0 ? (
+            <p className="cm-sheet__note">저장된 문구가 없습니다.</p>
+          ) : (
+            <ul className="cm-sp__list">
+              {chatPresets.map((preset) => (
+                <li key={preset.id}>
+                  {editingId === preset.id ? (
+                    <>
+                      <input
+                        type="text"
+                        aria-label={`${preset.label} 문구 수정`}
+                        value={editText}
+                        onChange={(event) => setEditText(event.target.value)}
+                      />
+                      <span className="cm-sp__controls">
+                        <button
+                          type="button"
+                          className="cm-sheet__btn cm-sheet__btn--primary"
+                          aria-label="문구 수정 저장"
+                          onClick={() => {
+                            update({
+                              chatPresets: updatePreset(chatPresets, preset.id, { text: editText }),
+                            });
+                            setEditingId(null);
+                          }}
+                        >
+                          확인
+                        </button>
+                        <button
+                          type="button"
+                          className="cm-sheet__btn"
+                          aria-label="문구 수정 취소"
+                          onClick={() => setEditingId(null)}
+                        >
+                          취소
+                        </button>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="cm-sp__item-name">· {preset.label}</span>
+                      <span className="cm-sp__controls">
+                        <button
+                          type="button"
+                          className="cm-sheet__btn"
+                          aria-label={`${preset.label} 수정`}
+                          onClick={() => {
+                            setEditingId(preset.id);
+                            setEditText(preset.text);
+                          }}
+                        >
+                          수정
+                        </button>
+                        <button
+                          type="button"
+                          className="cm-sheet__btn"
+                          aria-label={`${preset.label} 삭제`}
+                          onClick={() =>
+                            update({ chatPresets: removePreset(chatPresets, preset.id) })
+                          }
+                        >
+                          <CloseIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="cm-sheet__btn"
+                          aria-label={`${preset.label} 위로`}
+                          disabled={preset.order <= 0}
+                          onClick={() =>
+                            update({ chatPresets: reorderPresets(chatPresets, preset.id, 'up') })
+                          }
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="cm-sheet__btn"
+                          aria-label={`${preset.label} 아래로`}
+                          disabled={preset.order >= chatPresets.length - 1}
+                          onClick={() =>
+                            update({ chatPresets: reorderPresets(chatPresets, preset.id, 'down') })
+                          }
+                        >
+                          ↓
+                        </button>
+                      </span>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="cm-sheet__row">
+            <span>클릭 동작</span>
+            <span className="cm-sp__controls" role="radiogroup" aria-label="채팅 프리셋 클릭 동작">
+              <label>
+                <input
+                  type="radio"
+                  name="cm-sp-preset-behavior"
+                  checked={settings.chatPresetBehavior === 'send'}
+                  aria-label="즉시 전송"
+                  onChange={() => update({ chatPresetBehavior: 'send' })}
+                />
+                즉시 전송
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="cm-sp-preset-behavior"
+                  checked={settings.chatPresetBehavior === 'fill'}
+                  aria-label="입력창에 채우기"
+                  onChange={() => update({ chatPresetBehavior: 'fill' })}
+                />
+                입력창에 채우기
+              </label>
+            </span>
+          </div>
+        </>
+      ) : null}
 
       <div className="cm-sheet__row">
         <span>유저 필터</span>

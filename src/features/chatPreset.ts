@@ -27,6 +27,13 @@ import { findChatClient } from '../utils/reactFiber';
 import type { Feature } from './types';
 
 /**
+ * 🔴 임시 비활성화 (사용자 요청 2026-08-23): 버그가 다수 발견돼 재작업 예정이라 껐다.
+ * `true` 로 되돌리면 그대로 되살아난다 — 코드는 지우지 않는다
+ * (`multiView/chatFeature.ts` 의 `MULTIVIEW_CHAT_ENABLED` 와 같은 패턴).
+ */
+export const CHAT_PRESET_ENABLED = false;
+
+/**
  * 길이 상한 폴백. **하드코딩된 상한이 아니다** — 클라이언트의 `textLimitCount`(실측 400)를 읽는 것이
  * 원칙이고, 클라이언트에 접근할 수 없을 때만 이 값을 쓴다.
  */
@@ -359,7 +366,7 @@ export const chatPresetFeature: Feature = {
   id: 'chatPreset',
   watches: ['chatPresets', 'chatPresetBehavior'],
   // VOD·모바일 웹에는 채팅 입력이 없다 → UI 를 삽입하지 않는다.
-  supports: (ctx) => hasSideChat(ctx.page.type) && !ctx.page.isSlotFrame,
+  supports: (ctx) => CHAT_PRESET_ENABLED && hasSideChat(ctx.page.type) && !ctx.page.isSlotFrame,
   start: (ctx) => {
     const aside = qs(ID.asideChatting);
     if (!aside) {
