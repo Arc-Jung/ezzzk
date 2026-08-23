@@ -197,6 +197,14 @@ export const OURS = {
   betaBadgeClass: 'cm-beta-badge',
   /** 스크린 리더 전용(화면에는 보이지 않는) 보조 설명 노드 */
   srOnlyClass: 'cm-sr-only',
+  /**
+   * 멀티뷰 스테이지가 화면 전체를 덮으면 호스트 컨트롤바의 설정(⚙) 버튼이 가려져 누를 수
+   * 없다(사용자 보고 2026-08-23 — 멀티뷰 중 볼륨·컴프레서 설정에 접근할 방법이 없었다).
+   * 두 기능(`multiView`·`settingsPanel`)을 직접 결합하지 않고 `window` 커스텀 이벤트로
+   * 느슨하게 연결한다 — 같은 content script 안에서 도는 다른 기능이라 굳이
+   * `chrome.runtime` 메시지(백그라운드 왕복)를 거칠 필요가 없다.
+   */
+  openSettingsEventName: 'cm-open-settings',
   /** 최상위 z-index (목업 실측값) */
   topZIndex: 2147483647,
 } as const;
