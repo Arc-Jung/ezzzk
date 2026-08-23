@@ -12,7 +12,15 @@
 
 import { ID, OURS, PLAYER } from '../../constants/class';
 import type { QualityTarget, SlotIndex } from '../../constants/storage';
-import { qs, qsa, qsVisible, retry, upsertStyle, removeStyle, normalizeText } from '../../utils/dom';
+import {
+  qs,
+  qsa,
+  qsVisible,
+  retry,
+  upsertStyle,
+  removeStyle,
+  normalizeText,
+} from '../../utils/dom';
 import { debounce, observe, type Disposer } from '../../utils/observe';
 import { info, warning } from '../../utils/log';
 import { findChatClient, readChatMessage } from '../../utils/reactFiber';

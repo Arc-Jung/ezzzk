@@ -14,7 +14,12 @@
  * **값이 바뀔 때만** 쏘므로 `setMuted` 헬퍼가 그 동작을 흉내낸다.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applySlotQuality, buildSlotModeCss, createSlotAudio, startSlotController } from './slotFrame';
+import {
+  applySlotQuality,
+  buildSlotModeCss,
+  createSlotAudio,
+  startSlotController,
+} from './slotFrame';
 
 function mountVideo(): HTMLVideoElement {
   document.body.innerHTML = '<div id="live_player_layout"><video></video></div>';

@@ -47,9 +47,9 @@ describe('volumeFeature.supports', () => {
   };
 
   it('멀티뷰 슬롯 프레임에서도 지원한다', () => {
-    expect(volumeFeature.supports({ ...baseCtx, page: { ...baseCtx.page, isSlotFrame: true } })).toBe(
-      true,
-    );
+    expect(
+      volumeFeature.supports({ ...baseCtx, page: { ...baseCtx.page, isSlotFrame: true } }),
+    ).toBe(true);
   });
 
   it('일반(비 슬롯) 페이지에서도 그대로 지원한다', () => {

@@ -881,7 +881,10 @@ export class MultiViewStage {
 
     let timer: ReturnType<typeof setTimeout>;
     const armLoadTimeout = () => {
-      timer = setTimeout(() => this.handleSlotLoadTimeout(runtime, cell, slot), FRAME_LOAD_TIMEOUT_MS);
+      timer = setTimeout(
+        () => this.handleSlotLoadTimeout(runtime, cell, slot),
+        FRAME_LOAD_TIMEOUT_MS,
+      );
     };
     armLoadTimeout();
     // 재시도가 새 타이머를 다시 걸므로, 정리 시점의 최신 타이머를 읽도록 함수로 감싼다.
@@ -906,7 +909,8 @@ export class MultiViewStage {
 
     if (runtime.retryCount < MAX_SLOT_LOAD_RETRIES) {
       runtime.retryCount += 1;
-      const backoff = SLOT_RETRY_BACKOFF_MS[runtime.retryCount - 1] ?? SLOT_RETRY_BACKOFF_MS.at(-1)!;
+      const backoff =
+        SLOT_RETRY_BACKOFF_MS[runtime.retryCount - 1] ?? SLOT_RETRY_BACKOFF_MS.at(-1)!;
       warning(
         `slot ${slot.index} did not report ready within ${FRAME_LOAD_TIMEOUT_MS}ms — retrying ` +
           `(${runtime.retryCount}/${MAX_SLOT_LOAD_RETRIES})`,
