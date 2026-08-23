@@ -17,6 +17,8 @@ import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
 import { readViewport } from '../../utils/viewport';
 import { info, warning } from '../../utils/log';
+import { updateSection } from '../../storage';
+import { ACCENT } from '../../ui/tokens';
 import { effectiveChatMode, effectiveSlotChatLines } from './chatFeature';
 import { slotFromAudioShortcut } from './messages';
 import {
@@ -494,6 +496,8 @@ export class MultiViewStage {
   private focusRegistered = new Set<SlotIndex>();
   private disposers: (() => void)[] = [];
   private volumePercent: number;
+  /** 컴프레서 토글 버튼. 다른 창·설정 패널에서 값이 바뀌어도 `updateSettings()` 가 다시 칠한다. */
+  private compressorButtonEl: HTMLButtonElement | null = null;
 
   constructor(
     private settings: Settings,
@@ -564,6 +568,7 @@ export class MultiViewStage {
     this.chatPanel = null;
     this.chatPanelTitle = null;
     this.chatPanelList = null;
+    this.compressorButtonEl = null;
     // 스테이지가 사라졌으니 폭 주장도 되돌린다 (남기면 aside 가 접힌 채 방치된다).
     this.callbacks.onChatWidthChange(0);
     removeStyle(STAGE_STYLE_ID);
@@ -583,6 +588,17 @@ export class MultiViewStage {
     this.settings = next;
     this.layout();
     for (const runtime of this.runtimes.values()) this.applyQuality(runtime.slot);
+    this.syncCompressorButton();
+  }
+
+  /** 컴프레서 버튼의 `aria-pressed`·색을 지금 설정값으로 맞춘다 (`volume.ts` 와 같은 표시 규약). */
+  private syncCompressorButton(): void {
+    const button = this.compressorButtonEl;
+    if (!button) return;
+    const enabled = this.settings.audio?.compressor?.enabled === true;
+    button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    button.setAttribute('aria-label', enabled ? '음량 평탄화 끄기' : '음량 평탄화 켜기');
+    button.style.color = enabled ? ACCENT : '#fff';
   }
 
   /**
@@ -915,6 +931,34 @@ export class MultiViewStage {
       bar.appendChild(button);
     }
     bar.appendChild(volumeLabel);
+
+    /**
+     * 🔴 실측 확정 (2026-08-23): 컴프레서는 호스트 컨트롤바에만 있었다 — 멀티뷰가 그 컨트롤바를
+     * 가려도 스테이지 자체에는 대응하는 버튼이 없어 "컴프레서 버튼이 사라진다"는 보고로 이어졌다.
+     * `volume.ts` 의 컨트롤바 버튼과 같은 저장 키(`audio.compressor`)를 그대로 쓴다 — 슬롯의
+     * 실제 오디오 그래프 적용은 `slotFrame.ts` 의 `setupSlotCompressor` 가 저장값 변화를 구독해서
+     * 처리한다(스테이지는 저장만 하면 된다).
+     */
+    const compressorButton = document.createElement('button');
+    compressorButton.type = 'button';
+    compressorButton.appendChild(createIconElement('compressor'));
+    compressorButton.appendChild(barLabel('컴프레서'));
+    compressorButton.addEventListener('click', () => {
+      const current = this.settings.audio?.compressor;
+      if (!current) return;
+      const nextCompressor = { ...current, enabled: !current.enabled };
+      // 🔴 저장 → `onSettingsChanged` → `updateSettings()` 왕복을 기다리지 않고 즉시 칠한다 —
+      // 그래야 버튼을 눌렀는데 반응이 늦어 먹통처럼 보이지 않는다(`volume.ts` 와 같은 이유).
+      this.settings = {
+        ...this.settings,
+        audio: { ...this.settings.audio, compressor: nextCompressor },
+      };
+      this.syncCompressorButton();
+      void updateSection('audio', { compressor: nextCompressor });
+    });
+    bar.appendChild(compressorButton);
+    this.compressorButtonEl = compressorButton;
+    this.syncCompressorButton();
 
     const configButton = document.createElement('button');
     configButton.type = 'button';
