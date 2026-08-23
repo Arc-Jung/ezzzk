@@ -87,6 +87,21 @@ export const CONFIG_SHEET_CSS = `
 .cm-sheet-backdrop:has(.cm-mv-columns) .cm-sheet { height: min(900px, 96vh); }
 .cm-mv-columns > section { min-width: 0; }
 .cm-mv-columns h3 { margin: 0 0 6px; font-size: 12px; color: ${FG.muted}; }
+/*
+ * 🔴 왼쪽(슬롯 배치)은 항상 오른쪽(채널 목록, 최대 10행)만큼 커지도록 늘어난다
+ * (align-items: stretch) — 채널 목록이 스크롤할 공간을 최대로 받게 하려는 의도인데,
+ * 그 부작용으로 슬롯 그리드가 짧은 2·3분할에서 왼쪽 아래에 텅 빈 여백만 남는다
+ * (실측 laptop13, 4분할: 그리드 아래 약 600px 공백). 제목(h3)은 위에 그대로 두고,
+ * 그리드만 남는 세로 공간 안에서 가운데로 옮겨 여백을 위아래로 분산한다.
+ */
+.cm-mv-columns > section:first-child {
+  display: flex;
+  flex-direction: column;
+}
+.cm-mv-columns > section:first-child .cm-mv-grid {
+  margin-top: auto;
+  margin-bottom: auto;
+}
 
 /* 슬롯 미리보기 — 분할 수에 맞춘 그리드 */
 .cm-mv-grid {

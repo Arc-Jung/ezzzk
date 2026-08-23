@@ -184,6 +184,14 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         className="cm-sheet__btn"
         aria-label="현재 구성 저장"
         disabled={multiView.slots.length === 0 || multiView.sets.length >= LIMITS.multiViewSets}
+        // 🔴 비활성 버튼만 놓으면 왜 안 눌리는지 알 수 없다 — 이유를 title 로 남긴다.
+        title={
+          multiView.slots.length === 0
+            ? '슬롯을 먼저 채워야 저장할 수 있습니다'
+            : multiView.sets.length >= LIMITS.multiViewSets
+              ? `저장된 조합이 최대 ${LIMITS.multiViewSets}개입니다`
+              : undefined
+        }
         onClick={() =>
           patch({
             sets: [
