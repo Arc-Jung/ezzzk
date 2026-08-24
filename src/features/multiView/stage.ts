@@ -48,6 +48,25 @@ const FRAME_LOAD_TIMEOUT_MS = 15_000;
 const MAX_SLOT_LOAD_RETRIES = 2;
 /** 재시도 간격을 점점 늘린다 — 연속 재로드로 같은 요청을 몰아붙이지 않는다. */
 const SLOT_RETRY_BACKOFF_MS = [2_000, 4_000];
+/**
+ * 슬롯 프레임 로드를 시작하는 간격.
+ *
+ * 🔴 사용자 보고 (2026-08-24): "멀티뷰에 들어갈 때 4개 요청을 한 번에 보내서 문제가 생기는 것 같다."
+ * 예전에는 `open()` 이 루프를 돌며 4개 `iframe` 의 `src` 를 **같은 틱에** 대입해, 치지직 페이지
+ * 4벌(문서·번들·플레이어 매니페스트·채팅 소켓)이 동시에 출발했다. 슬롯당 첫 로드 실패
+ * (2026-08-23 의 재시도 로직이 생긴 원인)는 이 동시 출발과 겹칠 가능성이 있다(미검증 — 상관은
+ * 관찰됐지만 인과는 실측으로 확정하지 않았다).
+ *
+ * 첫 슬롯은 즉시, 이후 슬롯은 인덱스마다 이만큼 미뤄 출발시킨다. 4슬롯 기준 마지막 슬롯이
+ * 300ms 늦게 시작할 뿐이라 체감 지연은 없고, 로드 타임아웃(`FRAME_LOAD_TIMEOUT_MS`)은
+ * **`src` 를 대입한 시점부터** 재므로 뒤쪽 슬롯이 대기 시간을 손해 보지도 않는다.
+ */
+const SLOT_LOAD_STAGGER_MS = 100;
+/**
+ * 슬롯이 이 시간 이상 "재생 중 아님"으로 보고하면 안내를 띄운다.
+ * 방송 시작 직후·광고 구간에도 잠깐 꺼져 보이므로 짧게 잡으면 정상 슬롯이 깜빡인다.
+ */
+const SLOT_OFFLINE_NOTICE_MS = 10_000;
 
 /** 초점(활성) 슬롯 표시 클래스. `updateFocusMarks()` 가 토글한다(시각 강조는 없음, aria-pressed 용). */
 export const FOCUSED_SLOT_CLASS = 'cm-slot--focused';
@@ -110,6 +129,11 @@ type SlotRuntime = {
   failed: boolean;
   /** 지금까지 재시도한 횟수. `MAX_SLOT_LOAD_RETRIES` 에 닿으면 더 시도하지 않고 최종 에러로 넘어간다. */
   retryCount: number;
+  /**
+   * 슬롯이 "재생 중이 아니다"(`state.online === false`)라고 처음 보고한 시각.
+   * 재생이 시작되면 `null` 로 되돌린다 — 안내를 띄울지 판단하는 유일한 근거다.
+   */
+  offlineSince: number | null;
 };
 
 /**
@@ -204,6 +228,19 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   text-align: center;
   padding: 12px;
   color: #ffb454;
+}
+/* 재생이 시작되지 않는 슬롯 안내 (2026-08-24). 로드 자체는 성공한 상태라 error 와 색을 달리한다. */
+#${OURS.multiViewStageId} .cm-slot__notice {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  color: #ffd479;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
 }
 #${OURS.multiViewStageId} .cm-slot__retry {
   position: absolute;
@@ -541,7 +578,8 @@ export class MultiViewStage {
     // replaceChildren 로 이전 바 노드가 사라졌다 — 참조를 남기면 떼어낸 노드의 좌표를 읽는다.
     this.bar = null;
 
-    for (const slot of slots) this.createSlot(slot);
+    // 프레임 로드는 순서대로 100ms 씩 벌려 출발시킨다 (`SLOT_LOAD_STAGGER_MS`).
+    slots.forEach((slot, order) => this.createSlot(slot, order));
     // 슬롯이 다 붙은 뒤 초점 표시를 한 번 찍는다 — 프레임 `load` 를 기다리면 그때까지 표시가 없다.
     this.updateFocusMarks();
     this.createBar();
@@ -793,7 +831,11 @@ export class MultiViewStage {
     return resolveSlotChatLines(requested as SlotLines, slotWidth, this.device.deviceClass);
   }
 
-  private createSlot(slot: MultiViewSlot): void {
+  /**
+   * @param order 무대에서의 순서(0부터). 프레임 로드 출발 시각을 `order * SLOT_LOAD_STAGGER_MS`
+   *   만큼 미룬다 — 4개를 한 틱에 몰아 보내지 않는다. 0 이면 즉시 출발한다.
+   */
+  private createSlot(slot: MultiViewSlot, order = 0): void {
     if (!this.container) return;
 
     const cell = document.createElement('div');
@@ -806,8 +848,8 @@ export class MultiViewStage {
     title.textContent = `${slot.index} ${slot.channelName}`;
     header.appendChild(title);
 
+    // `src` 는 아래에서 순서에 맞춰 대입한다 — 여기서 넣으면 4개가 같은 틱에 출발한다.
     const frame = document.createElement('iframe');
-    frame.src = slotFrameUrl(slot.channelId, slot.index);
     frame.title = `${slot.channelName} 슬롯 ${slot.index}`;
     frame.allow = 'autoplay; fullscreen';
 
@@ -832,27 +874,50 @@ export class MultiViewStage {
       ready: false,
       failed: false,
       retryCount: 0,
+      offlineSince: null,
     };
     this.runtimes.set(slot.index, runtime);
 
     frame.addEventListener('load', () => {
+      /**
+       * `src` 를 대입하기 전의 `load` 는 브라우저가 프레임을 붙일 때 커밋하는 `about:blank` 다
+       * (stagger 로 출발이 늦어진 슬롯에서 실제로 먼저 온다). 이걸 로드 성공으로 세면 아직
+       * 아무것도 요청하지 않은 슬롯이 초점에 등록되고 `about:blank` 로 지시가 나간다.
+       */
+      if (!frame.src) return;
       runtime.loaded = true;
       this.registerFocus(slot.index);
       this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'enterSlotMode', slot: slot.index });
       this.applyQuality(slot.index);
     });
 
-    let timer: ReturnType<typeof setTimeout>;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const armLoadTimeout = () => {
       timer = setTimeout(
         () => this.handleSlotLoadTimeout(runtime, cell, slot),
         FRAME_LOAD_TIMEOUT_MS,
       );
     };
-    armLoadTimeout();
     // 재시도가 새 타이머를 다시 걸므로, 정리 시점의 최신 타이머를 읽도록 함수로 감싼다.
     this.disposers.push(() => clearTimeout(timer));
     this.slotRetryRearm.set(slot.index, armLoadTimeout);
+
+    /**
+     * 🔴 로드 타임아웃은 **`src` 대입과 같은 시점에** 건다. 프레임을 만들 때 미리 걸어 두면
+     * 뒤쪽 슬롯은 대기 시간(`FRAME_LOAD_TIMEOUT_MS`)에서 stagger 만큼을 그냥 잃는다.
+     */
+    const startLoad = () => {
+      frame.src = slotFrameUrl(slot.channelId, slot.index);
+      armLoadTimeout();
+    };
+    const delay = order * SLOT_LOAD_STAGGER_MS;
+    if (delay <= 0) {
+      startLoad();
+    } else {
+      const startTimer = setTimeout(startLoad, delay);
+      // 출발 전에 스테이지가 닫히면 요청 자체를 내지 않는다.
+      this.disposers.push(() => clearTimeout(startTimer));
+    }
   }
 
   /**
@@ -897,6 +962,24 @@ export class MultiViewStage {
     warning(
       `slot ${slot.index} gave up after ${MAX_SLOT_LOAD_RETRIES} retries (loaded=${runtime.loaded})`,
     );
+  }
+
+  /**
+   * 로드는 됐는데 **재생이 시작되지 않는** 슬롯 안내.
+   *
+   * 원인을 단정하지 않는다 — 방송 종료, 성인 인증·로그인이 필요한 방송, 지역 제한이 모두
+   * 같은 신호(`pzp-pc--onlive` 없음)로 오기 때문이다(실측 2026-08-24: 비로그인 프로필에서
+   * 라이브 목록에 뜬 채널 하나가 프레임 안에서 플레이어를 아예 만들지 않았다).
+   */
+  private showSlotOfflineNotice(runtime: SlotRuntime): void {
+    if (runtime.failed) return;
+    if (runtime.cell.querySelector('.cm-slot__notice')) return;
+    const notice = document.createElement('div');
+    notice.className = 'cm-slot__notice';
+    notice.textContent =
+      '재생이 시작되지 않았습니다. 방송이 끝났거나 로그인·연령 확인이 필요한 방송일 수 있습니다.';
+    runtime.cell.appendChild(notice);
+    warning(`slot ${runtime.slot} has been ready but not playing for ${SLOT_OFFLINE_NOTICE_MS}ms`);
   }
 
   /** 재시도 중임을 알리는 일시 상태. 다음 로드가 붙거나 최종 실패로 넘어가면 스스로 사라진다. */
@@ -1172,8 +1255,23 @@ export class MultiViewStage {
       if (message.kind === 'state') {
         if (!message.online) {
           runtime.header.dataset.offline = 'true';
+          /**
+           * 🔴 실측 확정 (2026-08-24, `etc/probe/multiview-report2.json`): 4슬롯 중 하나가
+           * **끝까지 검은 칸으로만 남는데 아무 설명이 없었다.** 프레임 문서는 정상 로드돼
+           * `ready` 까지 왔으므로(`slot 3 controller is ready`) 로드 타임아웃 경로
+           * (`.cm-slot__error`)는 영원히 발화하지 않고, 유일한 신호였던
+           * `header.dataset.offline` 은 **대응하는 CSS 가 없어 화면에 아무 변화도 주지 못했다**
+           * (헤더 자체도 비터치 기기에서는 hover 전까지 `opacity: 0` 이다).
+           * → 사용자는 "왜 한 칸만 까맣지"를 알 방법이 없다. 실제로 안내를 띄운다.
+           */
+          runtime.offlineSince ??= Date.now();
+          if (Date.now() - runtime.offlineSince >= SLOT_OFFLINE_NOTICE_MS) {
+            this.showSlotOfflineNotice(runtime);
+          }
         } else {
           delete runtime.header.dataset.offline;
+          runtime.offlineSince = null;
+          runtime.cell.querySelector('.cm-slot__notice')?.remove();
         }
         return;
       }

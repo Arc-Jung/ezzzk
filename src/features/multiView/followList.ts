@@ -75,10 +75,42 @@ export function buildThumbnailUrl(raw: string | null | undefined): string | null
 }
 
 /**
+ * 팔로우 목록 한 페이지.
+ *
+ * 🔴 사용자 보고 (2026-08-24): "팔로잉 목록이 전부 표시되지 않고 누락된다."
+ * 예전에는 `/channels/followings` 를 **파라미터 없이 한 번만** 불러 서버 기본 페이지 크기까지만
+ * 받았다 — 그보다 많이 팔로우한 사용자는 나머지가 통째로 없는 것과 같았다(미검증: 서버 기본
+ * 크기 값을 실측하지 못했다. 다만 파라미터도 페이징도 없었다는 것은 코드로 확정된 사실이다).
+ */
+export type FollowingsPage = {
+  channels: FollowChannel[];
+  /** 응답에 들어 있던 행 수. 요청한 `size` 보다 적으면 마지막 페이지다. */
+  rowCount: number;
+  /** 서버가 알려 준 전체 팔로우 수. 스키마가 미확인이라 없을 수 있다. */
+  totalCount: number | null;
+};
+
+/** 한 번에 요청할 팔로우 수. 서버가 더 작은 값으로 깎아도 페이징 루프가 이어 받는다. */
+export const FOLLOWINGS_PAGE_SIZE = 50;
+/**
+ * 페이지 루프 상한. 서버가 `page` 파라미터를 무시해 같은 페이지만 돌려주는 경우를 대비한
+ * 안전장치다 — 새로 얻은 채널이 0개면 그 전에 멈추므로 실제로는 거의 닿지 않는다.
+ */
+const MAX_FOLLOWINGS_PAGES = 20;
+
+/** 팔로우 목록 요청 URL. **순수 함수 — 테스트 대상.** */
+export function buildFollowingsUrl(page: number, size: number = FOLLOWINGS_PAGE_SIZE): string {
+  const url = new URL(FOLLOWINGS_URL);
+  url.searchParams.set('page', String(Math.max(0, Math.floor(page))));
+  url.searchParams.set('size', String(Math.max(1, Math.floor(size))));
+  return url.toString();
+}
+
+/**
  * 관용적 파서. 스키마가 미확인이므로 흔한 형태를 모두 시도한다.
  * 하나도 못 읽으면 null 을 돌려주고 호출부가 폴백으로 전이한다.
  */
-export function parseFollowings(body: unknown): FollowChannel[] | null {
+export function parseFollowingsPage(body: unknown): FollowingsPage | null {
   const content = pick(body, ['content']);
   const rows =
     firstArray(pick(content, ['followingList'])) ??
@@ -123,7 +155,29 @@ export function parseFollowings(body: unknown): FollowChannel[] | null {
     });
   }
 
-  return channels.length > 0 ? channels : null;
+  /*
+   * 🔴 행을 통째로 버리는 경로가 조용하면 "왜 몇 개가 안 보이는지"를 영영 알 수 없다
+   * (2026-08-24 사용자 보고의 다른 후보 원인). 몇 개를 왜 버렸는지 남긴다.
+   */
+  if (channels.length < rows.length) {
+    warning(
+      `followings: ${rows.length - channels.length} of ${rows.length} row(s) had no channelId and were dropped`,
+    );
+  }
+
+  return {
+    channels,
+    rowCount: rows.length,
+    totalCount:
+      asNumber(pick(content, ['totalCount'])) ?? asNumber(pick(content, ['page', 'total'])),
+  };
+}
+
+/** 기존 호출부·테스트용 얇은 래퍼. 한 페이지의 채널만 돌려준다. */
+export function parseFollowings(body: unknown): FollowChannel[] | null {
+  const page = parseFollowingsPage(body);
+  if (!page || page.channels.length === 0) return null;
+  return page.channels;
 }
 
 /** 라이브 중을 위로, 오프라인을 아래로 정렬한다 (시트 UX 규칙). */
@@ -176,44 +230,88 @@ export async function fetchFollowings(): Promise<FollowListResult> {
     };
   }
 
-  let response: Response;
-  try {
-    response = await fetch(FOLLOWINGS_URL, { credentials: 'include' });
-  } catch (e) {
-    return { ok: false, reason: 'network', message: String(e) };
+  /**
+   * 🔴 **끝까지 페이지를 넘겨 받는다** (2026-08-24). 한 번만 부르면 서버 기본 페이지 크기까지만
+   * 오고 나머지 팔로우 채널이 조용히 사라진다.
+   *
+   * 중단 조건은 셋이다 — 어느 하나만 믿지 않는다(스키마 미확인이라 서버가 `totalCount` 를
+   * 안 줄 수도, `page` 파라미터를 무시할 수도 있다):
+   * 1. 받은 행 수가 요청한 `size` 보다 적다 → 마지막 페이지.
+   * 2. `totalCount` 만큼 다 모았다.
+   * 3. 이번 페이지에서 **새로 얻은 채널이 0개** → 서버가 페이징을 무시하고 있다(무한 루프 방지).
+   */
+  const collected = new Map<string, FollowChannel>();
+  let totalCount: number | null = null;
+  let pagesFetched = 0;
+
+  for (let page = 0; page < MAX_FOLLOWINGS_PAGES; page += 1) {
+    let response: Response;
+    try {
+      response = await fetch(buildFollowingsUrl(page), { credentials: 'include' });
+    } catch (e) {
+      // 첫 페이지가 실패하면 폴백으로 넘어가고, 뒤쪽 페이지면 지금까지 모은 것으로 마친다.
+      if (page === 0) return { ok: false, reason: 'network', message: String(e) };
+      warning(`followings page ${page} failed; keeping ${collected.size} channel(s)`, e);
+      break;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      if (page > 0) break;
+      return {
+        ok: false,
+        reason: 'unauthorized',
+        message: '치지직에 로그인되어 있는지 확인해 주세요.',
+      };
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch (e) {
+      if (page > 0) break;
+      return { ok: false, reason: 'schema', message: String(e) };
+    }
+
+    // 200 이면서 본문에 401 코드를 담아 주는 경우도 있다 (실측 응답 형태).
+    const code = asNumber((body as Record<string, unknown> | undefined)?.code);
+    if (code === 401 || code === 403) {
+      if (page > 0) break;
+      return {
+        ok: false,
+        reason: 'unauthorized',
+        message: '치지직에 로그인되어 있는지 확인해 주세요.',
+      };
+    }
+
+    const parsed = parseFollowingsPage(body);
+    if (!parsed) {
+      if (page > 0) break;
+      warning('followings response schema not recognized, falling back to manual channel input');
+      return { ok: false, reason: 'schema', message: '팔로우 목록 형식을 읽을 수 없습니다.' };
+    }
+
+    pagesFetched += 1;
+    const before = collected.size;
+    for (const channel of parsed.channels) {
+      if (!collected.has(channel.channelId)) collected.set(channel.channelId, channel);
+    }
+    totalCount = parsed.totalCount ?? totalCount;
+
+    if (collected.size === before) break;
+    if (parsed.rowCount < FOLLOWINGS_PAGE_SIZE) break;
+    if (totalCount !== null && collected.size >= totalCount) break;
   }
 
-  if (response.status === 401 || response.status === 403) {
-    return {
-      ok: false,
-      reason: 'unauthorized',
-      message: '치지직에 로그인되어 있는지 확인해 주세요.',
-    };
-  }
-
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch (e) {
-    return { ok: false, reason: 'schema', message: String(e) };
-  }
-
-  // 200 이면서 본문에 401 코드를 담아 주는 경우도 있다 (실측 응답 형태).
-  const code = asNumber((body as Record<string, unknown> | undefined)?.code);
-  if (code === 401 || code === 403) {
-    return {
-      ok: false,
-      reason: 'unauthorized',
-      message: '치지직에 로그인되어 있는지 확인해 주세요.',
-    };
-  }
-
-  const channels = parseFollowings(body);
-  if (!channels) {
-    warning('followings response schema not recognized, falling back to manual channel input');
+  if (collected.size === 0) {
+    warning('followings response had no usable channel, falling back to manual channel input');
     return { ok: false, reason: 'schema', message: '팔로우 목록 형식을 읽을 수 없습니다.' };
   }
-  return { ok: true, channels: sortForSheet(channels) };
+
+  info(
+    `followings: collected ${collected.size} channel(s) over ${pagesFetched} page(s)` +
+      (totalCount === null ? ' (server did not report totalCount)' : ` of ${totalCount}`),
+  );
+  return { ok: true, channels: sortForSheet([...collected.values()]) };
 }
 
 /** 라이브 목록 한 페이지. `next` 가 null 이면 더 불러올 것이 없다. */
