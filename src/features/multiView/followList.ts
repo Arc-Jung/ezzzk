@@ -168,7 +168,8 @@ export function parseFollowingsPage(body: unknown): FollowingsPage | null {
   return {
     channels,
     rowCount: rows.length,
-    totalCount: asNumber(pick(content, ['totalCount'])) ?? asNumber(pick(content, ['page', 'total'])),
+    totalCount:
+      asNumber(pick(content, ['totalCount'])) ?? asNumber(pick(content, ['page', 'total'])),
   };
 }
 
