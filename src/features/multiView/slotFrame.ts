@@ -306,7 +306,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
         removeStyle(SLOT_STYLE_ID);
         break;
       case 'setQuality':
-        void applySlotQuality(message.target, message.raiseIfMissing);
+        void applySlotQuality(message.target, message.raiseIfMissing, slot);
         break;
       case 'setChatLines':
         chatLines = message.lines;
@@ -414,6 +414,9 @@ export function pickCappedQualityItem(labels: string[], target: QualityTarget): 
  * 목록에 없을 때도 조용히 포기하지 않는다.
  *
  * @param target 목표 화질.
+ * @param slot 로그용 슬롯 번호. 🔴 이게 없어 실측 로그(2026-08-24)에서
+ *   `slot quality list not found` 가 **어느 슬롯 얘기인지 알 수 없었다** — 4슬롯 중 하나만
+ *   재생되지 않던 원인을 좁히는 데 시간을 더 썼다.
  * @param raiseIfMissing true(활성 슬롯) 면 목표가 없을 때 최고 화질로 폴백한다.
  *   false(비활성 슬롯 대역폭 하향) 면 목표 이하 중 가장 높은 것으로만 대체하고,
  *   그것도 없으면 아무것도 하지 않는다 — `pickCappedQualityItem` 주석 참조.
@@ -423,10 +426,15 @@ export function pickCappedQualityItem(labels: string[], target: QualityTarget): 
  * 허용해 **안전한 쪽(캡 — 절대 올리지 않음)** 으로 떨어지게 한다. 반대로 두면
  * (기본을 "올림"으로) 방향을 모르는 상태에서 화질을 올려버려 대역폭 절약이 깨질 수 있다.
  */
-export async function applySlotQuality(target: string, raiseIfMissing: boolean): Promise<void> {
+export async function applySlotQuality(
+  target: string,
+  raiseIfMissing: boolean,
+  slot: SlotIndex | null = null,
+): Promise<void> {
+  const label = slot === null ? 'slot' : `slot ${slot}`;
   const { items, close } = await ensureQualityList();
   if (items.length === 0) {
-    warning('slot quality list not found; skipping quality change');
+    warning(`${label} quality list not found; skipping quality change`);
     close();
     return;
   }
@@ -437,12 +445,12 @@ export async function applySlotQuality(target: string, raiseIfMissing: boolean):
         ? pickQualityItem(labels, target as QualityTarget)
         : pickCappedQualityItem(labels, target as QualityTarget);
     if (!pick) {
-      warning(`slot quality "${target}" not in list; leaving as-is`);
+      warning(`${label} quality "${target}" not in list; leaving as-is`);
       return;
     }
     const wanted = items[pick.index];
     if (!wanted || wanted.classList.contains(PLAYER.qualityItemChecked)) return;
-    info(`slot quality: ${pick.reason}`);
+    info(`${label} quality: ${pick.reason}`);
 
     /**
      * 🔴 실측 확정 (2026-08-23): 여기서 목표 항목을 정확히 찾고도 `wanted.click()` 만으로는

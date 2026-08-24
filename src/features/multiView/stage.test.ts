@@ -459,6 +459,132 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     });
   });
 
+  /**
+   * 🔴 실측 확정 (2026-08-24, `etc/probe/multiview-report2.json`): 4슬롯 중 하나가 프레임은
+   * 정상 로드돼 `ready` 까지 왔는데 플레이어를 만들지 않아 **검은 칸으로만 남았다.**
+   * 로드 타임아웃 경로는 `ready` 때문에 영원히 발화하지 않고, 유일한 신호였던
+   * `header.dataset.offline` 은 대응 CSS 가 없어 화면에 아무 변화도 주지 못했다.
+   */
+  describe('재생이 시작되지 않는 슬롯 안내 (2026-08-24)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const state = (slot: number, online: boolean) => ({
+      channel: MV_CHANNEL,
+      dir: 's2p' as const,
+      kind: 'state' as const,
+      slot,
+      muted: true,
+      volumePercent: 0,
+      quality: null,
+      online,
+      viewerCount: null,
+    });
+    const notice = (slot: number) =>
+      document.querySelector(`#cm-multiview-stage .cm-slot[data-slot="${slot}"] .cm-slot__notice`);
+
+    it('잠깐 꺼져 보이는 것만으로는 안내하지 않는다 (방송 시작 직후·광고 구간)', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+
+      sendFromSlot(state(1, false));
+      vi.advanceTimersByTime(4_000);
+      sendFromSlot(state(1, false));
+
+      expect(notice(1)).toBeNull();
+      stage.close();
+    });
+
+    it('10초 넘게 재생이 시작되지 않으면 안내를 띄운다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+
+      sendFromSlot(state(1, false));
+      vi.advanceTimersByTime(11_000);
+      sendFromSlot(state(1, false));
+
+      expect(notice(1)?.textContent).toContain('재생이 시작되지 않았습니다');
+      // 다른 슬롯까지 덮어쓰지 않는다.
+      expect(notice(2)).toBeNull();
+      stage.close();
+    });
+
+    it('재생이 시작되면 안내를 지우고 타이머도 되돌린다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      sendFromSlot(state(1, false));
+      vi.advanceTimersByTime(11_000);
+      sendFromSlot(state(1, false));
+      expect(notice(1)).not.toBeNull();
+
+      sendFromSlot(state(1, true));
+      expect(notice(1)).toBeNull();
+
+      // 다시 꺼져도 처음부터 다시 센다 — 이전 경과가 남아 즉시 뜨면 안 된다.
+      sendFromSlot(state(1, false));
+      expect(notice(1)).toBeNull();
+      stage.close();
+    });
+  });
+
+  /**
+   * 🔴 사용자 보고 (2026-08-24): "멀티뷰에 들어갈 때 4개 요청을 한 번에 보내서 문제가 생기는 것 같다."
+   * 슬롯 프레임 `src` 는 순서대로 100ms 씩 벌려 대입한다.
+   */
+  describe('슬롯 로드 분산 (2026-08-24)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const srcOf = (slot: number) =>
+      document
+        .querySelector<HTMLIFrameElement>(
+          `#cm-multiview-stage .cm-slot[data-slot="${slot}"] iframe`,
+        )
+        ?.getAttribute('src') ?? null;
+
+    it('첫 슬롯만 즉시 출발하고 나머지는 100ms 씩 밀린다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+
+      expect(srcOf(1)).toContain('cmSlot=1');
+      expect(srcOf(2)).toBeNull();
+
+      vi.advanceTimersByTime(100);
+      expect(srcOf(2)).toContain('cmSlot=2');
+      stage.close();
+    });
+
+    it('출발 전에 닫으면 요청 자체를 내지 않는다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+
+      stage.close();
+      vi.advanceTimersByTime(1_000);
+
+      // 스테이지 컨테이너가 통째로 사라지므로 남은 타이머가 살아 있으면 안 된다.
+      expect(document.getElementById('cm-multiview-stage')).toBeNull();
+    });
+
+    it('src 를 대입하기 전의 about:blank load 는 로드 성공으로 세지 않는다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      const frame2 = document.querySelector<HTMLIFrameElement>(
+        '#cm-multiview-stage .cm-slot[data-slot="2"] iframe',
+      );
+
+      // 아직 src 가 없는 상태에서 load 가 와도 로드 타임아웃 시계가 시작되면 안 된다.
+      frame2?.dispatchEvent(new Event('load'));
+      vi.advanceTimersByTime(15_000);
+
+      const cell2 = document.querySelector('#cm-multiview-stage .cm-slot[data-slot="2"]');
+      // 슬롯 2 의 타임아웃은 100ms 늦게 걸리므로 15_000ms 시점엔 아직 재시도가 뜨지 않는다.
+      expect(cell2?.querySelector('.cm-slot__retry')).toBeNull();
+      stage.close();
+    });
+  });
+
   it('requestAudio 를 받으면 그 슬롯을 초점으로 승격한다 (오디오는 건드리지 않는다)', () => {
     const { stage, onActiveSlotChange } = openStage();
 
