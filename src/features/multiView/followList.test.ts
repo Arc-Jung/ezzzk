@@ -1,18 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildFollowingsUrl,
   buildLivesUrl,
   buildThumbnailUrl,
   parseLivePage,
   fetchFollowings,
   parseChannelInput,
   parseFollowings,
+  parseFollowingsPage,
   parseLoggedIn,
+  FOLLOWINGS_PAGE_SIZE,
   sortForSheet,
   type FollowChannel,
 } from './followList';
 
 const USER_STATUS_URL = 'https://comm-api.game.naver.com/nng_main/v1/user/getUserStatus';
-const FOLLOWINGS_URL = 'https://api.chzzk.naver.com/service/v1/channels/followings';
+/** 페이징이 붙은 실제 요청 URL (2026-08-24) — 테스트도 같은 빌더를 쓴다. */
+const followingsUrl = (page: number) => buildFollowingsUrl(page);
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -282,9 +286,7 @@ describe('fetchFollowings — 실패는 폴백 이유로 분류된다', () => {
     const spy = vi.fn(async () => new Response('{}', { status: 401 }));
     vi.stubGlobal('fetch', spy);
     await fetchFollowings();
-    expect(spy).toHaveBeenCalledWith('https://api.chzzk.naver.com/service/v1/channels/followings', {
-      credentials: 'include',
-    });
+    expect(spy).toHaveBeenCalledWith(followingsUrl(0), { credentials: 'include' });
   });
 });
 
@@ -327,7 +329,7 @@ describe('fetchFollowings — 비로그인이면 401 을 만들지 않는다 (�
     if (!result.ok) expect(result.reason).toBe('unauthorized');
     // 401 을 부르는 요청이 한 번도 나가지 않아야 한다 — 이게 콘솔 오류의 직접 원인이었다.
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).not.toHaveBeenCalledWith(FOLLOWINGS_URL, expect.anything());
+    expect(spy).not.toHaveBeenCalledWith(followingsUrl(0), expect.anything());
   });
 
   it('loggedIn: true 면 평소대로 팔로우 목록을 부른다', async () => {
@@ -351,7 +353,7 @@ describe('fetchFollowings — 비로그인이면 401 을 만들지 않는다 (�
     const result = await fetchFollowings();
 
     expect(result.ok).toBe(true);
-    expect(spy).toHaveBeenCalledWith(FOLLOWINGS_URL, { credentials: 'include' });
+    expect(spy).toHaveBeenCalledWith(followingsUrl(0), { credentials: 'include' });
   });
 
   it('로그인 상태를 알 수 없으면(조회 실패) 기존 경로로 진행한다', async () => {
@@ -365,7 +367,7 @@ describe('fetchFollowings — 비로그인이면 401 을 만들지 않는다 (�
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('unauthorized');
-    expect(spy).toHaveBeenCalledWith(FOLLOWINGS_URL, { credentials: 'include' });
+    expect(spy).toHaveBeenCalledWith(followingsUrl(0), { credentials: 'include' });
   });
 });
 
@@ -451,5 +453,114 @@ describe('parseLivePage', () => {
   it('형태가 전혀 다르면 빈 목록을 돌려준다 (던지지 않는다)', () => {
     expect(parseLivePage(null).channels).toEqual([]);
     expect(parseLivePage({ nope: 1 }).channels).toEqual([]);
+  });
+});
+
+/**
+ * 🔴 사용자 보고 (2026-08-24): "팔로잉 목록이 전부 표시되지 않고 누락된다."
+ * 예전에는 `/channels/followings` 를 파라미터 없이 **한 번만** 불러 서버 기본 페이지 크기까지만
+ * 받았다. 끝까지 넘겨 받고, 서버가 페이징을 무시해도 무한 루프에 빠지지 않아야 한다.
+ */
+describe('fetchFollowings — 페이지를 끝까지 넘겨 받는다 (2026-08-24)', () => {
+  const rows = (from: number, count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      channel: {
+        channelId: String(from + i).padStart(32, '0'),
+        channelName: `채널${from + i}`,
+        openLive: true,
+      },
+    }));
+  const page = (from: number, count: number, totalCount?: number) =>
+    new Response(
+      JSON.stringify({
+        content: { followingList: rows(from, count), ...(totalCount ? { totalCount } : {}) },
+      }),
+      { status: 200 },
+    );
+  const loggedIn = () =>
+    new Response(JSON.stringify({ content: { loggedIn: true } }), { status: 200 });
+
+  it('가득 찬 페이지가 이어지면 다음 페이지를 계속 부른다', async () => {
+    const spy = vi.fn(async (url: string) => {
+      if (url === USER_STATUS_URL) return loggedIn();
+      if (url === followingsUrl(0)) return page(0, FOLLOWINGS_PAGE_SIZE);
+      if (url === followingsUrl(1)) return page(FOLLOWINGS_PAGE_SIZE, 7);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal('fetch', spy);
+
+    const result = await fetchFollowings();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.channels).toHaveLength(FOLLOWINGS_PAGE_SIZE + 7);
+    expect(spy).toHaveBeenCalledWith(followingsUrl(1), { credentials: 'include' });
+  });
+
+  it('totalCount 를 다 모으면 더 부르지 않는다', async () => {
+    const spy = vi.fn(async (url: string) => {
+      if (url === USER_STATUS_URL) return loggedIn();
+      if (url === followingsUrl(0)) return page(0, FOLLOWINGS_PAGE_SIZE, FOLLOWINGS_PAGE_SIZE);
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal('fetch', spy);
+
+    const result = await fetchFollowings();
+
+    expect(result.ok).toBe(true);
+    expect(spy).not.toHaveBeenCalledWith(followingsUrl(1), expect.anything());
+  });
+
+  it('서버가 page 를 무시하고 같은 목록만 줘도 멈춘다 (무한 루프 방지)', async () => {
+    const spy = vi.fn(async (url: string) => {
+      if (url === USER_STATUS_URL) return loggedIn();
+      return page(0, FOLLOWINGS_PAGE_SIZE);
+    });
+    vi.stubGlobal('fetch', spy);
+
+    const result = await fetchFollowings();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.channels).toHaveLength(FOLLOWINGS_PAGE_SIZE);
+    // 로그인 조회 1 + 첫 페이지 + 새 항목이 없다고 확인한 두 번째 페이지 = 3
+    expect(spy).toHaveBeenCalledTimes(3);
+  });
+
+  it('두 번째 페이지가 실패해도 첫 페이지까지는 살린다', async () => {
+    const spy = vi.fn(async (url: string) => {
+      if (url === USER_STATUS_URL) return loggedIn();
+      if (url === followingsUrl(0)) return page(0, FOLLOWINGS_PAGE_SIZE);
+      throw new Error('offline');
+    });
+    vi.stubGlobal('fetch', spy);
+
+    const result = await fetchFollowings();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.channels).toHaveLength(FOLLOWINGS_PAGE_SIZE);
+  });
+});
+
+describe('parseFollowingsPage — 행 수·totalCount 를 함께 읽는다 (2026-08-24)', () => {
+  it('행 수와 totalCount 를 돌려준다', () => {
+    const parsed = parseFollowingsPage({
+      content: {
+        totalCount: 123,
+        followingList: [{ channel: { channelId: 'a'.repeat(32), channelName: 'x' } }],
+      },
+    });
+    expect(parsed?.rowCount).toBe(1);
+    expect(parsed?.totalCount).toBe(123);
+  });
+
+  it('channelId 없는 행은 버리되 행 수에는 남는다 (누락을 조용히 만들지 않는다)', () => {
+    const parsed = parseFollowingsPage({
+      content: { followingList: [{ channel: { channelName: '이름만' } }] },
+    });
+    expect(parsed?.rowCount).toBe(1);
+    expect(parsed?.channels).toHaveLength(0);
+  });
+
+  it('알 수 없는 형태는 null 이다', () => {
+    expect(parseFollowingsPage({ content: { surprise: true } })).toBeNull();
   });
 });
