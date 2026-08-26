@@ -326,9 +326,9 @@ export function Popup() {
         <section className="cm-section">
           <h2>단축키</h2>
           <p className="cm-shortcuts">
-            멀티뷰 열기 <b>Alt+M</b> · 오디오 슬롯 <b>Alt+Shift+1~4</b>
+            멀티뷰 열기 <b>Alt+M</b> · 초점 슬롯 <b>Alt+Shift+1~4</b>
             <br />
-            설정 패널 <b>Alt+,</b> · 볼륨 <b>Shift+↑/↓</b> · 채팅 프리셋 <b>Alt+1~9</b>
+            설정 패널 <b>Alt+,</b> · 볼륨 <b>Shift+↑/↓</b>
           </p>
           <button
             type="button"
