@@ -205,7 +205,7 @@ const SHOTS = [
   {
     key: 'config-sheet',
     file: (p) => `demo-${p}-multiview-config.png`,
-    caption: '멀티뷰 구성 시트 — 조작은 상단, 인기 방송 10개씩 추가 로드',
+    caption: '멀티뷰 구성 시트 — 조작은 상단, 인기 방송 30개씩 추가 로드',
     multiView: false,
     setup: async (page) => {
       await clickOurButton(page, '#cm-multiview-button');
