@@ -25,7 +25,7 @@ import { debounce, observe, type Disposer } from '../../utils/observe';
 import { info, warning } from '../../utils/log';
 import { findChatClient, readChatMessage } from '../../utils/reactFiber';
 import { MV_CHANNEL, parseMvMessage, slotFromAudioShortcut, type SlotToParent } from './messages';
-import { isUserInitiated } from './userIntent';
+import { isUserInitiatedStrict } from './userIntent';
 import {
   activateQualityItem,
   matchesTarget,
@@ -130,8 +130,13 @@ export function createSlotAudio(
     lastMuted = video.muted;
     // 볼륨만 바뀌어도 `volumechange` 가 온다 — 음소거가 실제로 풀린 경우만 승격 대상이다.
     if (wasMuted !== true || video.muted) return;
-    // 플레이어(또는 volumeFeature 의 자동 음소거 해제)가 스스로 바꾼 값이면 승격 요청을 보내지 않는다.
-    if (!isUserInitiated()) return;
+    /*
+     * 플레이어(또는 volumeFeature 의 자동 음소거 해제)가 스스로 바꾼 값이면 승격 요청을 보내지 않는다.
+     * 🔴 **엄격판**을 쓴다 — `isUserActivation.isActive` 만 보면 우리 자동재생 폴백의 합성 클릭이
+     * 만든 활성화에 걸려, 자동으로 푼 음소거가 매번 "사용자가 풀었다"로 올라가 초점 슬롯을
+     * 제멋대로 옮긴다 (실측 2026-08-27 `etc/probe/mv-unmute.json`).
+     */
+    if (!isUserInitiatedStrict()) return;
 
     const now = Date.now();
     if (now - lastRequestAt < PROMOTE_COOLDOWN_MS) return;
@@ -311,6 +316,14 @@ export function startSlotController(slot: SlotIndex): Disposer {
       case 'setChatLines':
         chatLines = message.lines;
         sendChat();
+        break;
+      /*
+       * 부모 프레임에서 사용자가 무언가를 눌렀다 → 프레임 안에 그대로 퍼뜨린다.
+       * `volume.ts` 의 음소거 해제 재시도가 이 이벤트를 기다린다 (`messages.ts` 주석 참조).
+       * 여기서 직접 `video.muted` 를 만지지 않는다 — 볼륨 담당은 `volumeFeature` 하나뿐이다.
+       */
+      case 'userGesture':
+        window.dispatchEvent(new Event(OURS.userGestureEvent));
         break;
     }
     post(readState(slot));

@@ -20,6 +20,9 @@ import {
   createSlotAudio,
   startSlotController,
 } from './slotFrame';
+import { OURS } from '../../constants/class';
+import { MV_CHANNEL } from './messages';
+import { resetInputTrackingForTests } from './userIntent';
 
 function mountVideo(): HTMLVideoElement {
   document.body.innerHTML = '<div id="live_player_layout"><video></video></div>';
@@ -34,16 +37,26 @@ function setMuted(video: HTMLVideoElement, next: boolean): void {
 }
 
 /** 클릭·키 입력 직후의 일시적 사용자 활성화. jsdom 에는 없으므로 심는다. */
+/**
+ * 사용자 조작 상태를 만든다.
+ *
+ * 🔴 브라우저 플래그만으로는 부족하다 — `isUserInitiatedStrict` 는 **실제 입력 이벤트**도
+ * 함께 요구한다. 우리 자동재생 폴백의 합성 클릭이 활성화 플래그를 만들어 자동 해제까지
+ * "사용자가 했다"로 오판했기 때문이다 (실측 2026-08-27 `etc/probe/mv-unmute.json`).
+ */
 function setUserActivation(isActive: boolean): void {
   Object.defineProperty(navigator, 'userActivation', {
     configurable: true,
     value: { isActive, hasBeenActive: isActive },
   });
+  resetInputTrackingForTests();
+  if (isActive) document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
 }
 
 afterEach(() => {
   document.body.innerHTML = '';
   Reflect.deleteProperty(navigator, 'userActivation');
+  resetInputTrackingForTests();
   vi.useRealTimers();
 });
 
@@ -246,6 +259,57 @@ describe('startSlotController — 슬롯 탭을 부모로 넘긴다', () => {
       expect(requests).toHaveLength(1);
       expect(requests[0]).toMatchObject({ dir: 's2p', kind: 'requestAudio', slot: 2 });
     } finally {
+      dispose();
+      parent.restore();
+    }
+  });
+
+  /**
+   * 🔴 사용자 보고 (2026-08-27): "멀티뷰 화면일 때 음소거 자동 해제가 적용되지 않는다."
+   *
+   * 슬롯은 각자 다른 프레임이라 사용자가 슬롯 1 을 눌러도 슬롯 2·3·4 에는 `click` 이 영영
+   * 오지 않는다 — 자동재생 정책에 걸려 음소거로 시작한 슬롯의 `volume.ts` 제스처 재시도가
+   * 깨어날 방법이 없었다. 부모가 자기 제스처를 중계하면 여기서 프레임 안에 퍼뜨린다.
+   */
+  it('부모가 보낸 userGesture 를 프레임 안 커스텀 이벤트로 퍼뜨린다', () => {
+    mountPlayer();
+    const parent = captureParentMessages();
+    const dispose = startSlotController(3);
+    const seen: Event[] = [];
+    const onGesture = (e: Event) => seen.push(e);
+    window.addEventListener(OURS.userGestureEvent, onGesture);
+    try {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: 'https://chzzk.naver.com',
+          data: { channel: MV_CHANNEL, dir: 'p2s', kind: 'userGesture', slot: 3 },
+        }),
+      );
+      expect(seen).toHaveLength(1);
+    } finally {
+      window.removeEventListener(OURS.userGestureEvent, onGesture);
+      dispose();
+      parent.restore();
+    }
+  });
+
+  it('다른 슬롯 앞으로 온 userGesture 는 무시한다', () => {
+    mountPlayer();
+    const parent = captureParentMessages();
+    const dispose = startSlotController(3);
+    const seen: Event[] = [];
+    const onGesture = (e: Event) => seen.push(e);
+    window.addEventListener(OURS.userGestureEvent, onGesture);
+    try {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: 'https://chzzk.naver.com',
+          data: { channel: MV_CHANNEL, dir: 'p2s', kind: 'userGesture', slot: 1 },
+        }),
+      );
+      expect(seen).toHaveLength(0);
+    } finally {
+      window.removeEventListener(OURS.userGestureEvent, onGesture);
       dispose();
       parent.restore();
     }

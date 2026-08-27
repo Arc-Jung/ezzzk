@@ -205,6 +205,16 @@ export const OURS = {
    * `chrome.runtime` 메시지(백그라운드 왕복)를 거칠 필요가 없다.
    */
   openSettingsEventName: 'cm-open-settings',
+  /**
+   * FR-02 — 부모(멀티뷰 스테이지)가 자기 프레임에서 받은 **사용자 제스처**를 슬롯 프레임으로
+   * 중계할 때 쓰는 `window` 커스텀 이벤트 이름 (2026-08-27).
+   *
+   * 🔴 슬롯은 각자 다른 프레임이라 사용자가 슬롯 A 를 눌러도 슬롯 B·C·D 의 `click` 리스너는
+   * 영영 조용하다 — 자동재생 정책에 걸려 음소거로 시작한 슬롯이 `volume.ts` 의 제스처 재시도를
+   * 기다리다 그대로 굳던 경로다. 부모가 `postMessage`(`multiView/messages.ts` 의 `userGesture`)
+   * 로 알리고, 슬롯 컨트롤러가 이 이벤트로 프레임 안에 퍼뜨린다.
+   */
+  userGestureEvent: 'cm-user-gesture',
   /** 최상위 z-index (목업 실측값) */
   topZIndex: 2147483647,
 } as const;

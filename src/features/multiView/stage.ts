@@ -62,6 +62,12 @@ const SLOT_RETRY_BACKOFF_MS = [2_000, 4_000];
  * **`src` 를 대입한 시점부터** 재므로 뒤쪽 슬롯이 대기 시간을 손해 보지도 않는다.
  */
 const SLOT_LOAD_STAGGER_MS = 100;
+
+/** 사용자 제스처 중계(`relayUserGesture`) 최소 간격. 연타·드래그를 슬롯 수만큼 곱하지 않는다. */
+const GESTURE_RELAY_THROTTLE_MS = 500;
+
+/** 중계 대상 입력. `userIntent.ts` 의 추적기와 같은 목록이다 (터치·마우스·키 전부). */
+const GESTURE_RELAY_EVENTS = ['pointerdown', 'touchstart', 'keydown'] as const;
 /**
  * 슬롯이 이 시간 이상 "재생 중 아님"으로 보고하면 안내를 띄운다.
  * 방송 시작 직후·광고 구간에도 잠깐 꺼져 보이므로 짧게 잡으면 정상 슬롯이 깜빡인다.
@@ -551,6 +557,8 @@ export class MultiViewStage {
   private focusDesired: SlotIndex = 1;
   private focusRegistered = new Set<SlotIndex>();
   private disposers: (() => void)[] = [];
+  /** 마지막으로 슬롯에 제스처를 중계한 시각. 스로틀용 (`relayUserGesture`). */
+  private lastGestureRelayAt = 0;
 
   constructor(
     private settings: Settings,
@@ -585,6 +593,7 @@ export class MultiViewStage {
     this.createBar();
     this.bindMessages();
     this.bindShortcuts();
+    this.bindUserGestureRelay();
 
     /**
      * 전체 화면 진입·이탈마다 채팅 폭을 다시 계산한다.
@@ -1247,6 +1256,13 @@ export class MultiViewStage {
       }
       /** 사용자가 이 슬롯의 음소거를 직접 풀었다 → 의도대로 활성 슬롯을 옮긴다. */
       if (message.kind === 'requestAudio') {
+        /*
+         * 🔴 이 메시지는 슬롯 프레임이 받은 `pointerdown` 도 그대로 실어 온다
+         * (`slotFrame.ts` 의 `onPointerDown`) — 즉 **사용자가 방금 조작했다**는 신호다.
+         * 부모 문서에는 그 입력이 도달하지 않으므로(iframe 이 삼킨다) `bindUserGestureRelay`
+         * 만으로는 이 경우를 놓친다. 여기서 나머지 슬롯에 중계해 음소거 해제 재시도를 깨운다.
+         */
+        this.relayUserGesture();
         if (this.getFocusedSlot() === message.slot) return;
         info(`slot ${message.slot} requested audio focus (unmuted by the user)`);
         this.setActiveSlot(message.slot);
@@ -1407,5 +1423,38 @@ export class MultiViewStage {
   private post(message: ParentToSlot): void {
     const frame = this.runtimes.get(message.slot)?.frame;
     frame?.contentWindow?.postMessage(message, 'https://chzzk.naver.com');
+  }
+
+  /**
+   * 부모 프레임의 사용자 제스처를 **모든 슬롯에** 알린다 (2026-08-27).
+   *
+   * 🔴 없으면 멀티뷰에서 음소거 자동 해제가 슬롯 단위로 굳는다. 자동재생 정책에 걸려 음소거로
+   * 시작한 슬롯의 `volume.ts` 는 "사용자 제스처가 오면 다시 해제"를 기다리는데, 제스처는
+   * **누른 그 프레임에만** 도달한다 — 사용자가 슬롯 1 을 눌러도 2·3·4 는 영영 깨어나지 않고,
+   * 스테이지 조작 바(부모 프레임)를 눌렀을 때는 **어떤 슬롯도** 깨어나지 않는다.
+   *
+   * 스로틀을 두는 이유: 드래그·연타로 초당 수십 번 오는 `pointerdown` 을 슬롯 4개에 그대로
+   * 곱하지 않는다. 재시도는 백오프를 갖고 있으므로 이 정도 해상도면 충분하다.
+   */
+  private relayUserGesture(): void {
+    const now = Date.now();
+    if (now - this.lastGestureRelayAt < GESTURE_RELAY_THROTTLE_MS) return;
+    this.lastGestureRelayAt = now;
+    for (const slot of this.runtimes.keys()) {
+      this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'userGesture', slot });
+    }
+  }
+
+  private bindUserGestureRelay(): void {
+    // 캡처 단계 + passive — 치지직·우리 UI 어느 쪽 조작도 방해하지 않는다.
+    const onInput = () => this.relayUserGesture();
+    for (const type of GESTURE_RELAY_EVENTS) {
+      document.addEventListener(type, onInput, { capture: true, passive: true });
+    }
+    this.disposers.push(() => {
+      for (const type of GESTURE_RELAY_EVENTS) {
+        document.removeEventListener(type, onInput, { capture: true });
+      }
+    });
   }
 }
