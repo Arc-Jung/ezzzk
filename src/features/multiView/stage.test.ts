@@ -302,6 +302,64 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   /**
+   * 🔴 사용자 보고 (2026-08-27): "멀티뷰 화면일 때 음소거 자동 해제가 적용되지 않는다."
+   *
+   * 슬롯마다 프레임이 달라 사용자 제스처는 **누른 그 프레임에만** 도달한다. 자동재생 정책에
+   * 걸려 음소거로 시작한 슬롯의 `volume.ts` 재시도는 제스처를 기다리는데, 다른 슬롯이나
+   * 스테이지 조작 바를 누르면 그 슬롯은 영영 깨어나지 않았다. 부모가 중계한다.
+   */
+  describe('사용자 제스처 중계 (2026-08-27)', () => {
+    const gestures = (post: ReturnType<typeof vi.spyOn>) =>
+      post.mock.calls
+        .map((call) => call[0] as { kind?: string })
+        .filter((m) => m.kind === 'userGesture');
+
+    it('부모 프레임의 입력을 모든 슬롯에 알린다', () => {
+      const { stage } = openStage();
+      const posts = spyOnSlotPosts();
+
+      document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+
+      expect(gestures(posts[0]!)).toHaveLength(1);
+      expect(gestures(posts[1]!)).toHaveLength(1);
+      stage.close();
+    });
+
+    it('슬롯이 넘긴 탭(requestAudio)도 나머지 슬롯을 깨운다 — 부모 문서에는 그 입력이 안 온다', () => {
+      const { stage } = openStage();
+      const posts = spyOnSlotPosts();
+
+      sendFromSlot(requestAudio(2));
+
+      expect(gestures(posts[0]!)).toHaveLength(1);
+      expect(gestures(posts[1]!)).toHaveLength(1);
+      stage.close();
+    });
+
+    it('연타는 스로틀로 묶는다 — 슬롯 수만큼 곱해서 보내지 않는다', () => {
+      const { stage } = openStage();
+      const posts = spyOnSlotPosts();
+
+      for (let i = 0; i < 10; i += 1) {
+        document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      }
+
+      expect(gestures(posts[0]!)).toHaveLength(1);
+      stage.close();
+    });
+
+    it('스테이지를 닫으면 더 이상 중계하지 않는다 (누수 방지)', () => {
+      const { stage } = openStage();
+      const posts = spyOnSlotPosts();
+      stage.close();
+
+      document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+
+      expect(gestures(posts[0]!)).toHaveLength(0);
+    });
+  });
+
+  /**
    * 초점(오디오 아님) 개념 자체는 남아 있다는 걸 확인한다 — 비활성 슬롯 화질 하향은
    * 초록 아웃라인이 없어져도 여전히 초점 슬롯 기준으로 동작해야 한다.
    */

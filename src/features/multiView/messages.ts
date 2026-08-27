@@ -39,7 +39,17 @@ export type ParentToSlot =
       kind: 'setChatLines';
       slot: SlotIndex;
       lines: number;
-    };
+    }
+  /**
+   * 부모 프레임에서 **사용자 제스처**가 있었다 (2026-08-27).
+   *
+   * 🔴 슬롯마다 프레임이 다르다 — 사용자가 슬롯 1 을 눌러도 슬롯 2·3·4 의 `click` 리스너는
+   * 영영 깨어나지 않는다. 자동재생 정책에 걸려 음소거로 시작한 슬롯은 `volume.ts` 의 제스처
+   * 재시도를 기다리다 그대로 굳었다 (사용자 보고 2026-08-27 "멀티뷰에서 음소거 자동 해제가
+   * 적용되지 않는다"). 부모가 자기 프레임의 제스처를 **모든 슬롯에** 알려 재시도를 깨운다.
+   * 슬롯 컨트롤러는 이걸 받아 `OURS.userGestureEvent` 커스텀 이벤트로 프레임 안에 퍼뜨린다.
+   */
+  | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'userGesture'; slot: SlotIndex };
 
 /** `Alt+Shift+1~4` 로 눌린 슬롯 번호. 대상이 아니면 null. 부모·슬롯 양쪽에서 쓴다. */
 export function slotFromAudioShortcut(event: KeyboardEvent): SlotIndex | null {

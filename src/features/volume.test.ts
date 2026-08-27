@@ -4,6 +4,7 @@ import { DEVICE_PROFILES } from '../constants/device';
 import { DEFAULT_SETTINGS, STORAGE_KEY, type Settings } from '../constants/storage';
 import { resetAllSettings } from '../storage';
 import { auditIconButtons } from '../ui/iconButtonAudit.test-utils';
+import { resetInputTrackingForTests } from './multiView/userIntent';
 import type { FeatureContext } from './types';
 import {
   VOLUME_STORAGE_KEYS,
@@ -1029,6 +1030,223 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
     expect(button?.getAttribute('aria-pressed')).toBe('false');
     expect(button?.dataset.enabled).toBe('false');
 
+    dispose?.();
+  });
+});
+
+/**
+ * 🔴 사용자 요청 (2026-08-27) 두 건을 함께 고정한다.
+ *
+ * ① `−`/`+` 로 볼륨을 조절했는데 음소거 상태면 **음소거부터 푼다.** 안 그러면 슬라이더 숫자만
+ *    올라가고 소리는 그대로라 사용자에게는 고장으로 보인다.
+ * ② **멀티뷰에서 음소거 자동 해제가 적용되지 않는다.** 슬롯은 `player-volume-muted` 를 쓰지
+ *    않으므로(전역 오염 방지, 2026-08-23) 호스트가 남긴 `true` 를 물려받고, 치지직 플레이어가
+ *    리렌더·재접속 시점에 스스로 다시 음소거로 되돌린다. 예전 구현은 초기 적용 이후 아무도
+ *    이걸 보지 않았고, 2회 실패하면 그 페이지에서 영구 포기라 되돌릴 방법도 없었다.
+ */
+describe('volumeFeature — 음소거 해제: 조절 시 해제 · 되돌려지면 재시도 (2026-08-27)', () => {
+  function ctxWith(patch: Partial<Settings['volume']>, isSlotFrame = false): FeatureContext {
+    return {
+      page: { type: 'live', channelId: 'd'.repeat(32), videoNo: null, isSlotFrame },
+      device: {
+        deviceClass: 'desktop',
+        profile: DEVICE_PROFILES.desktop,
+        signals: {
+          longSide: 1920,
+          shortSide: 1080,
+          hasTouch: false,
+          canHover: true,
+          coarsePointer: false,
+          devicePixelRatio: 1,
+          uaMobile: null,
+        },
+        reason: 'test fixture',
+      },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        volume: { ...DEFAULT_SETTINGS.volume, ...patch },
+      },
+    };
+  }
+
+  function mountPlayer(): HTMLElement {
+    const layout = document.createElement('div');
+    layout.id = 'live_player_layout';
+    const root = document.createElement('div');
+    root.className = 'pzp-pc';
+    const bar = document.createElement('div');
+    bar.className = 'pzp-pc__bottom-buttons-right';
+    root.appendChild(bar);
+    layout.appendChild(root);
+    document.body.appendChild(layout);
+    return root;
+  }
+
+  function addVideo(root: HTMLElement, muted: boolean): HTMLVideoElement {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    video.muted = muted;
+    root.appendChild(video);
+    return video;
+  }
+
+  /** jsdom 은 `muted` 대입으로 `volumechange` 를 쏘지 않는다 — 실제 브라우저 동작을 흉내낸다. */
+  function setMuted(video: HTMLVideoElement, next: boolean): void {
+    if (video.muted === next) return;
+    video.muted = next;
+    video.dispatchEvent(new Event('volumechange'));
+  }
+
+  const buttonBy = (label: string): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>(`#cm-volume-control [aria-label="${label}"]`);
+  const shownLabel = (): string | null =>
+    document.querySelector('#cm-volume-control .cm-volume-value')?.textContent ?? null;
+
+  beforeEach(() => {
+    // 사용자 활성화 없음 = 플레이어가 스스로 한 조작으로 판정된다 (`isUserInitiatedStrict`).
+    Reflect.deleteProperty(navigator, 'userActivation');
+    resetInputTrackingForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('`+` 를 누르면 음소거가 먼저 풀린다 (자동 해제를 꺼 둔 사용자도 마찬가지)', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: false }));
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(video.muted).toBe(true);
+    expect(shownLabel()).toBe('음소거');
+
+    buttonBy('볼륨 높이기')?.click();
+
+    expect(video.muted).toBe(false);
+    expect(video.volume).toBeCloseTo(0.6);
+    expect(shownLabel()).toBe('60%');
+
+    dispose?.();
+  });
+
+  it('`−` 도 똑같이 음소거를 푼다 — 볼륨만 내려가고 소리가 안 나는 상태를 만들지 않는다', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: false }));
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    buttonBy('볼륨 낮추기')?.click();
+
+    expect(video.muted).toBe(false);
+    expect(shownLabel()).toBe('40%');
+
+    dispose?.();
+  });
+
+  it('🔴 플레이어가 스스로 다시 음소거하면 재시도해서 다시 푼다 (멀티뷰 슬롯 증상)', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: true }, true));
+    await vi.advanceTimersByTimeAsync(3_000);
+    // 초기 자동 해제는 성공한다.
+    expect(video.muted).toBe(false);
+
+    // 슬롯 안 치지직 플레이어가 리렌더·재접속으로 저장값(muted:true)을 되살린다.
+    setMuted(video, true);
+    // 예전 구현은 여기서 끝이었다 — 아무도 다시 보지 않았다.
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(video.muted).toBe(false);
+    dispose?.();
+  });
+
+  it('되돌려지기를 반복해도 상한에서 멈춘다 — 무한 재시도 금지', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: true }, true));
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    for (let i = 0; i < 20; i += 1) {
+      setMuted(video, true);
+      await vi.advanceTimersByTimeAsync(6_000);
+    }
+
+    expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+      'waiting for a user gesture',
+    );
+    dispose?.();
+  });
+
+  /**
+   * 🔴 실측 2026-08-27 (`etc/tmp/probe-mv-unmute.mjs`): `navigator.userActivation.isActive` **하나로는**
+   * 가를 수 없다 — 우리 자동재생 폴백이 재생 버튼을 `click()` 하는 순간 그 프레임에 활성화가
+   * 생겨, 아무도 아무것도 누르지 않은 슬롯의 음소거까지 "사용자가 했다"로 판정됐다(재시도가
+   * 한 번도 걸리지 않은 원인). 브라우저 판정 + **우리가 관측한 실입력** 둘 다 있어야 인정한다.
+   */
+  it('사용자가 직접 건 음소거는 되돌리지 않는다 (실입력 + 일시적 사용자 활성화)', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: true }, true));
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(video.muted).toBe(false);
+
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { isActive: true, hasBeenActive: true },
+    });
+    // 실제 입력도 함께 있어야 한다 — 활성화 플래그만으로는 인정하지 않는다.
+    document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    setMuted(video, true);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(video.muted).toBe(true);
+    dispose?.();
+  });
+
+  it('입력 없이 활성화 플래그만 참이면 사용자 조작으로 인정하지 않는다 (합성 클릭 오염)', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: true }, true));
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    // 우리 자동재생 폴백의 `button.click()` 이 만드는 상태를 그대로 흉내낸다.
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { isActive: true, hasBeenActive: true },
+    });
+    setMuted(video, true);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(video.muted).toBe(false);
+    dispose?.();
+  });
+
+  /**
+   * 🔴 멀티뷰가 열려 있는 **호스트 페이지**에서는 자동 해제를 하지 않는다.
+   * `multiView/hostPlayer.ts` 가 소리 겹침(FR-14)을 막으려 일부러 음소거해 둔 상태라,
+   * 여기서 풀면 슬롯 소리 위에 원본 소리가 겹쳐 난다.
+   */
+  it('멀티뷰 스테이지가 떠 있는 호스트 페이지에서는 자동 해제를 하지 않는다', async () => {
+    vi.useFakeTimers();
+    const stage = document.createElement('div');
+    stage.id = 'cm-multiview-stage';
+    document.body.appendChild(stage);
+
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: true }, false));
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(video.muted).toBe(true);
     dispose?.();
   });
 });

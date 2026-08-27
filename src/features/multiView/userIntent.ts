@@ -16,6 +16,81 @@ export function isUserInitiated(): boolean {
 }
 
 /**
+ * 실제 사용자 입력을 "방금 있었다"로 보는 창(ms). 브라우저의 일시적 활성화(약 5초)보다 짧게
+ * 잡는다 — 활성화 창 끝자락에 플레이어가 스스로 되돌린 상태까지 사용자 몫으로 넘기지 않는다.
+ */
+const REAL_INPUT_WINDOW_MS = 2_000;
+
+let lastRealInputAt = 0;
+let syntheticDepth = 0;
+let inputTrackerInstalled = false;
+
+/**
+ * 실입력 추적기를 이 프레임에 한 번만 설치한다.
+ *
+ * 캡처 단계 + passive 라 어떤 조작도 막지 않고, 하는 일은 타임스탬프 대입 하나뿐이다
+ * (NFR-04 의 관심사인 옵저버 깨우기와는 성격이 다르다). 프레임 수명과 함께 가므로 떼지 않는다.
+ *
+ * 🔴 **모듈 로드 시점에 설치한다** (파일 맨 아래 즉시 호출). 첫 사용처에서 늦게 설치하면
+ * 그 전에 일어난 입력을 통째로 놓쳐, **사용자의 첫 조작이 "우리가 한 것"으로 오판된다** —
+ * 예: 사용자가 페이지에서 처음 누른 것이 음소거 버튼이면 우리가 곧바로 다시 풀어 싸운다.
+ */
+function ensureInputTracker(): void {
+  if (inputTrackerInstalled) return;
+  inputTrackerInstalled = true;
+  const onInput = () => {
+    if (syntheticDepth > 0) return;
+    lastRealInputAt = Date.now();
+  };
+  for (const type of ['pointerdown', 'touchstart', 'keydown'] as const) {
+    document.addEventListener(type, onInput, { capture: true, passive: true });
+  }
+}
+
+// 첫 입력을 놓치지 않도록 로드 즉시 건다 (위 주석 참조).
+ensureInputTracker();
+
+/**
+ * 우리가 합성 입력(`element.click()` 등)을 쏘는 구간을 감싼다. 그 안에서 발생한 입력은
+ * 사용자 조작으로 세지 않는다.
+ */
+export function markSyntheticInput<T>(run: () => T): T {
+  ensureInputTracker();
+  syntheticDepth += 1;
+  try {
+    return run();
+  } finally {
+    syntheticDepth -= 1;
+  }
+}
+
+/**
+ * `isUserInitiated()` 의 **엄격판**. 브라우저 판정과 우리가 직접 관측한 실입력을 모두 요구한다.
+ *
+ * 🔴 실측 확정 (2026-08-27, `etc/tmp/probe-mv-unmute.mjs`): `userActivation.isActive` 하나로는
+ * 못 가른다 — **우리 자신의 합성 클릭이 활성화를 만든다.** 자동재생 폴백이 재생 버튼을
+ * `click()` 하는 순간 그 프레임이 활성 상태가 되어, 아무도 아무것도 누르지 않은 슬롯의
+ * 음소거까지 "사용자가 했다"로 판정됐다 — 멀티뷰에서 음소거 자동 해제 재시도가 **한 번도
+ * 걸리지 않은** 직접 원인이다. 같은 오염을 `hasBeenActive` 에 대해서는 2026-08-19 실측이 이미
+ * 기록해 뒀다(`volume.ts` `rescueBlockedAutoplay` 주석 ①) — `isActive` 도 같은 함정이 있다.
+ */
+export function isUserInitiatedStrict(): boolean {
+  ensureInputTracker();
+  if (!isUserInitiated()) return false;
+  return lastRealInputAt > 0 && Date.now() - lastRealInputAt <= REAL_INPUT_WINDOW_MS;
+}
+
+/**
+ * 테스트 전용 — 프레임 수명과 함께 가는 모듈 상태를 초기화한다.
+ * 가짜 타이머를 쓰는 테스트는 파일 안에서 시계가 앞뒤로 움직이므로, 앞 테스트가 남긴
+ * 입력 시각이 다음 테스트의 판정을 오염시킨다. 프로덕션 경로에서는 부르지 않는다.
+ */
+export function resetInputTrackingForTests(): void {
+  lastRealInputAt = 0;
+  syntheticDepth = 0;
+}
+
+/**
  * 일시적 사용자 활성화가 유지되는 창(ms). 브라우저 구현(약 5초)에 맞춘 자체 상한이다.
  * `userActivation.isActive` 만으로는 "언제 눌렀는지"를 알 수 없어 우리가 따로 잰다.
  */

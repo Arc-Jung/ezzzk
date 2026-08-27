@@ -40,6 +40,7 @@ import { ACCENT } from '../ui/tokens';
 import { normalizeText, qs, qsVisible, sleep } from '../utils/dom';
 import { guard, guardAsync, info, warning } from '../utils/log';
 import { debounce, observe, type Disposer } from '../utils/observe';
+import { isUserInitiatedStrict, markSyntheticInput } from './multiView/userIntent';
 import {
   MAX_BOOST_PERCENT,
   applyBoost,
@@ -240,6 +241,37 @@ const AUTOPLAY_RESCUE_MAX_TRIES = 3;
  */
 const AUTOPLAY_RESCUE_WINDOW_MS = 20_000;
 
+/**
+ * 음소거 자동 해제 재시도 상한. 상한을 넘기면 자동 재시도를 멈추고 **사용자 제스처 대기**로
+ * 내려앉는다 (영구 포기가 아니다 — `scheduleUnmuteRetry` 주석 참조).
+ */
+const UNMUTE_MAX_ATTEMPTS = 8;
+
+/**
+ * 재시도 간격(ms). 지수 백오프 후 5초에서 멈춘다. 마지막 값은 상한까지 반복해서 쓴다.
+ * 앞쪽을 짧게 둔 이유: 슬롯 진입 직후 치지직이 스스로 음소거를 되돌리는 구간이 수백 ms 안이다.
+ */
+const UNMUTE_RETRY_DELAYS_MS = [400, 800, 1_600, 3_200, 5_000] as const;
+
+/**
+ * 부모(멀티뷰 스테이지)가 자기 프레임에서 받은 사용자 제스처를 슬롯으로 중계할 때 쓰는
+ * 커스텀 이벤트. 슬롯 컨트롤러(`multiView/slotFrame.ts`)가 받아 `window` 에 발화시킨다.
+ * `constants/class.ts` 의 `OURS.userGestureEvent` 와 같은 문자열을 쓴다.
+ */
+const USER_GESTURE_EVENT = OURS.userGestureEvent;
+
+/**
+ * **호스트 페이지**에서 멀티뷰가 원본 플레이어를 일부러 음소거해 둔 상태인가.
+ *
+ * 🔴 이 판정이 없으면 새 재시도 로직이 `multiView/hostPlayer.ts` 의 `suspendHostPlayer` 와
+ * 정면으로 싸운다 — 저쪽은 소리 겹침을 막으려 호스트를 계속 음소거로 유지하는데, 이쪽이
+ * 그때마다 다시 풀면 슬롯 소리 위에 원본 소리가 겹쳐 난다(FR-14 가 막으려던 바로 그 증상).
+ * 슬롯 프레임 안에는 스테이지가 없으므로 슬롯의 자동 해제는 그대로 살아 있다.
+ */
+function hostMutedByMultiView(): boolean {
+  return document.getElementById(OURS.multiViewStageId) !== null;
+}
+
 function writeVolumeStorage(percent: number, muted: boolean): void {
   const values = volumeStorageValues(percent, muted);
   try {
@@ -297,6 +329,8 @@ export const volumeFeature: Feature = {
     /** 현재 `video` 에 붙은 시각. 폴백은 붙은 직후 창 안에서만 시도한다. */
     let attachedAt = 0;
     let unmuteAttempts = 0;
+    /** 대기 중인 음소거 해제 재시도. 한 번에 하나만 둔다 (중복 예약 금지). */
+    let unmuteTimer: ReturnType<typeof setTimeout> | undefined;
     let percent = clampVolumePercent(
       ctx.settings.volume.restoreLast
         ? ctx.settings.volume.lastLevel
@@ -454,6 +488,31 @@ export const volumeFeature: Feature = {
       if (persistToSettings) persist(percent);
     };
 
+    /**
+     * `−`/`+`(와 `Shift+↑`/`Shift+↓`)로 볼륨을 조절할 때 **음소거를 먼저 푼다**
+     * (사용자 요청 2026-08-27: 음소거 상태에서 볼륨을 올려도 소리가 안 나서 고장으로 보인다).
+     *
+     * - 이 경로는 **항상 사용자 제스처**다 → 자동재생 정책이 소리를 막지 않는다. 그래서
+     *   `attemptUnmute` 의 조심스러운 절차(150ms 대기 → 다시 멈췄으면 되돌리기)가 필요 없다.
+     * - 같은 이유로 자동재생을 살리려고 걸어 둔 잠금(`mutedForAutoplay`)도 여기서 내린다.
+     *   내리지 않으면 이후 `attemptUnmute` 가 계속 즉시 반환해 음소거로 굳는다.
+     * - `video.muted` 대입만으로 치지직 UI(볼륨 버튼 `aria-label`·슬라이더)가 따라온다
+     *   (파일 머리말 실측 §3.3) → 네이티브 버튼을 합성 클릭하지 않는다.
+     * - 저장은 `setPercent` 가 이어서 한다 (`persistNative(…, video.muted)` — 이미 false 다).
+     */
+    const unmuteForAdjust = () => {
+      if (!isMuted()) return;
+      mutedForAutoplay = false;
+      if (video) video.muted = false;
+      info('unmuted because the user adjusted the volume');
+    };
+
+    /** `−`/`+` 와 단축키가 공유하는 조절 경로. 음소거 해제 → 증감 순서를 지킨다. */
+    const nudgeVolume = (direction: 1 | -1) => {
+      unmuteForAdjust();
+      setPercent(stepVolume(percent, direction, step));
+    };
+
     const makeButton = (icon: IconName, ariaLabel: string, onPress: () => void): HTMLElement => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -527,9 +586,7 @@ export const volumeFeature: Feature = {
         'flex:0 0 auto',
       ].join(';');
 
-      const minus = makeButton('minus', '볼륨 낮추기', () =>
-        setPercent(stepVolume(percent, -1, step)),
-      );
+      const minus = makeButton('minus', '볼륨 낮추기', () => nudgeVolume(-1));
       const value = document.createElement('span');
       value.className = 'cm-volume-value';
       value.setAttribute('aria-live', 'polite');
@@ -540,9 +597,7 @@ export const volumeFeature: Feature = {
         'font-size:12px',
         'font-variant-numeric:tabular-nums',
       ].join(';');
-      const plus = makeButton('plus', '볼륨 높이기', () =>
-        setPercent(stepVolume(percent, 1, step)),
-      );
+      const plus = makeButton('plus', '볼륨 높이기', () => nudgeVolume(1));
       const compressorButton = makeIconButton(COMPRESSOR_ICON_MARKUP, '음량 평탄화 켜기', () =>
         toggleCompressor(),
       );
@@ -640,9 +695,7 @@ export const volumeFeature: Feature = {
         if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
         if (isTextEntry(e.target)) return;
         e.preventDefault();
-        guard('volume:shortcut', () =>
-          setPercent(stepVolume(percent, e.key === 'ArrowUp' ? 1 : -1, step)),
-        );
+        guard('volume:shortcut', () => nudgeVolume(e.key === 'ArrowUp' ? 1 : -1));
       };
       window.addEventListener('keydown', onKeyDown, true);
       disposers.push(() => window.removeEventListener('keydown', onKeyDown, true));
@@ -652,6 +705,12 @@ export const volumeFeature: Feature = {
     const attemptUnmute = async (): Promise<boolean> => {
       // 음소거로 겨우 재생을 살린 상태다 — 사용자 제스처 전에는 소리를 켜지 않는다.
       if (mutedForAutoplay) return false;
+      /*
+       * 🔴 멀티뷰가 호스트 플레이어를 일부러 음소거해 둔 상태에서는 어떤 경로로도 풀지 않는다.
+       * 제스처 재시도 핸들러가 이 함수를 직접 부르므로 `scheduleUnmuteRetry` 의 가드만으로는
+       * 새지 않는다는 보장이 없다 — 여기가 유일한 길목이라 여기서 한 번 더 막는다.
+       */
+      if (hostMutedByMultiView()) return false;
       // ⚠️ `await` 를 사이에 두므로 요소 참조를 지역에 고정한다 — 그 사이 교체되면 옛 요소를
       //    건드리게 되고, 새 요소는 재부착 경로가 다시 처리한다.
       const el = video;
@@ -661,7 +720,8 @@ export const volumeFeature: Feature = {
 
       const wasPlaying = !el.paused;
       el.muted = false;
-      el.volume = percentToUnit(percent);
+      // 🔴 요소에는 100% 까지만 넣는다 — `video.volume = 1.5` 는 IndexSizeError 다 (실측 2026-08-20).
+      el.volume = percentToElementUnit(percent);
       persistNative(percent, false);
       await sleep(150);
 
@@ -681,38 +741,125 @@ export const volumeFeature: Feature = {
       return true;
     };
 
+    /**
+     * 사용자 제스처를 기다렸다가 다시 해제한다.
+     *
+     * 🔴 **다시 걸 수 있어야 한다.** 예전 구현은 한 번 실패하면 `warning` 만 남기고 끝이라,
+     * 제스처 한 번으로 안 풀리면(그 클릭이 슬롯 iframe 밖이었다거나, 플레이어가 곧바로 다시
+     * 음소거를 되돌렸다거나) 그 페이지에서는 영영 음소거였다. 실패하면 백오프 재시도로 넘긴다.
+     */
+    let gestureArmed = false;
     const armGestureRetry = () => {
-      if (disposed) return;
+      if (disposed || gestureArmed) return;
+      gestureArmed = true;
       const handler = () => {
         detach();
         void guardAsync('volume:unmute-retry', async () => {
           // 사용자가 조작했다 → 이제 소리를 켜도 브라우저가 막지 않는다.
           mutedForAutoplay = false;
           const ok = await attemptUnmute();
-          if (!ok) warning('auto unmute gave up after user-gesture retry (autoplay policy)');
+          if (!ok) scheduleUnmuteRetry('after user gesture');
           render();
         });
       };
       const detach = () => {
+        gestureArmed = false;
         window.removeEventListener('click', handler, true);
         window.removeEventListener('keydown', handler, true);
+        window.removeEventListener(USER_GESTURE_EVENT, handler, true);
       };
       window.addEventListener('click', handler, true);
       window.addEventListener('keydown', handler, true);
+      /*
+       * 🔴 멀티뷰 슬롯은 **자기 프레임 안에서 클릭이 일어나지 않는다.** 사용자가 다른 슬롯을
+       * 누르면 그 프레임만 활성화를 받고 나머지 슬롯의 `click` 리스너는 영영 조용하다 —
+       * 멀티뷰에서 음소거가 안 풀린 채로 남던 경로다. 부모 스테이지가 자기 제스처를 슬롯
+       * 전체에 중계하면(`multiView/messages.ts` 의 `userGesture`) 여기서 함께 깨어난다.
+       */
+      window.addEventListener(USER_GESTURE_EVENT, handler, true);
       disposers.push(detach);
     };
+
+    /**
+     * 음소거 자동 해제 재시도.
+     *
+     * 🔴 예전에는 **2회 실패 = 그 페이지에서 영구 포기**였다. 멀티뷰에서 이게 그대로 드러났다:
+     * 슬롯은 매번 새로 로드되는 페이지라 초기 두 번이 자동재생 정책에 걸려 소진되기 쉽고,
+     * 슬롯 안 치지직 플레이어는 `localStorage['player-volume-muted']` 를 읽어 **나중에 스스로
+     * 다시 음소거**하기도 한다(슬롯은 전역 오염을 피하려 이 키를 쓰지 않으므로 호스트가 남긴
+     * 값을 그대로 물려받는다 — 파일 머리말 §🔴 참조). 두 경우 모두 재시도가 없으면 끝이다.
+     *
+     * → 지수 백오프로 상한(`UNMUTE_MAX_ATTEMPTS`)까지 다시 시도하고, 그마저 소진되면
+     *   **사용자 제스처 대기로 넘긴다** — 포기하지 않고 값싼 대기 상태로 내려앉는다.
+     */
+    const scheduleUnmuteRetry = (reason: string) => {
+      if (disposed) return;
+      /*
+       * 🔴 판정 근거를 남긴다 (프로젝트 규칙 — 디버그 로그로 "왜 그 값이 됐는가"를 볼 수 있어야
+       * 한다). 실측 2026-08-27 1차 프로브에서 재시도가 **한 번도 걸리지 않았는데** 로그가 없어
+       * 어느 가드에서 멈췄는지 코드만 보고는 좁힐 수 없었다.
+       */
+      if (!ctx.settings.volume.autoUnmute) {
+        info(`unmute retry skipped (${reason}): auto unmute is off`);
+        return;
+      }
+      // 호스트 플레이어를 멀티뷰가 일부러 음소거해 둔 상태다 — 여기서 풀면 소리가 겹친다.
+      if (hostMutedByMultiView()) {
+        info(`unmute retry skipped (${reason}): multiview keeps the host player muted`);
+        return;
+      }
+      /*
+       * 🔴 자동재생을 살리려고 **우리가** 건 음소거는 시간이 지난다고 풀리지 않는다
+       * (풀면 브라우저가 곧바로 다시 멈춘다). 이때 백오프를 걸면 `attemptUnmute` 가 시도
+       * 횟수를 올리지 않고 즉시 false 를 돌려주므로 상한에 영원히 닿지 않는 무한 타이머가 된다.
+       * 이 상태의 주인은 제스처 재시도다.
+       */
+      if (mutedForAutoplay) {
+        info(`unmute retry deferred (${reason}): muted to keep blocked autoplay alive`);
+        armGestureRetry();
+        return;
+      }
+      if (unmuteTimer !== undefined) return;
+      if (unmuteAttempts >= UNMUTE_MAX_ATTEMPTS) {
+        // 자동 재시도는 끝났지만 사용자가 무언가를 누르면 그때 한 번 더 해 본다.
+        warning(
+          `auto unmute still blocked after ${unmuteAttempts} attempts (${reason}); waiting for a user gesture`,
+        );
+        armGestureRetry();
+        return;
+      }
+      const delay =
+        UNMUTE_RETRY_DELAYS_MS[Math.min(unmuteAttempts, UNMUTE_RETRY_DELAYS_MS.length - 1)] ??
+        5_000;
+      info(`unmute retry #${unmuteAttempts + 1} in ${delay}ms (${reason})`);
+      unmuteTimer = setTimeout(() => {
+        unmuteTimer = undefined;
+        void guardAsync('volume:unmute-retry', async () => {
+          if (disposed || !video) return;
+          if (!isMuted()) return;
+          const ok = await attemptUnmute();
+          if (!ok) scheduleUnmuteRetry(reason);
+          render();
+        });
+      }, delay);
+    };
+    disposers.push(() => {
+      if (unmuteTimer !== undefined) clearTimeout(unmuteTimer);
+      unmuteTimer = undefined;
+    });
 
     const applyAll = async () => {
       // 초기·재적용에서는 저장하지 않는다 (위 무한 루프 주석 참조).
       setPercent(percent, false);
-      if (!ctx.settings.volume.autoUnmute || !isMuted()) {
+      if (!ctx.settings.volume.autoUnmute || hostMutedByMultiView() || !isMuted()) {
         render();
         return;
       }
       const ok = await attemptUnmute();
+      // 실패했으면 제스처 대기 + 백오프 재시도를 **함께** 건다. 어느 쪽이 먼저 성공해도 된다.
       if (!ok) {
-        if (unmuteAttempts < 2) armGestureRetry();
-        else warning('auto unmute failed twice, giving up (autoplay policy)');
+        armGestureRetry();
+        scheduleUnmuteRetry('initial apply failed');
       }
       render();
     };
@@ -726,7 +873,8 @@ export const volumeFeature: Feature = {
         await sleep(800);
         if (disposed || !video) return;
         const drifted = unitToPercent(video.volume) !== percent;
-        const stillMuted = ctx.settings.volume.autoUnmute && isMuted() && unmuteAttempts < 2;
+        const stillMuted =
+          ctx.settings.volume.autoUnmute && isMuted() && unmuteAttempts < UNMUTE_MAX_ATTEMPTS;
         if (drifted || stillMuted) await applyAll();
       });
     };
@@ -780,7 +928,12 @@ export const volumeFeature: Feature = {
       autoplayRescueTries += 1;
       el.muted = true;
       mutedForAutoplay = true;
-      button.click();
+      /*
+       * 🔴 이 합성 클릭은 **프레임에 일시적 사용자 활성화를 만든다.** 표시해 두지 않으면
+       * 바로 다음 `volumechange` 가 "사용자가 음소거했다"로 오판돼 자동 해제 재시도가 통째로
+       * 막힌다 (실측 2026-08-27 — 멀티뷰 슬롯에서 실제로 그랬다).
+       */
+      markSyntheticInput(() => button.click());
       /*
        * 버튼만으로 안 붙는 경우가 있다 (실측: 클릭 뒤 `readyState` 는 4가 됐는데 여전히 paused).
        * 스트림이 붙은 뒤라면 음소거 재생은 정책상 허용되므로 직접 한 번 더 밀어 준다.
@@ -802,6 +955,20 @@ export const volumeFeature: Feature = {
       if (!el.muted && observed !== percent) {
         percent = observed;
         persist(percent);
+      }
+      /*
+       * 🔴 **플레이어가 스스로 음소거를 되돌린 경우**를 여기서 잡는다 (멀티뷰 슬롯의 주 증상).
+       * 슬롯은 `localStorage['player-volume-muted']` 를 쓰지 않으므로 호스트가 남긴 `true` 를
+       * 물려받아, 초기 해제에 성공한 뒤에도 리렌더·재접속 시점에 다시 음소거로 돌아간다.
+       * 예전 구현은 초기 적용 이후로는 아무도 이걸 보지 않아 그대로 굳었다.
+       *
+       * ⚠️ 사용자가 직접 건 음소거(`m` 키·볼륨 버튼)는 되돌리지 않는다 — 일시적 사용자
+       * 활성화(`isUserInitiated`)로 가른다. 자동재생 때문에 우리가 건 음소거도 건너뛴다
+       * (`mutedForAutoplay`, 제스처 재시도가 담당한다).
+       */
+      if (el.muted && ctx.settings.volume.autoUnmute) {
+        if (isUserInitiatedStrict()) info('stayed muted: the user muted it, not the player');
+        else scheduleUnmuteRetry('player re-muted itself');
       }
       render();
     };
