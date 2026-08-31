@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "이지직 - 치지직 개선 익스텐션 — ezzzk",
   "description": "네이버·치지직과 무관한 비공식 서드파티 확장. 시청 화면의 화질·볼륨·레이아웃·채팅 표시 설정을 지정한 값으로 자동 적용합니다.",
-  "version": "0.1.52",
+  "version": "0.1.53",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
