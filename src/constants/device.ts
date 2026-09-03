@@ -30,6 +30,16 @@ export type DeviceProfile = {
   chatRatioPortrait: number | null;
   /** FR-03 볼륨 컨트롤 상시 노출 여부 */
   volumeAlwaysVisible: boolean;
+  /**
+   * FR-03 볼륨 컨트롤을 **버튼 줄 바로 위 전용 줄**에 놓는가 (일시정지 버튼 위).
+   *
+   * 🔴 실측 근거 (2026-09-03, `etc/tmp/probe-controlbar-space.mjs`): 모바일은 우측 버튼 그룹의
+   * 가로 공간이 항상 모자란다. 세로 412×915 는 그룹 폭 270px 에 필요 폭 414px, 가로 915×412 는
+   * 308px 에 450px(볼륨 182 포함) — 둘 다 `flex-wrap` 으로 줄바꿈되어 네이티브 버튼이 다음 줄로
+   * 밀리고 볼륨 컨트롤이 다른 버튼과 겹치거나 화면 밖으로 나갔다.
+   * → 좁은 기기에서는 같은 줄을 다투지 않고 **위에 줄을 하나 더** 쓴다.
+   */
+  volumeOwnRow: boolean;
   /** 키보드 단축키 정책 */
   shortcuts: 'on' | 'off' | 'if-physical-keyboard';
   /** 호버 기반 UI 허용 여부 — 터치 기기는 금지 */
@@ -52,6 +62,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     chatRatioLandscape: 28,
     chatRatioPortrait: null,
     volumeAlwaysVisible: true,
+    volumeOwnRow: false,
     shortcuts: 'on',
     allowHover: true,
     settingsUi: 'popup',
@@ -65,6 +76,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     chatRatioLandscape: 25,
     chatRatioPortrait: null,
     volumeAlwaysVisible: true,
+    volumeOwnRow: false,
     shortcuts: 'on',
     allowHover: true,
     settingsUi: 'popup',
@@ -78,6 +90,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     chatRatioLandscape: 25,
     chatRatioPortrait: 30,
     volumeAlwaysVisible: true,
+    volumeOwnRow: false,
     shortcuts: 'if-physical-keyboard',
     allowHover: false,
     settingsUi: 'popup+sheet',
@@ -91,6 +104,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     chatRatioLandscape: 22,
     chatRatioPortrait: 35,
     volumeAlwaysVisible: true,
+    volumeOwnRow: false,
     shortcuts: 'if-physical-keyboard',
     allowHover: false,
     settingsUi: 'popup+sheet',
@@ -104,6 +118,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     chatRatioLandscape: null,
     chatRatioPortrait: 40,
     volumeAlwaysVisible: false,
+    volumeOwnRow: false,
     shortcuts: 'off',
     allowHover: false,
     settingsUi: 'sheet',
@@ -126,6 +141,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
      */
     chatRatioPortrait: 40,
     volumeAlwaysVisible: false,
+    volumeOwnRow: true,
     shortcuts: 'off',
     allowHover: false,
     settingsUi: 'sheet',

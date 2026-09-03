@@ -157,13 +157,50 @@ export function formatVolumeLabel(percent: number, muted: boolean): string {
  * 경합에서도 볼륨이 항상 맨 왼쪽에 그려지게 한다.
  * (다른 삽입 노드와 네이티브 버튼은 모두 `order: 0` 이다 — 위 실측의 `order` 필드로 확인.)
  *
- * ⚠️ 이것만으로는 부족하다. 그룹이 **줄바꿈**되는 좁은 화면(`mobile-portrait`, 그룹 폭 192px)에서는
+ * ⚠️ 아래는 **모바일을 제외한** 프로필 이야기다 — 모바일은 2026-09-03 부터 전용 줄(`buildVolumeRow`)을
+ * 쓰므로 이 경로를 타지 않는다.
+ * 그룹이 **줄바꿈**되는 좁은 화면(`mobile-portrait`, 그룹 폭 192px)에서는
  * "오른쪽 끝 고정" 성질이 성립하지 않아 삽입 위치와 무관하게 재배치된다. 좌표 고정을 실제로
  * 보장하는 것은 `syncTapVisibility` 의 **공간 예약**(`visibility: hidden`)이다 — 아래 주석 참조.
  */
 export function insertVolumeControl(container: Element, node: HTMLElement): void {
   node.style.order = '-1';
   if (node.parentElement !== container) container.insertBefore(node, container.firstChild);
+}
+
+/**
+ * 볼륨 컨트롤 **전용 줄** (FR-03, `volumeOwnRow` 프로필 = 모바일).
+ *
+ * 🔴 실측 근거 (2026-09-03, `etc/tmp/probe-controlbar-space.mjs`, 실사이트 LCK 채널)
+ * 모바일은 우측 버튼 그룹에 볼륨 컨트롤이 들어갈 가로 공간이 **아예 없다.**
+ *   세로 412×915 — 그룹 폭 270px / 필요 폭 414px(볼륨 182 포함) → 2줄, 네이티브 5개가 아랫줄로 밀림
+ *   가로 915×412 — 그룹 폭 308px / 필요 폭 450px(볼륨 182 포함) → 2줄
+ *                  (볼륨을 빼도 268px 로 이미 2줄이었다 — 볼륨만의 문제가 아니다)
+ * 같은 줄에서 폭을 다투는 한 `flex-wrap` 줄바꿈은 피할 수 없고, 그 결과가 사용자가 본
+ * "볼륨 조절 버튼이 없는 경우"다. → 좁은 기기에서는 버튼 줄 **바로 위에 줄을 하나 더** 쓴다.
+ *
+ * 위치는 일시정지 버튼과 같은 왼쪽 정렬이다 (사용자 요청 2026-09-03: "+ − 를 일시정지 위로").
+ * 좌측 그룹의 첫 버튼이 일시정지이고 x 가 줄의 시작과 같으므로(실측 x=18 동일) 줄 왼쪽 정렬이
+ * 곧 일시정지 버튼 위다.
+ */
+function buildVolumeRow(): HTMLElement {
+  const row = document.createElement('div');
+  row.id = OURS.volumeRowId;
+  // 자동 숨김 CSS(`pzp-pc--controls`)를 네이티브와 같은 신호로 따라간다.
+  row.className = CONTROL_ITEM_CLASS;
+  row.style.cssText = [
+    'display:flex',
+    'align-items:center',
+    'justify-content:flex-start',
+    'width:100%',
+    /*
+     * 🔴 줄은 전폭(예: 세로 375px)이지만 실제로 채우는 것은 볼륨 컨트롤 182px 뿐이다.
+     * 남는 폭이 영상 위 탭을 가로채면 재생/일시정지 같은 네이티브 조작이 죽는다 — 줄 자체는
+     * 이벤트를 받지 않게 하고, 안의 컨트롤만 되살린다.
+     */
+    'pointer-events:none',
+  ].join(';');
+  return row;
 }
 
 type VolumeDom = {
@@ -381,7 +418,33 @@ export const volumeFeature: Feature = {
     let tapVisible = false;
     let tapTimer: number | undefined;
 
-    const host = (): HTMLElement | null => qs<HTMLElement>(dom.buttonsRight);
+    /**
+     * 좌·우 버튼 그룹을 담은 줄. **새 셀렉터를 만들지 않는다** — 우측 그룹의 부모다.
+     * 데스크톱(`pzp-pc__bottom-buttons`)과 모바일 웹(`pzp-mobile__bottom-buttons`)에서 이름이
+     * 다르므로, 이미 실측으로 확정된 우측 그룹 셀렉터에서 거슬러 올라가는 편이 안전하다.
+     */
+    const buttonsRow = (): HTMLElement | null =>
+      qs<HTMLElement>(dom.buttonsRight)?.parentElement ?? null;
+
+    /** 전용 줄을 버튼 줄 바로 앞에 두고 돌려준다. `.pzp-pc__bottom` 은 block 이라 위로 쌓인다(실측). */
+    const ensureVolumeRow = (): HTMLElement | null => {
+      const buttons = buttonsRow();
+      const bottom = buttons?.parentElement;
+      if (!buttons || !bottom) return null;
+      const row = document.getElementById(OURS.volumeRowId) ?? buildVolumeRow();
+      if (row.nextElementSibling !== buttons) bottom.insertBefore(row, buttons);
+      return row;
+    };
+
+    /*
+     * ⚠️ `m.chzzk.naver.com`(`mobile-web`) 은 제외한다. 전용 줄은 우측 그룹의 **조부모가
+     * block 이라 위로 쌓인다**는 실측(2026-09-03, `.pzp-pc__bottom`)에 기대는데, 모바일 웹은
+     * `pzp-mobile__*` 계열의 다른 사이트라 같은 구조라는 근거가 없다. 실측 전까지는 기존 배치를 쓴다.
+     */
+    const ownRow = ctx.device.profile.volumeOwnRow && ctx.page.type !== 'mobile-web';
+    /** ⚠️ 조회가 아니라 **만들어서** 돌려준다 (`ensureVolumeRow` 가 DOM 에 줄을 꽂는다). */
+    const ensureHost = (): HTMLElement | null =>
+      ownRow ? ensureVolumeRow() : qs<HTMLElement>(dom.buttonsRight);
     ensureControlBarAutoHideCss();
 
     const render = () => {
@@ -637,17 +700,43 @@ export const volumeFeature: Feature = {
     };
 
     const mount = () => {
-      const container = host();
+      const container = ensureHost();
       if (!container) return;
       if (!node) node = buildNode();
-      insertVolumeControl(container, node);
+      if (ownRow) {
+        // 전용 줄에는 우리 것만 있으므로 순서를 다툴 상대가 없다.
+        node.style.order = '';
+        // 줄은 `pointer-events:none` 이다 — 실제 조작 대상인 컨트롤만 되살린다.
+        node.style.pointerEvents = 'auto';
+        if (node.parentElement !== container) container.appendChild(node);
+      } else {
+        insertVolumeControl(container, node);
+      }
       syncTapVisibility();
       render();
     };
 
+    /** 우리가 만든 것을 전부 걷어낸다 — 전용 줄은 비면 남겨 두지 않는다. */
+    const removeNode = () => {
+      node?.remove();
+      node = null;
+      valueEl = null;
+      compressorButtonEl = null;
+      document.getElementById(OURS.volumeRowId)?.remove();
+    };
+
     const isMounted = (): boolean => {
       const existing = document.getElementById(OURS.volumeControlId);
-      return existing !== null && existing.isConnected;
+      if (existing === null || !existing.isConnected) return false;
+      if (!ownRow) return true;
+      /*
+       * 치지직이 버튼 줄만 새로 그리면 우리 줄은 살아남은 채 **자리만 어긋난다**(더 이상 버튼
+       * 줄 바로 앞이 아니다). 노드가 붙어 있다는 것만 보면 이 상태를 못 잡는다.
+       */
+      const buttons = buttonsRow();
+      const row = existing.parentElement;
+      // `buttons` 가 없는 구간(광고 등)에는 양변이 `null` 이라 우연히 참이 된다 → 먼저 막는다.
+      return buttons !== null && row?.id === OURS.volumeRowId && row.nextElementSibling === buttons;
     };
 
     /**
@@ -1057,10 +1146,7 @@ export const volumeFeature: Feature = {
       gaveUp = true;
       stopWatching();
       detachVideo();
-      node?.remove();
-      node = null;
-      valueEl = null;
-      compressorButtonEl = null;
+      removeNode();
       // 셀렉터 실패는 이 기능만 조용히 비활성으로 끝낸다 (NFR-05).
       warning(`volume feature disabled: video element not found (${reason})`);
     };
@@ -1122,10 +1208,7 @@ export const volumeFeature: Feature = {
       persist.cancel();
       if (tapTimer !== undefined) clearTimeout(tapTimer);
       for (const dispose of disposers) guard('volume:dispose', dispose);
-      node?.remove();
-      node = null;
-      valueEl = null;
-      compressorButtonEl = null;
+      removeNode();
     };
   },
 };

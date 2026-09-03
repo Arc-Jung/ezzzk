@@ -1250,3 +1250,146 @@ describe('volumeFeature — 음소거 해제: 조절 시 해제 · 되돌려지�
     dispose?.();
   });
 });
+
+/**
+ * FR-03 — 좁은 기기에서는 볼륨 컨트롤이 버튼 줄을 다투지 않고 **바로 위 전용 줄**에 선다.
+ *
+ * 🔴 실측 근거 (2026-09-03, `etc/tmp/probe-controlbar-space.mjs`, 실사이트):
+ * 모바일 세로 412×915 는 우측 그룹 폭 270px 에 필요 폭 414px, 가로 915×412 는 308px 에 450px 라
+ * 둘 다 `flex-wrap` 으로 줄바꿈됐다 — 사용자가 본 "볼륨 조절 버튼이 없는 경우"의 정체다.
+ */
+describe('volumeFeature — 모바일은 볼륨 컨트롤을 버튼 줄 바로 위 전용 줄에 놓는다 (2026-09-03)', () => {
+  const ctxFor = (deviceClass: 'mobile' | 'desktop'): FeatureContext => ({
+    page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    device: {
+      deviceClass,
+      profile: DEVICE_PROFILES[deviceClass],
+      signals: {
+        longSide: deviceClass === 'mobile' ? 915 : 1920,
+        shortSide: deviceClass === 'mobile' ? 412 : 1080,
+        hasTouch: deviceClass === 'mobile',
+        canHover: deviceClass !== 'mobile',
+        coarsePointer: deviceClass === 'mobile',
+        devicePixelRatio: deviceClass === 'mobile' ? 2.625 : 1,
+        uaMobile: null,
+      },
+      reason: 'test fixture',
+    },
+    settings: DEFAULT_SETTINGS,
+  });
+
+  /** 실측 사슬 그대로: `.pzp-pc__bottom` > `.pzp-pc__bottom-buttons` > `…-left` / `…-right`. */
+  function mountPlayer(): { root: HTMLElement; bottom: HTMLElement; buttons: HTMLElement } {
+    const layout = document.createElement('div');
+    layout.id = 'live_player_layout';
+    const root = document.createElement('div');
+    root.className = 'pzp-pc';
+    const bottom = document.createElement('div');
+    bottom.className = 'pzp-pc__bottom';
+    const buttons = document.createElement('div');
+    buttons.className = 'pzp-pc__bottom-buttons';
+    const left = document.createElement('div');
+    left.className = 'pzp-pc__bottom-buttons-left';
+    const pause = document.createElement('button');
+    pause.setAttribute('aria-label', '일시 정지');
+    left.appendChild(pause);
+    const right = document.createElement('div');
+    right.className = 'pzp-pc__bottom-buttons-right';
+    buttons.append(left, right);
+    bottom.appendChild(buttons);
+    root.appendChild(bottom);
+    layout.appendChild(root);
+    document.body.appendChild(layout);
+
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    root.appendChild(video);
+    return { root, bottom, buttons };
+  }
+
+  const control = (): HTMLElement | null => document.getElementById('cm-volume-control');
+  const row = (): HTMLElement | null => document.getElementById('cm-volume-row');
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('모바일: 전용 줄이 버튼 줄 **바로 앞**에 생기고 볼륨 컨트롤이 그 안에 있다', async () => {
+    vi.useFakeTimers();
+    const { buttons } = mountPlayer();
+
+    const dispose = volumeFeature.start(ctxFor('mobile'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()).not.toBeNull();
+    expect(control()?.parentElement).toBe(row());
+    // 바로 앞 형제 = 화면에서 한 줄 위 (`.pzp-pc__bottom` 은 block 이다 — 실측)
+    expect(row()?.nextElementSibling).toBe(buttons);
+    // 일시정지 버튼과 같은 왼쪽 정렬
+    expect(row()?.style.justifyContent).toBe('flex-start');
+
+    dispose?.();
+  });
+
+  it('데스크톱: 전용 줄을 만들지 않고 지금처럼 우측 그룹 맨 왼쪽에 남는다', async () => {
+    vi.useFakeTimers();
+    mountPlayer();
+
+    const dispose = volumeFeature.start(ctxFor('desktop'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()).toBeNull();
+    expect(control()?.parentElement?.className).toBe('pzp-pc__bottom-buttons-right');
+    expect(control()?.style.order).toBe('-1');
+
+    dispose?.();
+  });
+
+  it('버튼 줄이 새로 그려지면 전용 줄이 새 버튼 줄 앞으로 다시 붙는다', async () => {
+    vi.useFakeTimers();
+    const { bottom, buttons } = mountPlayer();
+
+    const dispose = volumeFeature.start(ctxFor('mobile'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(row()?.nextElementSibling).toBe(buttons);
+
+    /*
+     * 치지직이 버튼 줄만 교체한다 → 우리 줄은 살아남지만 자리가 어긋난다.
+     * 🔴 새 줄을 **우리 줄 앞에** 꽂아야 실제로 어긋난 상태가 된다. 뒤에 붙이면 아무 코드도
+     * 돌지 않아도 `row.nextElementSibling === next` 라 이 테스트가 회귀를 못 잡는다.
+     */
+    buttons.remove();
+    const next = document.createElement('div');
+    next.className = 'pzp-pc__bottom-buttons';
+    const right = document.createElement('div');
+    right.className = 'pzp-pc__bottom-buttons-right';
+    next.appendChild(right);
+    bottom.insertBefore(next, row());
+    expect(row()?.nextElementSibling).not.toBe(next);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()?.nextElementSibling).toBe(next);
+    expect(control()?.parentElement).toBe(row());
+    // 전용 줄에서는 `order: -1`(우측 그룹용 규칙)을 쓰지 않는다.
+    expect(control()?.style.order).toBe('');
+
+    dispose?.();
+  });
+
+  it('정리하면 전용 줄도 함께 걷어낸다 — 빈 줄을 남기지 않는다', async () => {
+    vi.useFakeTimers();
+    mountPlayer();
+
+    const dispose = volumeFeature.start(ctxFor('mobile'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(row()).not.toBeNull();
+
+    dispose?.();
+
+    expect(row()).toBeNull();
+    expect(control()).toBeNull();
+  });
+});

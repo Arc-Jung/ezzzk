@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifyDevice, type DeviceSignals } from './device';
-import { DEVICE_PROFILES } from './constants/device';
+import { DEVICE_CLASSES, DEVICE_PROFILES } from './constants/device';
 
 function signals(
   partial: Partial<DeviceSignals> & { longSide: number; shortSide: number },
@@ -173,6 +173,19 @@ describe('DEVICE_PROFILES — 유형별 값 (FR-12 표)', () => {
     for (const cls of ['tablet-7', 'mobile'] as const) {
       expect(DEVICE_PROFILES[cls].volumeAlwaysVisible).toBe(false);
       expect(DEVICE_PROFILES[cls].shortcuts).toBe('off');
+    }
+  });
+
+  /**
+   * 볼륨 전용 줄은 **모바일만** 쓴다 (실측 2026-09-03: 모바일은 세로·가로 모두 우측 그룹의
+   * 가로 공간이 모자라 줄바꿈된다). 나머지 프로필은 지금 배치가 실측으로 검증돼 있으므로 건드리지 않는다.
+   * ⚠️ `tablet-7` 은 같은 부류의 좁은 프로필이지만 **아직 실측하지 않았다** — 측정 결과 같은
+   * 줄바꿈이 확인되면 이 잠금을 함께 푼다.
+   */
+  it('볼륨 전용 줄은 모바일에서만 쓴다 (FR-03)', () => {
+    expect(DEVICE_PROFILES.mobile.volumeOwnRow).toBe(true);
+    for (const cls of DEVICE_CLASSES.filter((c) => c !== 'mobile')) {
+      expect(DEVICE_PROFILES[cls].volumeOwnRow).toBe(false);
     }
   });
 });
