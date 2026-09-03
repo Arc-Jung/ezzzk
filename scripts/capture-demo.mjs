@@ -162,7 +162,25 @@ async function revealControls(page) {
     await page.mouse.move(10, 10).catch(() => {});
     await player.hover({ timeout: 5000 }).catch(() => {});
   }
+  await revealTapOnlyControls(page);
   await page.waitForTimeout(500);
+}
+
+/**
+ * 탭에서만 나타나는 UI(FR-03 볼륨 컨트롤 — `volumeAlwaysVisible: false` 인 모바일·7인치급)를 띄운다.
+ *
+ * 🔴 `hover` 로는 안 된다. 노출 신호가 플레이어의 `pointerdown` 이라 호버만으로는 반응하지 않아
+ * **모바일 데모에 볼륨 컨트롤이 한 번도 담기지 않았다**(2026-09-03 확인). 그렇다고 진짜로 클릭하면
+ * 치지직이 재생/일시정지를 토글해 데모 화면이 멈춘 상태로 찍힌다 → 합성 `pointerdown` 만 보낸다.
+ * 노출은 3초 뒤 자동으로 닫히므로 **찍기 직전에** 다시 부른다.
+ */
+async function revealTapOnlyControls(page) {
+  await page
+    .evaluate(() => {
+      const root = document.querySelector('.pzp-pc, .pzp-mobile');
+      root?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    })
+    .catch(() => {});
 }
 
 /** 우리 버튼이 보이고 **눌리는 상태**가 될 때까지 기다린 뒤 누른다. */
@@ -188,8 +206,13 @@ const SHOTS = [
       // 삽입 버튼이 보이는 상태로 찍는다 — 자동 숨김 상태면 데모에 아무것도 안 보인다.
       await revealControls(page);
     },
-    /** 컨트롤바에 삽입한 버튼 2개가 보이고 실제로 눌리는 상태여야 데모로서 의미가 있다. */
-    verify: (page) => requireClickable(page, ['cm-settings-button', 'cm-multiview-button']),
+    /**
+     * 삽입한 UI 3종이 보이고 실제로 눌리는 상태여야 데모로서 의미가 있다.
+     * 볼륨 컨트롤(FR-03)을 넣은 이유: 모바일에서 탭 노출이 안 되면 조용히 빠진 채로 저장됐다
+     * (2026-09-03 — 그때까지 모든 모바일 데모에 볼륨이 없었다).
+     */
+    verify: (page) =>
+      requireClickable(page, ['cm-settings-button', 'cm-multiview-button', 'cm-volume-control']),
   },
   {
     key: 'settings',
@@ -399,6 +422,9 @@ async function captureProfile(profile, channels) {
            * 동작하지 않는 것처럼 보인다.
            */
           await shot.verify(page);
+
+          // 탭 노출은 3초 뒤 닫힌다 — 판정과 저장 사이에 닫히지 않게 직전에 한 번 더 띄운다.
+          await revealTapOnlyControls(page);
 
           const file = shot.file(profile.key);
           await page.screenshot({ path: resolve(OUT_DIR, file) });
