@@ -8,6 +8,8 @@ import { resetInputTrackingForTests } from './multiView/userIntent';
 import type { FeatureContext } from './types';
 import {
   VOLUME_STORAGE_KEYS,
+  WRAP_TOLERANCE_PX,
+  isRowWrapped,
   clampVolumePercent,
   formatVolumeLabel,
   insertVolumeControl,
@@ -1248,5 +1250,260 @@ describe('volumeFeature — 음소거 해제: 조절 시 해제 · 되돌려지�
 
     expect(video.muted).toBe(true);
     dispose?.();
+  });
+});
+
+/**
+ * FR-03 — 우측 버튼 그룹이 **한 줄에 담지 못할 때만** 볼륨 컨트롤이 바로 위 전용 줄로 간다.
+ *
+ * 🔴 실측 근거 (2026-09-03, `etc/tmp/probe-controlbar-space.mjs` · `probe-overflow-sweep.mjs`):
+ * 기준은 기기 종류가 아니라 **실제 폭**이다 — 모바일(270·308px)뿐 아니라 노트북 창 800×700(404px),
+ * 태블릿 600×900(417px)도 넘쳤고, 1000×800 이상은 한 줄에 들어갔다.
+ *
+ * ⚠️ jsdom 에는 레이아웃이 없어 `offsetTop` 이 항상 0 이다 → 줄바꿈 상태를 **직접 심어** 만든다.
+ * 좌표 자체의 검증은 Playwright 실측이 맡는다(세로 볼륨 18/144 · 일시정지 18/188).
+ */
+describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바로 위 전용 줄로 올린다 (2026-09-03)', () => {
+  /** 배치는 기기 유형이 아니라 실제 줄바꿈으로 정해진다 — 두 유형 모두 같은 코드 경로를 탄다. */
+  const ctxFor = (deviceClass: 'mobile' | 'desktop'): FeatureContext => ({
+    page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    device: {
+      deviceClass,
+      profile: DEVICE_PROFILES[deviceClass],
+      signals: {
+        longSide: deviceClass === 'mobile' ? 915 : 1920,
+        shortSide: deviceClass === 'mobile' ? 412 : 1080,
+        hasTouch: deviceClass === 'mobile',
+        canHover: deviceClass !== 'mobile',
+        coarsePointer: deviceClass === 'mobile',
+        devicePixelRatio: deviceClass === 'mobile' ? 2.625 : 1,
+        uaMobile: null,
+      },
+      reason: 'test fixture',
+    },
+    settings: DEFAULT_SETTINGS,
+  });
+
+  /** 실측 사슬 그대로: `.pzp-pc__bottom` > `.pzp-pc__bottom-buttons` > `…-left` / `…-right`. */
+  function mountPlayer(): {
+    root: HTMLElement;
+    bottom: HTMLElement;
+    buttons: HTMLElement;
+    right: HTMLElement;
+  } {
+    const layout = document.createElement('div');
+    layout.id = 'live_player_layout';
+    const root = document.createElement('div');
+    root.className = 'pzp-pc';
+    const bottom = document.createElement('div');
+    bottom.className = 'pzp-pc__bottom';
+    const buttons = document.createElement('div');
+    buttons.className = 'pzp-pc__bottom-buttons';
+    const left = document.createElement('div');
+    left.className = 'pzp-pc__bottom-buttons-left';
+    const pause = document.createElement('button');
+    pause.setAttribute('aria-label', '일시 정지');
+    left.appendChild(pause);
+    const right = document.createElement('div');
+    right.className = 'pzp-pc__bottom-buttons-right';
+    for (const label of ['설정', '전체 화면']) {
+      const native = document.createElement('button');
+      native.setAttribute('aria-label', label);
+      right.appendChild(native);
+    }
+    buttons.append(left, right);
+    bottom.appendChild(buttons);
+    root.appendChild(bottom);
+    layout.appendChild(root);
+    document.body.appendChild(layout);
+
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    root.appendChild(video);
+    return { root, bottom, buttons, right };
+  }
+
+  /**
+   * jsdom 은 레이아웃을 계산하지 않는다 — 폭과 `offsetTop` 을 직접 심어 "한 줄인가"를 만든다.
+   * `wrapped: true` 면 마지막 자식이 다음 줄로 밀린 상태다.
+   */
+  function fakeLayout(
+    group: HTMLElement,
+    { wrapped }: { wrapped: boolean },
+  ): (next: boolean) => void {
+    let isWrapped = wrapped;
+    const apply = () => {
+      const children = Array.from(group.children) as HTMLElement[];
+      children.forEach((el, index) => {
+        Object.defineProperty(el, 'offsetTop', {
+          value: isWrapped && index === children.length - 1 ? 44 : 0,
+          configurable: true,
+        });
+        el.getBoundingClientRect = () => ({ width: 36, height: 36 }) as DOMRect;
+      });
+    };
+    apply();
+    // 볼륨 컨트롤은 마운트 뒤에 자식으로 들어오므로 그때마다 다시 심는다.
+    new MutationObserver(apply).observe(group, { childList: true });
+    return (next: boolean) => {
+      isWrapped = next;
+      apply();
+    };
+  }
+
+  const control = (): HTMLElement | null => document.getElementById('cm-volume-control');
+  const row = (): HTMLElement | null => document.getElementById('cm-volume-row');
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('넘치면: 전용 줄이 버튼 줄 **바로 앞**에 생기고 볼륨 컨트롤이 그 안에 있다', async () => {
+    vi.useFakeTimers();
+    const { buttons, right } = mountPlayer();
+    fakeLayout(right, { wrapped: true });
+
+    const dispose = volumeFeature.start(ctxFor('mobile'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()).not.toBeNull();
+    expect(control()?.parentElement).toBe(row());
+    // 바로 앞 형제 = 화면에서 한 줄 위 (`.pzp-pc__bottom` 은 block 이다 — 실측)
+    expect(row()?.nextElementSibling).toBe(buttons);
+    // 일시정지 버튼과 같은 왼쪽 정렬
+    expect(row()?.style.justifyContent).toBe('flex-start');
+
+    dispose?.();
+  });
+
+  it('한 줄에 들어가면: 전용 줄을 만들지 않고 우측 그룹 맨 왼쪽에 남는다', async () => {
+    vi.useFakeTimers();
+    const { right } = mountPlayer();
+    fakeLayout(right, { wrapped: false });
+
+    const dispose = volumeFeature.start(ctxFor('desktop'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()).toBeNull();
+    expect(control()?.parentElement?.className).toBe('pzp-pc__bottom-buttons-right');
+    expect(control()?.style.order).toBe('-1');
+
+    dispose?.();
+  });
+
+  it('버튼 줄이 새로 그려지면 전용 줄이 새 버튼 줄 앞으로 다시 붙는다', async () => {
+    vi.useFakeTimers();
+    const { bottom, buttons, right } = mountPlayer();
+    fakeLayout(right, { wrapped: true });
+
+    const dispose = volumeFeature.start(ctxFor('mobile'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(row()?.nextElementSibling).toBe(buttons);
+
+    /*
+     * 치지직이 버튼 줄만 교체한다 → 우리 줄은 살아남지만 자리가 어긋난다.
+     * 🔴 새 줄을 **우리 줄 앞에** 꽂아야 실제로 어긋난 상태가 된다. 뒤에 붙이면 아무 코드도
+     * 돌지 않아도 `row.nextElementSibling === next` 라 이 테스트가 회귀를 못 잡는다.
+     */
+    buttons.remove();
+    const next = document.createElement('div');
+    next.className = 'pzp-pc__bottom-buttons';
+    const nextRight = document.createElement('div');
+    nextRight.className = 'pzp-pc__bottom-buttons-right';
+    for (const label of ['설정', '전체 화면']) {
+      const native = document.createElement('button');
+      native.setAttribute('aria-label', label);
+      nextRight.appendChild(native);
+    }
+    next.appendChild(nextRight);
+    fakeLayout(nextRight, { wrapped: true });
+    bottom.insertBefore(next, row());
+    expect(row()?.nextElementSibling).not.toBe(next);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()?.nextElementSibling).toBe(next);
+    expect(control()?.parentElement).toBe(row());
+    // 전용 줄에서는 `order: -1`(우측 그룹용 규칙)을 쓰지 않는다.
+    expect(control()?.style.order).toBe('');
+
+    dispose?.();
+  });
+
+  /**
+   * 🔴 `content.tsx` 는 **기기 유형이 바뀔 때만** 기능을 재시작한다 — 같은 `laptop` 안에서
+   * 창을 1000 → 800 으로 줄이는 변화는 재시작을 부르지 않는다(실측 2026-09-03: 800×700 에서 넘침).
+   * 그래서 볼륨 기능이 자기 구독으로 배치를 다시 판정해야 한다.
+   */
+  it('창 크기가 바뀌면 배치를 다시 판정한다 — 자리가 생기면 인라인으로 되돌아온다', async () => {
+    vi.useFakeTimers();
+    const { right, buttons } = mountPlayer();
+    const setWrapped = fakeLayout(right, { wrapped: true });
+
+    const dispose = volumeFeature.start(ctxFor('desktop'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(row()).not.toBeNull();
+
+    // 창을 넓혔다 → 이제 한 줄에 들어간다.
+    setWrapped(false);
+    buttons.getBoundingClientRect = () => ({ width: 1440, height: 36 }) as DOMRect;
+    window.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(row()).toBeNull();
+    expect(control()?.parentElement).toBe(right);
+    expect(control()?.style.order).toBe('-1');
+
+    // 다시 좁히면 전용 줄로 올라간다.
+    setWrapped(true);
+    buttons.getBoundingClientRect = () => ({ width: 800, height: 36 }) as DOMRect;
+    window.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(control()?.parentElement).toBe(row());
+
+    dispose?.();
+  });
+
+  it('정리하면 전용 줄도 함께 걷어낸다 — 빈 줄을 남기지 않는다', async () => {
+    vi.useFakeTimers();
+    const { right } = mountPlayer();
+    fakeLayout(right, { wrapped: true });
+
+    const dispose = volumeFeature.start(ctxFor('mobile'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(row()).not.toBeNull();
+
+    dispose?.();
+
+    expect(row()).toBeNull();
+    expect(control()).toBeNull();
+  });
+});
+
+/**
+ * 줄바꿈 판정. 실측(2026-09-03 `probe-overflow-sweep.mjs`)에서 나온 값을 그대로 쓴다 —
+ * 한 줄 안의 세로 정렬 차이는 2~4px, 진짜 줄바꿈은 36~44px 이라 그 사이면 판정이 같다.
+ */
+describe('isRowWrapped', () => {
+  it('빈 줄은 줄바꿈이 아니다', () => {
+    expect(isRowWrapped([])).toBe(false);
+  });
+
+  it('버튼 높이 차이로 생기는 정렬 오차(2·4px)는 같은 줄로 본다', () => {
+    expect(isRowWrapped([0, 2])).toBe(false); // 노트북 1440×900 실측
+    expect(isRowWrapped([0, 4])).toBe(false); // 태블릿 1180×820 실측
+  });
+
+  it('다음 줄로 밀린 버튼(36·44px)은 줄바꿈으로 본다', () => {
+    expect(isRowWrapped([0, 2, 36])).toBe(true); // 노트북 창 800×700 실측
+    expect(isRowWrapped([0, 4, 44])).toBe(true); // 태블릿 600×900 실측
+  });
+
+  it('경계는 허용 오차 초과부터다', () => {
+    expect(isRowWrapped([0, WRAP_TOLERANCE_PX])).toBe(false);
+    expect(isRowWrapped([0, WRAP_TOLERANCE_PX + 1])).toBe(true);
   });
 });

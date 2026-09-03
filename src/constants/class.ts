@@ -166,6 +166,8 @@ export const OURS = {
   layoutStyleId: 'cm-layout-style',
   /** FR-03 볼륨 컨트롤 */
   volumeControlId: 'cm-volume-control',
+  /** FR-03 모바일 전용 — 볼륨 컨트롤을 담는 버튼 줄 바로 위의 전용 줄 */
+  volumeRowId: 'cm-volume-row',
   /** FR-09.2 컨트롤바 설정 버튼 (⚙*) */
   settingsButtonId: 'cm-settings-button',
   /** FR-14 컨트롤바 멀티 버튼 */

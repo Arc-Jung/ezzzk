@@ -127,8 +127,9 @@ export function onViewportChange(
   window.addEventListener('resize', handler);
   window.addEventListener('orientationchange', handler);
 
-  const orientation = window.matchMedia('(orientation: landscape)');
-  orientation.addEventListener('change', handler);
+  // `matchMedia` 가 없는 환경(jsdom 등)에서도 나머지 신호로 계속 동작한다.
+  const orientation = window.matchMedia?.('(orientation: landscape)');
+  orientation?.addEventListener('change', handler);
 
   const resizeObserver =
     observeElements.length > 0 && typeof ResizeObserver !== 'undefined'
@@ -142,7 +143,7 @@ export function onViewportChange(
     vv?.removeEventListener('scroll', handler);
     window.removeEventListener('resize', handler);
     window.removeEventListener('orientationchange', handler);
-    orientation.removeEventListener('change', handler);
+    orientation?.removeEventListener('change', handler);
     resizeObserver?.disconnect();
   };
 }

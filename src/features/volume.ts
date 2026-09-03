@@ -38,6 +38,7 @@ import { updateSection } from '../storage';
 import { CompressorIcon } from '../ui/icons';
 import { ACCENT } from '../ui/tokens';
 import { normalizeText, qs, qsVisible, sleep } from '../utils/dom';
+import { onViewportChange } from '../utils/viewport';
 import { guard, guardAsync, info, warning } from '../utils/log';
 import { debounce, observe, type Disposer } from '../utils/observe';
 import { isUserInitiatedStrict, markSyntheticInput } from './multiView/userIntent';
@@ -157,13 +158,78 @@ export function formatVolumeLabel(percent: number, muted: boolean): string {
  * 경합에서도 볼륨이 항상 맨 왼쪽에 그려지게 한다.
  * (다른 삽입 노드와 네이티브 버튼은 모두 `order: 0` 이다 — 위 실측의 `order` 필드로 확인.)
  *
- * ⚠️ 이것만으로는 부족하다. 그룹이 **줄바꿈**되는 좁은 화면(`mobile-portrait`, 그룹 폭 192px)에서는
+ * ⚠️ 아래는 그룹이 **한 줄에 들어갈 때**의 이야기다 — 들어가지 않으면 2026-09-03 부터
+ * 전용 줄(`buildVolumeRow`)로 옮긴다.
+ * 그룹이 **줄바꿈**되는 좁은 화면(`mobile-portrait`, 그룹 폭 192px)에서는
  * "오른쪽 끝 고정" 성질이 성립하지 않아 삽입 위치와 무관하게 재배치된다. 좌표 고정을 실제로
  * 보장하는 것은 `syncTapVisibility` 의 **공간 예약**(`visibility: hidden`)이다 — 아래 주석 참조.
  */
 export function insertVolumeControl(container: Element, node: HTMLElement): void {
   node.style.order = '-1';
   if (node.parentElement !== container) container.insertBefore(node, container.firstChild);
+}
+
+/**
+ * 볼륨 컨트롤 **전용 줄** (FR-03). 우측 버튼 그룹이 한 줄에 다 담지 못할 때만 쓴다.
+ *
+ * 🔴 실측 근거 (2026-09-03, `etc/tmp/probe-controlbar-space.mjs` · `probe-overflow-sweep.mjs`,
+ * 실사이트 LCK 채널). **기기 종류가 아니라 실제 폭이 기준이다** — 같은 노트북도 창을 줄이면 넘친다.
+ *
+ * | 뷰포트 | 판정 | 그룹 폭 | 줄 수 |
+ * | --- | --- | --- | --- |
+ * | 1920×950 · 1440×900 · 1200×800 · 1000×800 | desktop/laptop | 438 | 1 |
+ * | 800×700 | laptop | 404 | **2** |
+ * | 640×600 | laptop | 318 | **2** |
+ * | 1180×820 · 820×1180 | tablet-10 | 490 | 1 |
+ * | 600×900 | tablet-10 | 417 | **2** |
+ * | 915×412 · 412×915 | mobile | 308 · 270 | **2** |
+ *
+ * 넘치면 네이티브 버튼이 아랫줄로 밀리고 볼륨 컨트롤이 보이지 않거나 다른 버튼과 겹친다 —
+ * 사용자가 본 "볼륨 조절 버튼이 없는 경우"다. → 폭을 다투지 않고 버튼 줄 **바로 위에 줄을 하나 더** 쓴다.
+ *
+ * 위치는 일시정지 버튼과 같은 왼쪽 정렬이다 (사용자 요청 2026-09-03: "+ − 를 일시정지 위로").
+ * 좌측 그룹의 첫 버튼이 일시정지이고 x 가 줄의 시작과 같으므로(실측 x=18 동일) 줄 왼쪽 정렬이
+ * 곧 일시정지 버튼 위다.
+ */
+/**
+ * 같은 줄로 볼 `offsetTop` 허용 오차(px).
+ *
+ * 실측(2026-09-03 `probe-overflow-sweep.mjs`): 한 줄 안에서도 버튼 높이가 36 / 44 로 달라
+ * 세로 정렬 차이가 2~4px 생긴다. 반면 진짜 줄바꿈은 36 / 44px 씩 벌어진다. 두 값 사이면
+ * 어디를 잘라도 같은 판정이 나오므로 여유를 두고 16 으로 잡는다.
+ */
+export const WRAP_TOLERANCE_PX = 16;
+
+/**
+ * 우측 버튼 그룹이 **줄바꿈됐는가**. 자식들의 `offsetTop` 이 한 무리인지로 본다.
+ *
+ * 🔴 폭을 계산해서 맞히려 하지 않는다. 자식 폭 합계만으로는 틀린다 — 실측 800×700 은
+ * 합계 398px < 그룹 404px 인데도 줄바꿈됐다(버튼 사이 여백이 합계에 안 잡힌다).
+ * 브라우저가 이미 배치를 끝내 놓았으므로 **그 결과를 읽는 편이 정확하고 단순하다.**
+ */
+export function isRowWrapped(tops: readonly number[]): boolean {
+  if (tops.length === 0) return false;
+  return Math.max(...tops) - Math.min(...tops) > WRAP_TOLERANCE_PX;
+}
+
+function buildVolumeRow(): HTMLElement {
+  const row = document.createElement('div');
+  row.id = OURS.volumeRowId;
+  // 자동 숨김 CSS(`pzp-pc--controls`)를 네이티브와 같은 신호로 따라간다.
+  row.className = CONTROL_ITEM_CLASS;
+  row.style.cssText = [
+    'display:flex',
+    'align-items:center',
+    'justify-content:flex-start',
+    'width:100%',
+    /*
+     * 🔴 줄은 전폭(예: 세로 375px)이지만 실제로 채우는 것은 볼륨 컨트롤 182px 뿐이다.
+     * 남는 폭이 영상 위 탭을 가로채면 재생/일시정지 같은 네이티브 조작이 죽는다 — 줄 자체는
+     * 이벤트를 받지 않게 하고, 안의 컨트롤만 되살린다.
+     */
+    'pointer-events:none',
+  ].join(';');
+  return row;
 }
 
 type VolumeDom = {
@@ -381,7 +447,30 @@ export const volumeFeature: Feature = {
     let tapVisible = false;
     let tapTimer: number | undefined;
 
-    const host = (): HTMLElement | null => qs<HTMLElement>(dom.buttonsRight);
+    /**
+     * 좌·우 버튼 그룹을 담은 줄. **새 셀렉터를 만들지 않는다** — 우측 그룹의 부모다.
+     * 데스크톱(`pzp-pc__bottom-buttons`)과 모바일 웹(`pzp-mobile__bottom-buttons`)에서 이름이
+     * 다르므로, 이미 실측으로 확정된 우측 그룹 셀렉터에서 거슬러 올라가는 편이 안전하다.
+     */
+    const buttonsRow = (): HTMLElement | null =>
+      qs<HTMLElement>(dom.buttonsRight)?.parentElement ?? null;
+
+    /** 전용 줄을 버튼 줄 바로 앞에 두고 돌려준다. `.pzp-pc__bottom` 은 block 이라 위로 쌓인다(실측). */
+    const ensureVolumeRow = (): HTMLElement | null => {
+      const buttons = buttonsRow();
+      const bottom = buttons?.parentElement;
+      if (!buttons || !bottom) return null;
+      const row = document.getElementById(OURS.volumeRowId) ?? buildVolumeRow();
+      if (row.nextElementSibling !== buttons) bottom.insertBefore(row, buttons);
+      return row;
+    };
+
+    /*
+     * ⚠️ `m.chzzk.naver.com`(`mobile-web`) 은 제외한다. 전용 줄은 우측 그룹의 **조부모가
+     * block 이라 위로 쌓인다**는 실측(2026-09-03, `.pzp-pc__bottom`)에 기대는데, 모바일 웹은
+     * `pzp-mobile__*` 계열의 다른 사이트라 같은 구조라는 근거가 없다. 실측 전까지는 기존 배치를 쓴다.
+     */
+    const ownRowAllowed = ctx.page.type !== 'mobile-web';
     ensureControlBarAutoHideCss();
 
     const render = () => {
@@ -636,18 +725,115 @@ export const volumeFeature: Feature = {
       node.style.visibility = tapHidden ? 'hidden' : 'visible';
     };
 
+    /** 지금 우측 그룹이 줄바꿈된 상태인가. 브라우저가 끝낸 배치를 그대로 읽는다. */
+    const rightGroupWrapped = (): boolean => {
+      const group = qs<HTMLElement>(dom.buttonsRight);
+      if (!group) return false;
+      const tops = Array.from(group.children)
+        .filter((el): el is HTMLElement => el instanceof HTMLElement)
+        // 폭 0 인 자식(치지직이 자리만 잡아 둔 커스텀 버튼)은 줄 판정에 넣지 않는다.
+        .filter((el) => el.getBoundingClientRect().width > 0)
+        .map((el) => el.offsetTop);
+      return isRowWrapped(tops);
+    };
+
+    /** 우측 그룹 맨 왼쪽(기본 자리). 한 줄에 들어가는 동안은 여기가 맞다. */
+    const placeInline = (group: HTMLElement, el: HTMLElement) => {
+      document.getElementById(OURS.volumeRowId)?.remove();
+      el.style.pointerEvents = '';
+      insertVolumeControl(group, el);
+    };
+
+    /** 버튼 줄 바로 위 전용 줄. 넘칠 때만 쓴다. */
+    const placeOwnRow = (el: HTMLElement): boolean => {
+      const row = ensureVolumeRow();
+      if (!row) return false;
+      // 전용 줄에는 우리 것만 있으므로 순서를 다툴 상대가 없다.
+      el.style.order = '';
+      // 줄은 `pointer-events:none` 이다 — 실제 조작 대상인 컨트롤만 되살린다.
+      el.style.pointerEvents = 'auto';
+      if (el.parentElement !== row) row.appendChild(el);
+      return true;
+    };
+
+    /**
+     * 배치를 **매번 인라인에서 다시 판정한다.**
+     *
+     * 🔴 "넘쳤으니 옮긴다"만 하면 되돌아올 길이 없고, 반대로 "전용 줄에서 폭이 남으면 되돌린다"는
+     * 판정은 원래 자리에서 넘치는지를 알 수 없어 창 크기 경계에서 왔다 갔다 한다.
+     * 인라인으로 되돌린 뒤 실제 배치를 읽고 그때 넘치면 다시 올리는 방식은 **상태가 없어**
+     * 히스테리시스 없이도 진동하지 않는다 (판정 1회당 결과 1개).
+     */
+    const applyPlacement = (el: HTMLElement) => {
+      const group = qs<HTMLElement>(dom.buttonsRight);
+      if (!group) return;
+      placeInline(group, el);
+      if (ownRowAllowed && rightGroupWrapped()) placeOwnRow(el);
+    };
+
+    /**
+     * 배치를 다시 판정할 이유가 생겼는지 알아보는 **값싼 지문**.
+     *
+     * 🔴 지문은 우리 노드가 어디 있든 같아야 한다 — **우측 그룹의 폭**을 쓰면 안 된다. 우리가
+     * 옮길 때마다 그 폭이 바뀌어(실측: 438 ↔ 282) 매 틱 재판정하게 된다. 대신 우리 줄이 형제로
+     * 붙는 **버튼 줄의 폭**과 **우리 것을 뺀 자식 수**를 본다. 둘 다 배치와 무관하다.
+     *
+     * 이게 필요한 이유(실측 2026-09-03 `probe-overflow-sweep.mjs`): 마운트 시점에는 네이티브
+     * 버튼이 아직 다 붙지 않았거나 플레이어가 더 넓어서 한 줄이었다가 나중에 넘치는 프로필이
+     * 있었다(800×700 · 640×600 · 600×900 이 실행할 때마다 다르게 걸렸다). 마운트 때만 판정하면
+     * 그 상태로 굳는다. 뷰포트가 아니라 **플레이어 폭**이 바뀌는 경우가 있어(FR-05 채팅 폭 조절,
+     * FR-10 초광폭) 창 크기 구독만으로도 부족하다.
+     */
+    const placementKeyOf = (): string => {
+      const group = qs<HTMLElement>(dom.buttonsRight);
+      const row = group?.parentElement;
+      if (!group || !row) return '';
+      const others = Array.from(group.children).filter(
+        (el) => el.id !== OURS.volumeControlId,
+      ).length;
+      return `${Math.round(row.getBoundingClientRect().width)}:${others}`;
+    };
+    let placementKey = '';
+
+    /** 지문이 그대로면 아무것도 하지 않는다 (DOM 을 건드리지 않는다). */
+    const syncPlacement = () => {
+      if (!node) return;
+      const key = placementKeyOf();
+      if (key === '' || key === placementKey) return;
+      applyPlacement(node);
+      placementKey = key;
+    };
+
     const mount = () => {
-      const container = host();
-      if (!container) return;
+      if (qs<HTMLElement>(dom.buttonsRight) === null) return;
       if (!node) node = buildNode();
-      insertVolumeControl(container, node);
+      applyPlacement(node);
+      placementKey = placementKeyOf();
       syncTapVisibility();
       render();
     };
 
+    /** 우리가 만든 것을 전부 걷어낸다 — 전용 줄은 비면 남겨 두지 않는다. */
+    const removeNode = () => {
+      node?.remove();
+      node = null;
+      valueEl = null;
+      compressorButtonEl = null;
+      document.getElementById(OURS.volumeRowId)?.remove();
+    };
+
     const isMounted = (): boolean => {
       const existing = document.getElementById(OURS.volumeControlId);
-      return existing !== null && existing.isConnected;
+      if (existing === null || !existing.isConnected) return false;
+      const parent = existing.parentElement;
+      if (parent?.id !== OURS.volumeRowId) return parent === qs<HTMLElement>(dom.buttonsRight);
+      /*
+       * 치지직이 버튼 줄만 새로 그리면 우리 줄은 살아남은 채 **자리만 어긋난다**(더 이상 버튼
+       * 줄 바로 앞이 아니다). 노드가 붙어 있다는 것만 보면 이 상태를 못 잡는다.
+       */
+      const buttons = buttonsRow();
+      // `buttons` 가 없는 구간(광고 등)에는 양변이 `null` 이라 우연히 참이 된다 → 먼저 막는다.
+      return buttons !== null && parent.nextElementSibling === buttons;
     };
 
     /**
@@ -686,6 +872,23 @@ export const volumeFeature: Feature = {
       root.addEventListener('pointerdown', showOnTap, true);
     };
     disposers.push(() => tapRoot?.removeEventListener('pointerdown', showOnTap, true));
+
+    /*
+     * 🔴 창 크기 변화에는 기능이 재시작되지 않는다 — `content.tsx` 는 **기기 유형이 바뀔 때만**
+     * 재시작한다(리사이즈마다 전체 재시작하면 저사양 기기에서 프레임 예산을 넘긴다는 이유).
+     * 그런데 같은 `laptop` 안에서도 창을 1000 → 800 으로 줄이면 넘친다(실측 2026-09-03).
+     * → 이 기능이 자기 구독으로 배치만 다시 판정한다.
+     */
+    disposers.push(
+      onViewportChange(
+        ({ keyboardLikely }) => {
+          // IME 로 높이만 줄어든 경우는 가로 배치와 무관하다.
+          if (keyboardLikely || disposed || !node) return;
+          guard('volume:placement', syncPlacement);
+        },
+        { relaxed: ctx.device.profile.relaxObservers },
+      ),
+    );
 
     // ── FR-03 키보드 단축키 ──────────────────────────────────────────────────
     // 네이티브 `space` `k` `m` `f` 는 건드리지 않는다. `off` 프로필에서는 아예 걸지 않는다.
@@ -1057,10 +1260,7 @@ export const volumeFeature: Feature = {
       gaveUp = true;
       stopWatching();
       detachVideo();
-      node?.remove();
-      node = null;
-      valueEl = null;
-      compressorButtonEl = null;
+      removeNode();
       // 셀렉터 실패는 이 기능만 조용히 비활성으로 끝낸다 (NFR-05).
       warning(`volume feature disabled: video element not found (${reason})`);
     };
@@ -1090,6 +1290,7 @@ export const volumeFeature: Feature = {
       rescueBlockedAutoplay();
       // 컨트롤바는 리렌더 시 자식을 날린다 → 매번 존재를 확인해 다시 넣는다.
       if (!isMounted()) mount();
+      else syncPlacement();
     };
 
     /**
@@ -1122,10 +1323,7 @@ export const volumeFeature: Feature = {
       persist.cancel();
       if (tapTimer !== undefined) clearTimeout(tapTimer);
       for (const dispose of disposers) guard('volume:dispose', dispose);
-      node?.remove();
-      node = null;
-      valueEl = null;
-      compressorButtonEl = null;
+      removeNode();
     };
   },
 };
