@@ -123,8 +123,11 @@ export type Settings = {
   chatUserFilter: { enabled: boolean; persistPerChannel: boolean };
   /**
    * 치지직 내장 클린봇(욕설 필터)을 우리 확장이 기본으로 꺼 준다. 자체 필터를 만드는 게
-   * 아니다 — 치지직 계정 설정의 클린봇 토글 자체를 끈다. 기본 켜기(=클린봇을 끈다) —
-   * 클린봇이 정상 발언까지 가려 채팅을 읽기 어렵게 만든다는 요청에 따른 기본값이다.
+   * 아니다 — 치지직 계정 설정의 클린봇 토글 자체를 끈다.
+   *
+   * 🔴 **기본값은 끄기다(= 클린봇을 그대로 켜 둔다).** 확장이 기본값으로 사용자의 네이버 계정
+   * 설정을 바꾸는 동작이라 크롬 웹스토어 심사에서 거부·게시중단 위험이 크다(2026-09-03 검토).
+   * 클린봇이 정상 발언까지 가린다고 느끼는 사용자는 설정에서 직접 켜서 쓴다.
    */
   chzzkCleanBot: { disable: boolean };
   /**
@@ -256,7 +259,7 @@ export const DEFAULT_SETTINGS: Settings = {
   powerCollect: { enabled: false },
   ultraWide: { enabled: true, minChatPx: 150, overlayFallback: true, videoAlign: 'left' },
   chatUserFilter: { enabled: true, persistPerChannel: false },
-  chzzkCleanBot: { disable: true },
+  chzzkCleanBot: { disable: false },
   // 요청에 따라 기본으로 숨긴 상태로 시작한다.
   chatClutter: {
     header: true,

@@ -199,7 +199,9 @@ describe('chzzkCleanBotFeature', () => {
       },
       reason: 'test fixture',
     },
-    settings: DEFAULT_SETTINGS,
+    // 🔴 기본값이 `disable: false` 로 바뀌었으므로(2026-09-03, 웹스토어 심사 리스크)
+    //    "기능이 켜진" 컨텍스트는 여기서 명시적으로 만든다.
+    settings: { ...DEFAULT_SETTINGS, chzzkCleanBot: { disable: true } },
   };
 
   beforeEach(() => {
@@ -211,8 +213,16 @@ describe('chzzkCleanBotFeature', () => {
     document.body.innerHTML = '';
   });
 
-  it('기본 설정은 disable: true 다', () => {
-    expect(DEFAULT_SETTINGS.chzzkCleanBot).toEqual({ disable: true });
+  /**
+   * 🔴 기본값은 **끄기**다 — 확장이 기본값으로 사용자의 네이버 계정 설정(클린봇)을 바꾸면
+   * 크롬 웹스토어 심사에서 거부·게시중단 위험이 크다 (2026-09-03 검토 결과 반영).
+   */
+  it('기본 설정은 disable: false 다 (사용자가 직접 켜야 동작한다)', () => {
+    expect(DEFAULT_SETTINGS.chzzkCleanBot).toEqual({ disable: false });
+  });
+
+  it('기본 설정 그대로면 지원하지 않는다', () => {
+    expect(chzzkCleanBotFeature.supports({ ...baseCtx, settings: DEFAULT_SETTINGS })).toBe(false);
   });
 
   it('설정이 꺼져 있으면 지원하지 않는다', () => {
