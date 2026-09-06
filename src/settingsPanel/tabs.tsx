@@ -65,7 +65,7 @@ export const TABS: readonly { id: TabId; title: string }[] = [
 export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
   switch (tab) {
     case 'playback':
-      return ['quality'];
+      return ['quality', 'liveResume'];
     case 'sound':
       return ['volume'];
     case 'layout':
@@ -192,6 +192,7 @@ const QUALITY_OPTIONS: { value: QualityTarget; title: string }[] = [
 
 export function PlaybackTab({ settings, update }: TabProps) {
   const quality = settings.quality;
+  const liveResume = settings.liveResume;
   return (
     <>
       <Toggle
@@ -232,6 +233,16 @@ export function PlaybackTab({ settings, update }: TabProps) {
         checked={quality.applyToVod}
         onChange={(next) => update({ quality: { ...quality, applyToVod: next } })}
       />
+      <h3>방송 재개</h3>
+      <Toggle
+        label="방송이 다시 시작되면 자동으로 들어가기"
+        checked={liveResume.enabled}
+        onChange={(next) => update({ liveResume: { enabled: next } })}
+      />
+      <p className="cm-sheet__note">
+        └ 방송이 끝난 채널 화면에서 방송 상태를 확인 (처음 10회는 1분 간격, 이후 10분 간격)
+      </p>
+      <p className="cm-sheet__note">└ 시작되면 그때 한 번만 새로고침 (1분마다 새로고침하지 않음)</p>
     </>
   );
 }

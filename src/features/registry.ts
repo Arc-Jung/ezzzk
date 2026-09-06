@@ -22,6 +22,7 @@ import { chatUserFilterFeature } from './chatUserFilter';
 import { chatWidthFeature } from './chatWidth';
 import { chzzkCleanBotFeature } from './chzzkCleanBot';
 import { mobileWebNoticeFeature } from './mobileWebNotice';
+import { liveResumeFeature } from './liveResume';
 import { multiViewFeature } from './multiView';
 import { playbackStallFeature } from './playbackStall';
 import { powerCollectFeature } from './powerCollect';
@@ -50,6 +51,8 @@ export const FEATURES: Feature[] = [
   chatUserFilterFeature, // FR-11
   chzzkCleanBotFeature, // 치지직 내장 클린봇 기본 끄기
   powerCollectFeature, // FR-06
+  // 방송 재개 감시 — 종료 화면(플레이어 없음)에서만 도는 폴링이라 다른 기능과 순서가 무관하다.
+  liveResumeFeature,
   settingsPanelFeature, // FR-09.2
   multiViewFeature, // FR-14
 ];

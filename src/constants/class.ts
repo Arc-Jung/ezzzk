@@ -70,6 +70,27 @@ export const PAGE_KIND = {
 } as const;
 
 /**
+ * 방송 종료(재개 감시, `liveResume.ts`) 판정용.
+ *
+ * 실측 2026-09-06 (`etc/probe/offline-page.json`, laptop13 1440×900):
+ * 방송이 끝난 `/live/{channelId}` 는 **플레이어가 아예 렌더되지 않는다.**
+ *
+ * | 항목 | 방송중(OPEN) | 종료(CLOSE) |
+ * | --- | --- | --- |
+ * | `video` | 있음 (readyState 4) | 없음 |
+ * | `#live_player_layout` | 있음 | 없음 |
+ * | `.pzp-pc` | 있음 | 없음 |
+ * | `#aside-chatting` | 있음 | 있음 |
+ *
+ * 🔴 화면 문구(`다음 라이브를 기대해주세요!`)로 판정하지 않는다 — 치지직이 카피를 바꾸면
+ * 조용히 깨진다. **플레이어 존재 여부**라는 구조 신호를 쓰고, 최종 판정은 상태 API 가 한다.
+ */
+export const LIVE_PRESENCE = {
+  /** 이 셋 중 하나라도 있으면 플레이어가 붙은 것이다. */
+  playerMarkers: ['video', '#live_player_layout', '.pzp-pc'],
+} as const;
+
+/**
  * C계층 — 치지직 CSS 모듈. 접두어 부분 일치만 사용. (실측 2026-08-11)
  * 접미 해시는 빌드마다 바뀌므로 주석의 실측값은 참고용이다.
  */
