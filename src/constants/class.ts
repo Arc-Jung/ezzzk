@@ -47,6 +47,13 @@ export const PLAYER = {
   viewModeButton: 'button.pzp-viewmode-button',
   fullscreenButton: 'button.pzp-pc__fullscreen-button',
 
+  /**
+   * 진행바(탐색 바). **박스가 0×0 이라 rect 로는 위치를 알 수 없다** (실측 2026-09-07: 라이브·VOD
+   * 모두 `0×0`, 보이는 선은 자손이 그린다). 대신 `position: absolute` 의 `bottom` 오프셋이
+   * 컨트롤바 바닥 기준 높이를 알려 준다 — 일반 44px / 전체화면 56px (실측 2026-09-07, 1920×950).
+   */
+  progressSlider: 'div.pzp-pc__progress-slider',
+
   /** 컨트롤바 버튼 그룹. 삽입 지점이며 리렌더 시 사라질 수 있다. */
   bottomButtonsLeft: 'div.pzp-pc__bottom-buttons-left',
   bottomButtonsRight: 'div.pzp-pc__bottom-buttons-right',
