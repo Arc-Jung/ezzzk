@@ -8,8 +8,6 @@ import { resetInputTrackingForTests } from './multiView/userIntent';
 import type { FeatureContext } from './types';
 import {
   VOLUME_STORAGE_KEYS,
-  WRAP_TOLERANCE_PX,
-  isRowWrapped,
   clampVolumePercent,
   formatVolumeLabel,
   insertVolumeControl,
@@ -375,16 +373,24 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
 
   /**
    * 실측 구조를 그대로 본뜬다: `#live_player_layout`(옵저버 앵커) > `.pzp-pc`(플레이어 루트) >
-   * `div.pzp-pc__bottom-buttons-right`(삽입 대상). `video` 는 따로 붙인다.
+   * `.pzp-pc__bottom` > `.pzp-pc__bottom-buttons` > `div.pzp-pc__bottom-buttons-right`.
+   * 볼륨 전용 줄이 `.pzp-pc__bottom` 의 자식으로 들어가므로 이 사슬이 전부 필요하다.
+   * `video` 는 따로 붙인다.
    */
   function mountPlayer(): HTMLElement {
     const layout = document.createElement('div');
     layout.id = 'live_player_layout';
     const root = document.createElement('div');
     root.className = 'pzp-pc';
+    const bottom = document.createElement('div');
+    bottom.className = 'pzp-pc__bottom';
+    const buttons = document.createElement('div');
+    buttons.className = 'pzp-pc__bottom-buttons';
     const bar = document.createElement('div');
     bar.className = 'pzp-pc__bottom-buttons-right';
-    root.appendChild(bar);
+    buttons.appendChild(bar);
+    bottom.appendChild(buttons);
+    root.appendChild(bottom);
     layout.appendChild(root);
     document.body.appendChild(layout);
     return root;
@@ -423,7 +429,7 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     await vi.advanceTimersByTimeAsync(5_000);
 
     expect(control()).not.toBeNull();
-    expect(control()?.parentElement?.className).toBe('pzp-pc__bottom-buttons-right');
+    expect(control()?.parentElement?.id).toBe('cm-volume-row');
     // 기본 볼륨 50% 가 실제로 적용됐다.
     expect(video.volume).toBeCloseTo(0.5);
     expect(shownLabel()).toBe('50%');
@@ -565,9 +571,15 @@ describe('volumeFeature — 슬롯 프레임은 localStorage(origin 공유) 를 
     layout.id = 'live_player_layout';
     const root = document.createElement('div');
     root.className = 'pzp-pc';
+    const bottom = document.createElement('div');
+    bottom.className = 'pzp-pc__bottom';
+    const buttons = document.createElement('div');
+    buttons.className = 'pzp-pc__bottom-buttons';
     const bar = document.createElement('div');
     bar.className = 'pzp-pc__bottom-buttons-right';
-    root.appendChild(bar);
+    buttons.appendChild(bar);
+    bottom.appendChild(buttons);
+    root.appendChild(bottom);
     layout.appendChild(root);
     document.body.appendChild(layout);
     return root;
@@ -902,9 +914,15 @@ describe('volumeFeature — 컴프레서(음량 평탄화) 토글 버튼', () =>
     layout.id = 'live_player_layout';
     const root = document.createElement('div');
     root.className = 'pzp-pc';
+    const bottom = document.createElement('div');
+    bottom.className = 'pzp-pc__bottom';
+    const buttons = document.createElement('div');
+    buttons.className = 'pzp-pc__bottom-buttons';
     const bar = document.createElement('div');
     bar.className = 'pzp-pc__bottom-buttons-right';
-    root.appendChild(bar);
+    buttons.appendChild(bar);
+    bottom.appendChild(buttons);
+    root.appendChild(bottom);
     layout.appendChild(root);
     document.body.appendChild(layout);
     return root;
@@ -1076,9 +1094,15 @@ describe('volumeFeature — 음소거 해제: 조절 시 해제 · 되돌려지�
     layout.id = 'live_player_layout';
     const root = document.createElement('div');
     root.className = 'pzp-pc';
+    const bottom = document.createElement('div');
+    bottom.className = 'pzp-pc__bottom';
+    const buttons = document.createElement('div');
+    buttons.className = 'pzp-pc__bottom-buttons';
     const bar = document.createElement('div');
     bar.className = 'pzp-pc__bottom-buttons-right';
-    root.appendChild(bar);
+    buttons.appendChild(bar);
+    bottom.appendChild(buttons);
+    root.appendChild(bottom);
     layout.appendChild(root);
     document.body.appendChild(layout);
     return root;
@@ -1254,19 +1278,22 @@ describe('volumeFeature — 음소거 해제: 조절 시 해제 · 되돌려지�
 });
 
 /**
- * FR-03 — 우측 버튼 그룹이 **한 줄에 담지 못할 때만** 볼륨 컨트롤이 바로 위 전용 줄로 간다.
+ * FR-03 — 볼륨 컨트롤은 **항상** 버튼 줄 바로 위 전용 줄에 있다 (사용자 요청 2026-09-06).
  *
- * 🔴 실측 근거 (2026-09-03, `etc/tmp/probe-controlbar-space.mjs` · `probe-overflow-sweep.mjs`):
- * 기준은 기기 종류가 아니라 **실제 폭**이다 — 모바일(270·308px)뿐 아니라 노트북 창 800×700(404px),
- * 태블릿 600×900(417px)도 넘쳤고, 1000×800 이상은 한 줄에 들어갔다.
+ * 이전 계약(2026-09-03)은 "우측 버튼 그룹이 한 줄에 담지 못할 때만" 전용 줄이었다. 그 결과
+ * 넓은 화면(데스크톱·노트북)에서는 컨트롤이 우측 그룹 안에 남아 화면 오른쪽 끝에 붙었다.
+ * 이제 폭과 무관하게 왼쪽 아래 한 자리로 고정한다 — 좌측 그룹 첫 버튼이 일시정지이고 x 가 줄의
+ * 시작과 같으므로(실측 x=18 동일) 줄 왼쪽 정렬이 곧 일시정지 버튼 위다.
  *
- * ⚠️ jsdom 에는 레이아웃이 없어 `offsetTop` 이 항상 0 이다 → 줄바꿈 상태를 **직접 심어** 만든다.
- * 좌표 자체의 검증은 Playwright 실측이 맡는다(세로 볼륨 18/144 · 일시정지 18/188).
+ * ⚠️ jsdom 에는 레이아웃이 없다 — 좌표 자체의 검증은 Playwright 실측이 맡는다.
  */
-describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바로 위 전용 줄로 올린다 (2026-09-03)', () => {
-  /** 배치는 기기 유형이 아니라 실제 줄바꿈으로 정해진다 — 두 유형 모두 같은 코드 경로를 탄다. */
-  const ctxFor = (deviceClass: 'mobile' | 'desktop'): FeatureContext => ({
-    page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+describe('volumeFeature — 볼륨 컨트롤은 항상 일시정지 버튼 위 전용 줄에 있다 (2026-09-06)', () => {
+  /** 배치는 기기 유형과 무관하다 — 두 유형 모두 같은 결과여야 한다. */
+  const ctxFor = (
+    deviceClass: 'mobile' | 'desktop',
+    pageType: 'live' | 'mobile-web' = 'live',
+  ): FeatureContext => ({
+    page: { type: pageType, channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
     device: {
       deviceClass,
       profile: DEVICE_PROFILES[deviceClass],
@@ -1284,28 +1311,32 @@ describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바�
     settings: DEFAULT_SETTINGS,
   });
 
-  /** 실측 사슬 그대로: `.pzp-pc__bottom` > `.pzp-pc__bottom-buttons` > `…-left` / `…-right`. */
-  function mountPlayer(): {
+  /**
+   * 실측 사슬 그대로: `.pzp-pc__bottom` > `.pzp-pc__bottom-buttons` > `…-left` / `…-right`.
+   * 모바일 웹(`m.chzzk`)은 클래스 계열이 통째로 다르다 (`pzp-mobile__*`) → 같은 모양으로 만든다.
+   */
+  function mountPlayer(mobileWeb = false): {
     root: HTMLElement;
     bottom: HTMLElement;
     buttons: HTMLElement;
     right: HTMLElement;
   } {
+    const ns = mobileWeb ? 'pzp-mobile' : 'pzp-pc';
     const layout = document.createElement('div');
     layout.id = 'live_player_layout';
     const root = document.createElement('div');
-    root.className = 'pzp-pc';
+    root.className = ns;
     const bottom = document.createElement('div');
-    bottom.className = 'pzp-pc__bottom';
+    bottom.className = `${ns}__bottom`;
     const buttons = document.createElement('div');
-    buttons.className = 'pzp-pc__bottom-buttons';
+    buttons.className = `${ns}__bottom-buttons`;
     const left = document.createElement('div');
-    left.className = 'pzp-pc__bottom-buttons-left';
+    left.className = `${ns}__bottom-buttons-left`;
     const pause = document.createElement('button');
     pause.setAttribute('aria-label', '일시 정지');
     left.appendChild(pause);
     const right = document.createElement('div');
-    right.className = 'pzp-pc__bottom-buttons-right';
+    right.className = `${ns}__bottom-buttons-right`;
     for (const label of ['설정', '전체 화면']) {
       const native = document.createElement('button');
       native.setAttribute('aria-label', label);
@@ -1323,34 +1354,6 @@ describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바�
     return { root, bottom, buttons, right };
   }
 
-  /**
-   * jsdom 은 레이아웃을 계산하지 않는다 — 폭과 `offsetTop` 을 직접 심어 "한 줄인가"를 만든다.
-   * `wrapped: true` 면 마지막 자식이 다음 줄로 밀린 상태다.
-   */
-  function fakeLayout(
-    group: HTMLElement,
-    { wrapped }: { wrapped: boolean },
-  ): (next: boolean) => void {
-    let isWrapped = wrapped;
-    const apply = () => {
-      const children = Array.from(group.children) as HTMLElement[];
-      children.forEach((el, index) => {
-        Object.defineProperty(el, 'offsetTop', {
-          value: isWrapped && index === children.length - 1 ? 44 : 0,
-          configurable: true,
-        });
-        el.getBoundingClientRect = () => ({ width: 36, height: 36 }) as DOMRect;
-      });
-    };
-    apply();
-    // 볼륨 컨트롤은 마운트 뒤에 자식으로 들어오므로 그때마다 다시 심는다.
-    new MutationObserver(apply).observe(group, { childList: true });
-    return (next: boolean) => {
-      isWrapped = next;
-      apply();
-    };
-  }
-
   const control = (): HTMLElement | null => document.getElementById('cm-volume-control');
   const row = (): HTMLElement | null => document.getElementById('cm-volume-row');
 
@@ -1360,43 +1363,31 @@ describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바�
     document.body.innerHTML = '';
   });
 
-  it('넘치면: 전용 줄이 버튼 줄 **바로 앞**에 생기고 볼륨 컨트롤이 그 안에 있다', async () => {
-    vi.useFakeTimers();
-    const { buttons, right } = mountPlayer();
-    fakeLayout(right, { wrapped: true });
+  it.each(['mobile', 'desktop'] as const)(
+    '%s: 전용 줄이 버튼 줄 **바로 앞**에 생기고 볼륨 컨트롤이 그 안에 있다',
+    async (deviceClass) => {
+      vi.useFakeTimers();
+      const { buttons } = mountPlayer();
 
-    const dispose = volumeFeature.start(ctxFor('mobile'));
-    await vi.advanceTimersByTimeAsync(5_000);
+      const dispose = volumeFeature.start(ctxFor(deviceClass));
+      await vi.advanceTimersByTimeAsync(5_000);
 
-    expect(row()).not.toBeNull();
-    expect(control()?.parentElement).toBe(row());
-    // 바로 앞 형제 = 화면에서 한 줄 위 (`.pzp-pc__bottom` 은 block 이다 — 실측)
-    expect(row()?.nextElementSibling).toBe(buttons);
-    // 일시정지 버튼과 같은 왼쪽 정렬
-    expect(row()?.style.justifyContent).toBe('flex-start');
+      expect(row()).not.toBeNull();
+      expect(control()?.parentElement).toBe(row());
+      // 바로 앞 형제 = 화면에서 한 줄 위 (`.pzp-pc__bottom` 은 block 이다 — 실측)
+      expect(row()?.nextElementSibling).toBe(buttons);
+      // 일시정지 버튼과 같은 왼쪽 정렬
+      expect(row()?.style.justifyContent).toBe('flex-start');
+      // 전용 줄에서는 `order: -1`(우측 그룹용 규칙)을 쓰지 않는다.
+      expect(control()?.style.order).toBe('');
 
-    dispose?.();
-  });
-
-  it('한 줄에 들어가면: 전용 줄을 만들지 않고 우측 그룹 맨 왼쪽에 남는다', async () => {
-    vi.useFakeTimers();
-    const { right } = mountPlayer();
-    fakeLayout(right, { wrapped: false });
-
-    const dispose = volumeFeature.start(ctxFor('desktop'));
-    await vi.advanceTimersByTimeAsync(5_000);
-
-    expect(row()).toBeNull();
-    expect(control()?.parentElement?.className).toBe('pzp-pc__bottom-buttons-right');
-    expect(control()?.style.order).toBe('-1');
-
-    dispose?.();
-  });
+      dispose?.();
+    },
+  );
 
   it('버튼 줄이 새로 그려지면 전용 줄이 새 버튼 줄 앞으로 다시 붙는다', async () => {
     vi.useFakeTimers();
-    const { bottom, buttons, right } = mountPlayer();
-    fakeLayout(right, { wrapped: true });
+    const { bottom, buttons } = mountPlayer();
 
     const dispose = volumeFeature.start(ctxFor('mobile'));
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1418,7 +1409,6 @@ describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바�
       nextRight.appendChild(native);
     }
     next.appendChild(nextRight);
-    fakeLayout(nextRight, { wrapped: true });
     bottom.insertBefore(next, row());
     expect(row()?.nextElementSibling).not.toBe(next);
 
@@ -1426,51 +1416,54 @@ describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바�
 
     expect(row()?.nextElementSibling).toBe(next);
     expect(control()?.parentElement).toBe(row());
-    // 전용 줄에서는 `order: -1`(우측 그룹용 규칙)을 쓰지 않는다.
-    expect(control()?.style.order).toBe('');
 
     dispose?.();
   });
 
   /**
-   * 🔴 `content.tsx` 는 **기기 유형이 바뀔 때만** 기능을 재시작한다 — 같은 `laptop` 안에서
-   * 창을 1000 → 800 으로 줄이는 변화는 재시작을 부르지 않는다(실측 2026-09-03: 800×700 에서 넘침).
-   * 그래서 볼륨 기능이 자기 구독으로 배치를 다시 판정해야 한다.
+   * 🔴 예전 구현은 창 크기에 따라 인라인 ↔ 전용 줄을 오갔다. 그 경로를 지웠으므로 창을 넓혀도
+   * 자리가 바뀌지 않아야 한다 — 사용자가 창을 조절하는 동안 컨트롤이 화면을 가로질러 튀지 않는다.
    */
-  it('창 크기가 바뀌면 배치를 다시 판정한다 — 자리가 생기면 인라인으로 되돌아온다', async () => {
+  it('창 크기가 바뀌어도 전용 줄에 그대로 있다', async () => {
     vi.useFakeTimers();
-    const { right, buttons } = mountPlayer();
-    const setWrapped = fakeLayout(right, { wrapped: true });
+    const { buttons } = mountPlayer();
 
     const dispose = volumeFeature.start(ctxFor('desktop'));
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(row()).not.toBeNull();
+    expect(control()?.parentElement).toBe(row());
 
-    // 창을 넓혔다 → 이제 한 줄에 들어간다.
-    setWrapped(false);
-    buttons.getBoundingClientRect = () => ({ width: 1440, height: 36 }) as DOMRect;
-    window.dispatchEvent(new Event('resize'));
-    await vi.advanceTimersByTimeAsync(1_000);
-
-    expect(row()).toBeNull();
-    expect(control()?.parentElement).toBe(right);
-    expect(control()?.style.order).toBe('-1');
-
-    // 다시 좁히면 전용 줄로 올라간다.
-    setWrapped(true);
-    buttons.getBoundingClientRect = () => ({ width: 800, height: 36 }) as DOMRect;
     window.dispatchEvent(new Event('resize'));
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(control()?.parentElement).toBe(row());
+    expect(row()?.nextElementSibling).toBe(buttons);
+
+    dispose?.();
+  });
+
+  /**
+   * 🔴 모바일 웹(`m.chzzk.naver.com`)은 전용 줄의 근거가 없어 **인라인 폴백**을 쓴다
+   * (`ownRowAllowed === false`). 폴백 경로를 검증하는 유일한 기능 테스트다 — 없으면
+   * `order`·`pointerEvents` 복구가 깨져도 아무도 알아채지 못한다.
+   */
+  it('모바일 웹은 전용 줄을 만들지 않고 우측 그룹 맨 왼쪽에 남는다', async () => {
+    vi.useFakeTimers();
+    const { right } = mountPlayer(true);
+
+    const dispose = volumeFeature.start(ctxFor('mobile', 'mobile-web'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()).toBeNull();
+    expect(control()?.parentElement).toBe(right);
+    expect(control()?.style.order).toBe('-1');
+    expect(control()?.style.pointerEvents).toBe('');
 
     dispose?.();
   });
 
   it('정리하면 전용 줄도 함께 걷어낸다 — 빈 줄을 남기지 않는다', async () => {
     vi.useFakeTimers();
-    const { right } = mountPlayer();
-    fakeLayout(right, { wrapped: true });
+    mountPlayer();
 
     const dispose = volumeFeature.start(ctxFor('mobile'));
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1480,30 +1473,5 @@ describe('volumeFeature — 한 줄에 안 들어가면 볼륨 컨트롤을 바�
 
     expect(row()).toBeNull();
     expect(control()).toBeNull();
-  });
-});
-
-/**
- * 줄바꿈 판정. 실측(2026-09-03 `probe-overflow-sweep.mjs`)에서 나온 값을 그대로 쓴다 —
- * 한 줄 안의 세로 정렬 차이는 2~4px, 진짜 줄바꿈은 36~44px 이라 그 사이면 판정이 같다.
- */
-describe('isRowWrapped', () => {
-  it('빈 줄은 줄바꿈이 아니다', () => {
-    expect(isRowWrapped([])).toBe(false);
-  });
-
-  it('버튼 높이 차이로 생기는 정렬 오차(2·4px)는 같은 줄로 본다', () => {
-    expect(isRowWrapped([0, 2])).toBe(false); // 노트북 1440×900 실측
-    expect(isRowWrapped([0, 4])).toBe(false); // 태블릿 1180×820 실측
-  });
-
-  it('다음 줄로 밀린 버튼(36·44px)은 줄바꿈으로 본다', () => {
-    expect(isRowWrapped([0, 2, 36])).toBe(true); // 노트북 창 800×700 실측
-    expect(isRowWrapped([0, 4, 44])).toBe(true); // 태블릿 600×900 실측
-  });
-
-  it('경계는 허용 오차 초과부터다', () => {
-    expect(isRowWrapped([0, WRAP_TOLERANCE_PX])).toBe(false);
-    expect(isRowWrapped([0, WRAP_TOLERANCE_PX + 1])).toBe(true);
   });
 });
