@@ -180,6 +180,37 @@ export function insertVolumeControl(container: Element, node: HTMLElement): void
  * 위치는 일시정지 버튼과 같은 왼쪽 정렬이다. 좌측 그룹의 첫 버튼이 일시정지이고 x 가 줄의
  * 시작과 같으므로(실측 x=18 동일) 줄 왼쪽 정렬이 곧 일시정지 버튼 위다.
  */
+/**
+ * 진행바와 볼륨 컨트롤 사이에 두는 최소 간격(px). 붙여 놓으면 글자와 선이 서로를 가린다.
+ */
+const SLIDER_GAP_PX = 3;
+
+/** 진행바를 찾지 못했을 때 쓰는 아래 여백. 일반 화면 실측값이다 (2026-09-06 laptop13: 44−36+3). */
+export const DEFAULT_SLIDER_CLEARANCE_PX = 11;
+
+/**
+ * 볼륨 줄이 진행바를 피하려면 아래를 얼마나 비워야 하는가.
+ *
+ * 🔴 실측 2026-09-07 (1920×950, `etc/tmp/probe-fullscreen-chain.mjs`).
+ * `.pzp-pc__bottom` 은 **바닥(`bottom: 8px`)에 붙어 내용만큼 위로 자라는** 절대 배치 상자다 —
+ * 우리 줄을 넣으면 버튼 줄은 그대로 있고 상자만 위로 커진다. 진행바는 그 상자 바닥 기준
+ * `bottom` 오프셋으로 떠 있어 **버튼 줄 바로 위**에 그려진다.
+ *
+ * | 상태 | 진행바 `bottom` | 버튼 줄 높이 | 진행바가 버튼 줄 위로 뜬 높이 |
+ * | --- | --- | --- | --- |
+ * | 일반 | 44px | 36px | 8px |
+ * | 전체화면 | 56px | 36px | 20px |
+ *
+ * 전체화면은 버튼이 36 → 47px 로 커지면서 진행바도 그만큼 위로 올라간다. 고정값을 쓰면
+ * (2026-09-06 의 14px) 전체화면에서 진행바가 볼륨 글자를 뚫고 지나간다 — 사용자가 본 증상이다.
+ */
+export function sliderClearancePx(sliderBottomOffset: number, buttonsRowHeight: number): number {
+  if (!Number.isFinite(sliderBottomOffset) || !Number.isFinite(buttonsRowHeight)) {
+    return DEFAULT_SLIDER_CLEARANCE_PX;
+  }
+  return Math.max(0, Math.round(sliderBottomOffset - buttonsRowHeight) + SLIDER_GAP_PX);
+}
+
 function buildVolumeRow(): HTMLElement {
   const row = document.createElement('div');
   row.id = OURS.volumeRowId;
@@ -191,13 +222,11 @@ function buildVolumeRow(): HTMLElement {
     'justify-content:flex-start',
     'width:100%',
     /*
-     * 🔴 진행바(seek bar)를 피한다. 진행바는 `position: absolute` 로 **버튼 줄 바로 위 11px**
-     * 지점에 그려지므로(실측 2026-09-06 laptop13 VOD: 진행바 y=845 h=3, 버튼 줄 y=856) 우리 줄의
-     * 아래쪽과 겹친다. 노트북처럼 줄 높이가 32px 인 경우 볼륨 글자(중앙 정렬)와 진행바가 5px
-     * 안으로 붙어 서로를 가린다 — 아래 여백을 둬 컨트롤을 진행바 위로 올린다.
-     * (모바일은 터치 타겟 44px 이라 우연히 떨어져 있었다. 여기서 폭·기기와 무관하게 고정한다.)
+     * 🔴 진행바(탐색 바)를 피하는 아래 여백. **여기 값은 초기값일 뿐이고 실제 값은
+     * `syncRowClearance` 가 실측으로 맞춘다** — 진행바 높이가 상태마다 다르기 때문이다
+     * (일반 44px / 전체화면 56px). 진행바를 찾지 못하는 예외 상황에서 쓰일 일반 화면 실측값이다.
      */
-    'padding-bottom:14px',
+    `padding-bottom:${DEFAULT_SLIDER_CLEARANCE_PX}px`,
     /*
      * 🔴 줄은 전폭(예: 세로 375px)이지만 실제로 채우는 것은 볼륨 컨트롤 182px 뿐이다.
      * 남는 폭이 영상 위 탭을 가로채면 재생/일시정지 같은 네이티브 조작이 죽는다 — 줄 자체는
@@ -708,10 +737,26 @@ export const volumeFeature: Feature = {
       insertVolumeControl(group, el);
     };
 
+    /**
+     * 진행바를 피할 만큼 줄 아래를 비운다. 전체화면처럼 진행바가 위로 올라가는 상태에서도
+     * 볼륨 글자가 선에 걸리지 않게 **매번 실측으로** 맞춘다 (`sliderClearancePx` 주석의 실측표).
+     * 값이 그대로면 DOM 을 건드리지 않는다.
+     */
+    const syncRowClearance = () => {
+      const row = document.getElementById(OURS.volumeRowId);
+      const slider = qs<HTMLElement>(PLAYER.progressSlider);
+      const buttons = buttonsRow();
+      if (!row || !slider || !buttons) return;
+      const offset = Number.parseFloat(getComputedStyle(slider).bottom);
+      const next = `${sliderClearancePx(offset, buttons.getBoundingClientRect().height)}px`;
+      if (row.style.paddingBottom !== next) row.style.paddingBottom = next;
+    };
+
     /** 버튼 줄 바로 위 전용 줄. 기본 자리다. */
     const placeOwnRow = (el: HTMLElement): boolean => {
       const row = ensureVolumeRow();
       if (!row) return false;
+      syncRowClearance();
       // 전용 줄에는 우리 것만 있으므로 순서를 다툴 상대가 없다.
       el.style.order = '';
       // 줄은 `pointer-events:none` 이다 — 실제 조작 대상인 컨트롤만 되살린다.
@@ -805,6 +850,15 @@ export const volumeFeature: Feature = {
       root.addEventListener('pointerdown', showOnTap, true);
     };
     disposers.push(() => tapRoot?.removeEventListener('pointerdown', showOnTap, true));
+
+    /*
+     * 🔴 전체화면 전환은 **클래스만 바꾼다** — 우리 옵저버는 `attributes: false` 라 깨어나지 않는다
+     * (실측 2026-09-07). 그런데 그 순간 버튼이 36 → 47px 로 커지고 진행바도 함께 올라가므로
+     * 여백을 다시 재야 한다. 이벤트로 직접 받는 편이 옵저버 범위를 넓히는 것보다 싸고 정확하다.
+     */
+    const onFullscreenChange = () => guard('volume:clearance', syncRowClearance);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    disposers.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange));
 
     // ── FR-03 키보드 단축키 ──────────────────────────────────────────────────
     // 네이티브 `space` `k` `m` `f` 는 건드리지 않는다. `off` 프로필에서는 아예 걸지 않는다.
@@ -1206,6 +1260,7 @@ export const volumeFeature: Feature = {
       rescueBlockedAutoplay();
       // 컨트롤바는 리렌더 시 자식을 날린다 → 매번 존재를 확인해 다시 넣는다.
       if (!isMounted()) mount();
+      else syncRowClearance();
     };
 
     /**

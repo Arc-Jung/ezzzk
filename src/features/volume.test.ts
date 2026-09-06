@@ -8,6 +8,8 @@ import { resetInputTrackingForTests } from './multiView/userIntent';
 import type { FeatureContext } from './types';
 import {
   VOLUME_STORAGE_KEYS,
+  DEFAULT_SLIDER_CLEARANCE_PX,
+  sliderClearancePx,
   clampVolumePercent,
   formatVolumeLabel,
   insertVolumeControl,
@@ -1342,8 +1344,19 @@ describe('volumeFeature — 볼륨 컨트롤은 항상 일시정지 버튼 위 �
       native.setAttribute('aria-label', label);
       right.appendChild(native);
     }
+    /*
+     * 진행바. 실제 사이트에서는 `position: absolute` 로 컨트롤바 바닥에서 `bottom` 만큼 떠 있고
+     * 박스는 0×0 이다 (실측 2026-09-07) — 여백 계산이 읽는 것은 이 `bottom` 값뿐이다.
+     */
+    const slider = document.createElement('div');
+    slider.className = `${ns}__progress-slider`;
+    slider.style.position = 'absolute';
+    slider.style.bottom = '44px';
+    bottom.appendChild(slider);
     buttons.append(left, right);
     bottom.appendChild(buttons);
+    // jsdom 에는 레이아웃이 없다 → 여백 계산이 쓰는 버튼 줄 높이(실측 36px)만 심는다.
+    buttons.getBoundingClientRect = () => ({ height: 36, bottom: 0, x: 0, y: 0 }) as DOMRect;
     root.appendChild(bottom);
     layout.appendChild(root);
     document.body.appendChild(layout);
@@ -1461,6 +1474,45 @@ describe('volumeFeature — 볼륨 컨트롤은 항상 일시정지 버튼 위 �
     dispose?.();
   });
 
+  /**
+   * 🔴 사용자 보고 2026-09-07 "데스크톱에서 볼륨이 일시정지 위로 안 올라갔다".
+   * 실측(1920×950)에서 **전체화면**일 때 진행바가 볼륨 글자를 뚫고 지나갔다 — 진행바가
+   * 컨트롤바 바닥에서 44px(일반) / 56px(전체화면) 떠 있는데 여백이 14px 로 고정이었다.
+   */
+  it('진행바 높이에 맞춰 줄 아래 여백을 실측으로 맞춘다', async () => {
+    vi.useFakeTimers();
+    const { bottom } = mountPlayer();
+    const slider = bottom.querySelector<HTMLElement>('.pzp-pc__progress-slider');
+
+    const dispose = volumeFeature.start(ctxFor('desktop'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    // 일반 화면: 진행바 44px, 버튼 줄 36px → 8px 차이 + 최소 간격 3px
+    expect(row()?.style.paddingBottom).toBe('11px');
+
+    // 전체화면: 진행바가 56px 로 올라간다 → 여백도 함께 커져야 한다
+    slider!.style.bottom = '56px';
+    document.dispatchEvent(new Event('fullscreenchange'));
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(row()?.style.paddingBottom).toBe('23px');
+
+    dispose?.();
+  });
+
+  it('진행바를 찾지 못하면 기본 여백을 유지한다 (조용히 0 이 되지 않는다)', async () => {
+    vi.useFakeTimers();
+    const { bottom } = mountPlayer();
+    bottom.querySelector('.pzp-pc__progress-slider')?.remove();
+
+    const dispose = volumeFeature.start(ctxFor('desktop'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(row()?.style.paddingBottom).toBe(`${DEFAULT_SLIDER_CLEARANCE_PX}px`);
+
+    dispose?.();
+  });
+
   it('정리하면 전용 줄도 함께 걷어낸다 — 빈 줄을 남기지 않는다', async () => {
     vi.useFakeTimers();
     mountPlayer();
@@ -1473,5 +1525,28 @@ describe('volumeFeature — 볼륨 컨트롤은 항상 일시정지 버튼 위 �
 
     expect(row()).toBeNull();
     expect(control()).toBeNull();
+  });
+});
+
+/**
+ * 진행바 회피 여백. 실측 2026-09-07 (1920×950, `etc/tmp/probe-fullscreen-chain.mjs`):
+ * 진행바는 컨트롤바 바닥에서 일반 44px / 전체화면 56px 떠 있고, 버튼 줄 높이는 36px 로 같다.
+ */
+describe('sliderClearancePx', () => {
+  it('일반 화면: 44 − 36 + 3 = 11', () => {
+    expect(sliderClearancePx(44, 36)).toBe(11);
+  });
+
+  it('전체화면: 56 − 36 + 3 = 23 — 버튼이 커지면 진행바가 올라가므로 여백도 커진다', () => {
+    expect(sliderClearancePx(56, 36)).toBe(23);
+  });
+
+  it('진행바가 버튼 줄 안에 있으면 여백이 필요 없다 (음수로 내려가지 않는다)', () => {
+    expect(sliderClearancePx(10, 36)).toBe(0);
+  });
+
+  it('읽을 수 없는 값은 기본 여백으로 되돌린다 — 0 으로 무너지지 않는다', () => {
+    expect(sliderClearancePx(Number.NaN, 36)).toBe(DEFAULT_SLIDER_CLEARANCE_PX);
+    expect(sliderClearancePx(44, Number.NaN)).toBe(DEFAULT_SLIDER_CLEARANCE_PX);
   });
 });
