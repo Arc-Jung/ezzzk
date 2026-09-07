@@ -257,7 +257,7 @@ const SHOTS = [
   {
     key: 'multiview',
     file: (p) => `demo-${p}-multiview.png`,
-    caption: '멀티뷰 시청 화면 (기기 상한에 맞춰 2·4분할)',
+    caption: '멀티뷰 시청 화면 (4분할 · 세로 화면에서는 한 열로 쌓는다)',
     multiView: true,
     setup: async (page) => {
       const stage = page.locator('#cm-multiview-stage .cm-slot').first();
