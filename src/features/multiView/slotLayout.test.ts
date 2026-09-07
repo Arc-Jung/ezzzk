@@ -419,6 +419,32 @@ describe('세로 3·4분할 — 한 열로 쌓는다', () => {
   });
 });
 
+/**
+ * 🔴 구성 시트 미리보기 회귀 (감사 2026-09-07).
+ *
+ * `ConfigSheet` 가 `computeSlotRects` 를 부를 때 `orientation` 을 빠뜨려 **항상 가로(격자)로
+ * 계산**했다. 세로 3·4분할이 한 열 배치로 바뀐 뒤 미리보기 숫자가 실제와 달랐다 —
+ * 412×915 에서 "슬롯 205×456 · 영상 205×115 (여백 0)" 로 떴는데, 205×456 안의 205×115 그림은
+ * 여백이 341px 다. 값끼리도 모순이었다.
+ *
+ * 여기서는 **두 배치가 실제로 다른 값을 준다**는 것을 고정한다. 같아져 버리면 인자를
+ * 빠뜨려도 아무도 눈치채지 못한다.
+ */
+describe('세로/가로 배치는 서로 다른 사각형을 준다 (미리보기 인자 누락 감지)', () => {
+  it.each([3, 4] as const)('%i분할에서 세로와 가로 결과가 다르다', (split) => {
+    const portrait = computeSlotRects(split, 412, 915, 'portrait')[0]!;
+    const landscape = computeSlotRects(split, 412, 915, 'landscape')[0]!;
+    expect(portrait).not.toEqual(landscape);
+    // 세로는 슬롯이 곧 16:9 그림이다.
+    expect(Math.abs(portrait.width / portrait.height - 16 / 9)).toBeLessThan(0.02);
+  });
+
+  /** 인자를 생략하면 가로가 기본값이다 — 세로 화면에서 이걸 그대로 쓰면 틀린 값이 된다. */
+  it('orientation 을 생략하면 가로로 계산한다', () => {
+    expect(computeSlotRects(4, 412, 915)).toEqual(computeSlotRects(4, 412, 915, 'landscape'));
+  });
+});
+
 describe('슬롯 채팅 줄 상한', () => {
   it('슬롯 폭 < 400px 이면 최대 3줄로 자동 제한한다', () => {
     expect(maxSlotChatLines(399, 'desktop')).toBe(3);
