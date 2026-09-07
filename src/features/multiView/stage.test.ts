@@ -16,9 +16,9 @@ import {
   FOCUSED_SLOT_CLASS,
   FS_CHAT_STEP_PX,
   STRIP_BAR_GAP_PX,
+  barOverlapsSlots,
   buildStageCss,
   sideChatWidthPx,
-  stageTopInset,
   stripBottomOffset,
   MultiViewStage,
 } from './stage';
@@ -72,28 +72,6 @@ describe('stripBottomOffset', () => {
     const shallow = { x: 0, y: 1000, width: 959, height: 80 };
     const offset = stripBottomOffset(shallow, 60, 3, BAR);
     expect(offset).toBeLessThanOrEqual(shallow.height - 60);
-  });
-});
-
-describe('stageTopInset — 조작 바 전용 상단 띠 (2026-08-16 회귀)', () => {
-  it('바가 없으면 띠도 없다', () => {
-    expect(stageTopInset(null)).toBe(0);
-  });
-
-  it('바 높이가 0 이면(아직 렌더 전) 띠를 만들지 않는다', () => {
-    expect(stageTopInset({ top: 6, height: 0 })).toBe(0);
-  });
-
-  it('바 아래 끝 + 간격까지가 띠다 (터치 프로필 실측: top 6 · 높이 58 → 70)', () => {
-    expect(stageTopInset({ top: 6, height: 58 })).toBe(6 + 58 + STRIP_BAR_GAP_PX);
-  });
-
-  it('비터치 프로필은 버튼이 작아 띠도 얇다 (top 6 · 높이 46 → 58)', () => {
-    expect(stageTopInset({ top: 6, height: 46 })).toBe(58);
-  });
-
-  it('소수 좌표는 올림한다 — 1px 라도 모자라면 바가 헤더를 덮는다', () => {
-    expect(stageTopInset({ top: 6, height: 57.5 })).toBe(70);
   });
 });
 
@@ -860,25 +838,56 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   /**
-   * 🔴 조작 바 높이는 stageTopInset() 을 통해 슬롯 배치 띠로 그대로 환산된다 — 세로 여백이
-   * 되살아나면 슬롯이 그만큼 작아진다 (요청 2026-09-07: 바를 줄여 달라).
-   * 여백을 0 으로 둔 것을 회귀로 고정한다. 버튼 크기(터치 타겟)는 별개로 지켜야 하므로
-   * 함께 검사한다 — 바를 줄인다고 버튼을 줄이면 FR-12 위반이다.
+   * 조작 바 오버레이 (요청 2026-09-07) — "영상과 최대한 안 겹치게 하되, 겹치면 오버레이처럼".
+   *
+   * 🔴 예전에는 바가 차지하는 띠를 슬롯 배치에서 통째로 떼어 냈다(stageTopInset). 겹칠 수는
+   * 없었지만 바 높이만큼 영상이 작아졌다. 지금은 띠를 떼지 않으므로 **겹침을 판정해서
+   * 대응**해야 한다 — 그 판정이 틀리면 2026-08-16 회귀(바가 헤더 버튼을 덮어 눌리지 않음)가
+   * 그대로 돌아온다.
    */
-  it('조작 바에 세로 여백이 없고 버튼은 터치 타겟을 지킨다', () => {
-    const { stage } = openStage();
+  describe('조작 바 겹침 판정', () => {
+    it('슬롯이 바 아래에서 시작하면 겹치지 않는다', () => {
+      // 세로 3분할 412×915: 위 여백이 100px 남아 58px 바가 통째로 들어간다.
+      expect(barOverlapsSlots({ top: 6, height: 58 }, 100)).toBe(false);
+    });
+
+    it('슬롯이 바 안쪽에서 시작하면 겹친다', () => {
+      expect(barOverlapsSlots({ top: 6, height: 58 }, 40)).toBe(true);
+      // 딱 맞닿는 경계는 겹치지 않는다.
+      expect(barOverlapsSlots({ top: 6, height: 58 }, 64)).toBe(false);
+      expect(barOverlapsSlots({ top: 6, height: 58 }, 63)).toBe(true);
+    });
+
+    it('바가 없거나 아직 렌더 전이면 겹치지 않는다', () => {
+      expect(barOverlapsSlots(null, 0)).toBe(false);
+      expect(barOverlapsSlots({ top: 6, height: 0 }, 0)).toBe(false);
+    });
+
+    it('슬롯이 없으면 겹치지 않는다', () => {
+      expect(barOverlapsSlots({ top: 6, height: 58 }, null)).toBe(false);
+    });
+  });
+
+  /**
+   * 🔴 겹칠 때만 반투명해진다. 여백에 앉아 있을 때까지 반투명하면 글자가 흐려질 뿐이다.
+   * 그리고 겹칠 때는 헤더를 밀어 내려야 버튼이 눌린다 — 둘은 한 쌍이라 같이 검사한다.
+   */
+  it('겹칠 때만 반투명해지고, 겹친 슬롯의 헤더는 바 아래로 밀린다', () => {
     const css = buildStageCss(44, false);
-    const barRule = css.slice(css.indexOf('.cm-stage-bar {'));
-    const block = barRule.slice(0, barRule.indexOf('}'));
 
-    // 세로 패딩 0 — `padding: 0 12px` 형태여야 한다.
-    expect(block).toMatch(/padding:\s*0\s+\d+px/);
-    expect(block).not.toMatch(/padding:\s*[1-9]/);
+    const overlayRule = css.slice(css.indexOf(".cm-stage-bar[data-overlay='true']"));
+    expect(overlayRule.slice(0, overlayRule.indexOf('}'))).toContain('#16181b80');
 
-    // 버튼은 터치 타겟 그대로다.
+    // 기본(겹치지 않음)은 불투명 쪽 값이 그대로다.
+    const baseRule = css.slice(css.indexOf('.cm-stage-bar {'));
+    expect(baseRule.slice(0, baseRule.indexOf('}'))).toContain('#16181be6');
+
+    const headRule = css.slice(css.indexOf(".cm-slot[data-under-bar='true'] .cm-slot__head"));
+    expect(headRule.slice(0, headRule.indexOf('}'))).toContain('var(--cm-bar-overlap');
+
+    // 바를 띄운다고 버튼을 줄이면 FR-12 위반이다.
     const buttonRule = css.slice(css.indexOf('.cm-stage-bar button {'));
     expect(buttonRule.slice(0, buttonRule.indexOf('}'))).toContain('min-height: 44px');
-    stage.close();
   });
 
   it('조작 바·슬롯 헤더의 모든 버튼에 접근성 이름이 있다 (전수 검사)', () => {
