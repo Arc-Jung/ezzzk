@@ -68,6 +68,61 @@ export function isSplitAvailable(split: SplitCount, deviceClass: DeviceClass): b
 }
 
 /**
+ * 세로 자세에서 슬롯 `count` 개를 **한 열로** 쌓는다 (모바일 3·4분할, 2026-09-07).
+ *
+ * 🔴 세로에서 격자(2×2)를 쓰면 안 된다. 412×915 실측으로 비교하면 슬롯 하나가 담는 그림이
+ * 3배 넘게 차이난다.
+ *
+ * | 배치 | 슬롯 크기 | 그림 면적 |
+ * | --- | --- | --- |
+ * | 2×2 격자 | 202×424 (16:9 그림은 202×114) | 23,028px² — 슬롯마다 310px 가 레터박스 |
+ * | 1열 4행 | 370×208 (슬롯 = 그림) | 76,960px² |
+ *
+ * 세로는 **폭이 제약**이므로 슬롯을 넓게 쓰고 높이로 나누는 쪽이 언제나 크다. 2분할이 이미
+ * 같은 이유로 전용 분기를 갖고 있다(2026-08-22 실측) — 3·4분할로 같은 원리를 넓힌 것이다.
+ *
+ * 두 경우로 갈린다.
+ * 1. 폭 제약 — 폭을 다 쓴 16:9 높이로 전부 들어가면 그대로 쌓고 남는 높이는 위아래로 나눈다.
+ * 2. 높이 제약 — 안 들어가면 높이를 균등 분할하고 그 높이의 16:9 폭으로 줄여 가로 가운데에 둔다.
+ *
+ * 어느 쪽이든 **슬롯 사각형이 곧 그림**이라 슬롯 안에 레터박스가 남지 않는다.
+ */
+function portraitColumn(
+  count: number,
+  stageW: number,
+  usableH: number,
+  gap: number,
+): SlotRect[] | null {
+  if (count <= 0 || stageW <= 0 || usableH <= 0) return null;
+  const gaps = gap * (count - 1);
+
+  const byWidth = Math.round((stageW * 9) / 16);
+  if (byWidth > 0 && byWidth * count + gaps <= usableH) {
+    const pad = Math.floor((usableH - (byWidth * count + gaps)) / 2);
+    return Array.from({ length: count }, (_, i) => ({
+      // `count` 는 SplitCount(2·3·4)라 i+1 은 항상 1..4 다.
+      index: (i + 1) as SlotIndex,
+      x: 0,
+      y: pad + i * (byWidth + gap),
+      width: stageW,
+      height: byWidth,
+    }));
+  }
+
+  const height = Math.floor((usableH - gaps) / count);
+  if (height <= 0) return null;
+  const width = Math.min(stageW, Math.round((height * 16) / 9));
+  const x = Math.floor((stageW - width) / 2);
+  return Array.from({ length: count }, (_, i) => ({
+    index: (i + 1) as SlotIndex,
+    x,
+    y: i * (height + gap),
+    width,
+    height,
+  }));
+}
+
+/**
  * 슬롯 사각형 배치.
  *
  * - 2분할: 가로에서는 좌우, 세로에서는 상하 (모바일·7인치급 세로 자세 대응)
@@ -132,6 +187,16 @@ export function computeSlotRects(
         { index: 1, x: 0, y: 0, width: halfW, height: usableH },
         { index: 2, x: rightX, y: 0, width: stageW - rightX, height: usableH },
       ];
+    }
+
+    /*
+     * 세로 자세의 3·4분할은 한 열로 쌓는다 (2026-09-07). 2분할이 이미 위에서 같은 이유로
+     * 전용 분기를 쓰고 있다 — 아래 격자는 가로 자세 전용이다.
+     * `portraitColumn` 이 null 이면(무대가 비정상적으로 작다) 기존 격자로 물러난다.
+     */
+    if (orientation === 'portrait') {
+      const column = portraitColumn(split, stageW, usableH, gap);
+      if (column) return column;
     }
 
     if (split === 3) {
