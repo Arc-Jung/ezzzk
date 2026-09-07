@@ -831,6 +831,56 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
    * 판정은 다른 UI 와 **같은 규칙**(`auditIconButtons`)으로 한다 — 접근성 이름뿐 아니라
    * 버튼 속 SVG 의 `aria-hidden`, `aria-pressed` 값 유효성까지 한 번에 본다.
    */
+  /**
+   * 새로고침 버튼 (요청 2026-09-07). 슬롯이 멎었을 때 페이지를 다시 읽는 진입점이다.
+   * 🔴 슬롯 iframe 만 다시 붙이는 게 아니라 페이지 전체를 새로 읽는다 — 슬롯만 되살리면
+   * 호스트 플레이어·채팅이 낡은 상태로 남아 "일부만 살아난" 화면이 된다.
+   */
+  it('조작 바에 새로고침 버튼이 있고 누르면 페이지를 다시 읽는다', () => {
+    const { stage } = openStage();
+    const reload = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(window, 'location');
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    const button = document.querySelector<HTMLButtonElement>(
+      '.cm-stage-bar button[aria-label="새로고침"]',
+    );
+    expect(button).not.toBeNull();
+    // 아이콘 전용이 되어도 접근성 이름이 남아야 한다 (좁은 화면에서 라벨은 CSS 로 숨는다).
+    expect(button?.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+
+    button?.click();
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    if (original) Object.defineProperty(window, 'location', original);
+    stage.close();
+  });
+
+  /**
+   * 🔴 조작 바 높이는 stageTopInset() 을 통해 슬롯 배치 띠로 그대로 환산된다 — 세로 여백이
+   * 되살아나면 슬롯이 그만큼 작아진다 (요청 2026-09-07: 바를 줄여 달라).
+   * 여백을 0 으로 둔 것을 회귀로 고정한다. 버튼 크기(터치 타겟)는 별개로 지켜야 하므로
+   * 함께 검사한다 — 바를 줄인다고 버튼을 줄이면 FR-12 위반이다.
+   */
+  it('조작 바에 세로 여백이 없고 버튼은 터치 타겟을 지킨다', () => {
+    const { stage } = openStage();
+    const css = buildStageCss(44, false);
+    const barRule = css.slice(css.indexOf('.cm-stage-bar {'));
+    const block = barRule.slice(0, barRule.indexOf('}'));
+
+    // 세로 패딩 0 — `padding: 0 12px` 형태여야 한다.
+    expect(block).toMatch(/padding:\s*0\s+\d+px/);
+    expect(block).not.toMatch(/padding:\s*[1-9]/);
+
+    // 버튼은 터치 타겟 그대로다.
+    const buttonRule = css.slice(css.indexOf('.cm-stage-bar button {'));
+    expect(buttonRule.slice(0, buttonRule.indexOf('}'))).toContain('min-height: 44px');
+    stage.close();
+  });
+
   it('조작 바·슬롯 헤더의 모든 버튼에 접근성 이름이 있다 (전수 검사)', () => {
     const { stage } = openStage({ chatMode: 'active' });
     const stageRoot = document.getElementById('cm-multiview-stage');

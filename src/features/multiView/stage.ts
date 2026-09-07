@@ -290,11 +290,23 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   left: 0;
   right: 0;
   margin: 0 auto;
-  top: 6px;
+  /*
+   * 🔴 바 높이는 stageTopInset() 을 통해 슬롯 배치 띠로 그대로 환산된다 — 여기서 1px 을
+   * 줄이면 슬롯이 1px 을 더 가져간다. 그래서 세로 여백을 0 으로 두고 버튼 자신의 크기만 남긴다.
+   * (이 주석은 템플릿 리터럴 안이라 백틱을 쓰지 않는다 — 쓰면 CSS 문자열이 끊긴다.)
+   *
+   * 실측 2026-09-07 — 바 높이 = 버튼(min-height: touchTargetPx) + 세로 패딩 + 테두리 2px.
+   *   mobile-portrait  58px (44+12+2) -> 46px (44+0+2)   슬롯 띠 70 -> 54px
+   *   laptop13         46px (32+12+2) -> 34px (32+0+2)   슬롯 띠 58 -> 42px
+   *
+   * ⚠️ 여기서 더 줄이려면 버튼을 터치 타겟(44px) 아래로 내려야 한다. FR-12 위반이라
+   * 하지 않는다 — 세로 여백은 이미 0 이고 남은 것은 버튼 자신뿐이다.
+   */
+  top: 2px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 12px;
+  padding: 0 12px;
   background: #16181be6;
   border: 1px solid #2a2d31;
   border-radius: 8px;
@@ -1034,6 +1046,24 @@ export class MultiViewStage {
       window.dispatchEvent(new Event(OURS.openSettingsEventName));
     });
     bar.appendChild(settingsButton);
+
+    /**
+     * 새로고침 (요청 2026-09-07). 슬롯이 멎거나 방송이 끊겼을 때 페이지를 다시 읽는다.
+     *
+     * 🔴 슬롯 iframe 만 다시 붙이지 않고 **페이지 전체**를 새로 읽는다. 슬롯만 되살리면
+     * 호스트 페이지의 플레이어·채팅이 낡은 상태로 남아 "일부만 살아난" 화면이 된다.
+     * 멀티뷰 구성은 `chrome.storage` 에 있고 `restoreLastLayout` 이 복원하므로,
+     * 새로고침해도 보던 슬롯 구성 그대로 돌아온다.
+     */
+    const reloadButton = document.createElement('button');
+    reloadButton.type = 'button';
+    reloadButton.setAttribute('aria-label', '새로고침');
+    reloadButton.appendChild(createIconElement('refresh'));
+    reloadButton.appendChild(barLabel('새로고침'));
+    reloadButton.addEventListener('click', () => {
+      location.reload();
+    });
+    bar.appendChild(reloadButton);
 
     /**
      * 사이드 채팅 컨트롤 — `−`/`+`(폭 조절) · 토글.
