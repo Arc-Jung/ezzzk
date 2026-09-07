@@ -306,8 +306,9 @@ describe('기기별 분할 상한 (FR-14 표)', () => {
     }
   });
 
-  it('tablet-10 이하는 2분할까지이고 3·4분할 선택이 비활성이다', () => {
-    for (const cls of ['tablet-10', 'tablet-7', 'mobile'] as const) {
+  /** 모바일은 2026-09-07 에 4분할까지 열렸다 — 아래 `모바일` 블록에서 따로 본다. */
+  it('태블릿 7·10인치는 2분할까지이고 3·4분할 선택이 비활성이다', () => {
+    for (const cls of ['tablet-10', 'tablet-7'] as const) {
       expect(maxSplitFor(cls)).toBe(2);
       expect(isSplitAvailable(2, cls)).toBe(true);
       expect(isSplitAvailable(3, cls)).toBe(false);
@@ -315,6 +316,106 @@ describe('기기별 분할 상한 (FR-14 표)', () => {
       expect(clampSplit(4, cls)).toBe(2);
       expect(clampSplit(3, cls)).toBe(2);
     }
+  });
+
+  /**
+   * 🔴 모바일 3·4분할 개방 (요청 2026-09-07). 상한만 올리고 세로 배치를 그대로 뒀다면
+   * 2×2 격자가 나와 슬롯마다 레터박스가 생겼을 것이다 — 배치 쪽 회귀는
+   * 「세로 3·4분할」 블록이 따로 고정한다.
+   */
+  it('모바일은 2·3·4분할을 모두 고를 수 있다', () => {
+    expect(maxSplitFor('mobile')).toBe(4);
+    for (const split of [2, 3, 4] as const) {
+      expect(isSplitAvailable(split, 'mobile')).toBe(true);
+      expect(clampSplit(split, 'mobile')).toBe(split);
+    }
+  });
+});
+
+/**
+ * 세로 3·4분할 (요청 2026-09-07).
+ *
+ * 🔴 여기서 지키는 계약은 하나다 — **슬롯 사각형이 곧 16:9 그림이다.** 슬롯이 그림보다
+ * 크면 그 차이가 전부 검은 레터박스가 되고, 세로에서는 그 손실이 슬롯마다 쌓인다.
+ * 실측 412×915 에서 격자를 썼다면 슬롯 202×424 에 그림은 202×114 — 슬롯마다 310px 가 죽는다.
+ */
+describe('세로 3·4분할 — 한 열로 쌓는다', () => {
+  const W = 412;
+  const H = 915;
+  /** 슬롯이 16:9 인가 (반올림 오차 1px 허용). */
+  const isPicture = (r: { width: number; height: number }) =>
+    Math.abs(r.width / r.height - 16 / 9) < 0.02;
+
+  it('3분할은 폭을 다 쓰고 높이가 남는다 (폭 제약)', () => {
+    const rects = computeSlotRects(3, W, H, 'portrait');
+    expect(rects).toHaveLength(3);
+    for (const r of rects) {
+      expect(r.width).toBe(W);
+      expect(r.x).toBe(0);
+      expect(isPicture(r)).toBe(true);
+    }
+    // 세 장이 세로로 겹치지 않는다.
+    expect(rects[1]!.y).toBeGreaterThanOrEqual(rects[0]!.y + rects[0]!.height);
+    expect(rects[2]!.y).toBeGreaterThanOrEqual(rects[1]!.y + rects[1]!.height);
+    // 남는 높이는 위아래로 갈라 가운데에 모은다.
+    const top = rects[0]!.y;
+    const bottom = H - (rects[2]!.y + rects[2]!.height);
+    expect(Math.abs(top - bottom)).toBeLessThanOrEqual(SLOT_GAP + 1);
+  });
+
+  it('4분할은 폭 제약으로는 안 들어가 높이 제약으로 넘어간다', () => {
+    const rects = computeSlotRects(4, W, H, 'portrait');
+    expect(rects).toHaveLength(4);
+    // 폭을 다 쓰면 232×4 + 간격 = 高 915 를 넘는다 → 폭을 줄여 높이에 맞춘다.
+    expect(rects[0]!.width).toBeLessThan(W);
+    for (const r of rects) {
+      expect(isPicture(r)).toBe(true);
+      // 가로 가운데.
+      expect(r.x).toBe(Math.floor((W - r.width) / 2));
+    }
+    const last = rects[3]!;
+    expect(last.y + last.height).toBeLessThanOrEqual(H);
+  });
+
+  /**
+   * 🔴 회귀의 핵심. 격자로 되돌아가면 이 단언이 깨진다 — 2×2 는 슬롯 폭이 무대의 절반이다.
+   */
+  it('격자로 되돌아가지 않는다 — 슬롯이 좌우로 나뉘지 않는다', () => {
+    for (const split of [3, 4] as const) {
+      const rects = computeSlotRects(split, W, H, 'portrait');
+      const xs = new Set(rects.map((r) => r.x));
+      expect(xs.size).toBe(1);
+    }
+  });
+
+  it('세로 1열이 격자보다 그림이 크다 (배치를 고른 근거)', () => {
+    const column = computeSlotRects(4, W, H, 'portrait')[0]!;
+    const columnArea = column.width * column.height;
+    // 예전 격자 배치의 슬롯 크기와 그 안에 들어가는 16:9 그림.
+    const gridW = Math.floor((W - SLOT_GAP) / 2);
+    const gridArea = gridW * Math.round((gridW * 9) / 16);
+    expect(columnArea).toBeGreaterThan(gridArea * 3);
+  });
+
+  it('조작 바 띠(topInset)를 뺀 높이 안에 들어간다', () => {
+    const INSET = 58;
+    for (const split of [3, 4] as const) {
+      const rects = computeSlotRects(split, W, H, 'portrait', SLOT_GAP, INSET);
+      expect(rects[0]!.y).toBeGreaterThanOrEqual(INSET);
+      const last = rects[rects.length - 1]!;
+      expect(last.y + last.height).toBeLessThanOrEqual(H);
+    }
+  });
+
+  it('가로 자세는 기존 격자를 그대로 쓴다 (세로 분기가 새지 않는다)', () => {
+    const rects = computeSlotRects(4, 915, 412, 'landscape');
+    expect(new Set(rects.map((r) => r.x)).size).toBe(2);
+  });
+
+  /** 무대가 비정상적으로 작으면 열 배치를 포기하고 기존 격자로 물러난다. */
+  it('무대가 슬롯 수보다 작으면 기존 격자로 물러난다', () => {
+    const rects = computeSlotRects(4, 412, 3, 'portrait');
+    expect(rects).toHaveLength(4);
   });
 });
 

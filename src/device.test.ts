@@ -153,13 +153,18 @@ describe('DEVICE_PROFILES — 유형별 값 (FR-12 표)', () => {
     }
   });
 
-  it('멀티뷰 최대 분할은 tablet-10 이하에서 2 다', () => {
+  /**
+   * 🔴 모바일은 2 → 4 로 올렸다 (요청 2026-09-07). 예전 상한의 근거는 "세로에서 2×2 격자를
+   * 쓰면 개별 영상이 가독 한계 이하"였는데, 세로 전용 1열 배치(`portraitColumn`)가 생기면서
+   * 그 전제가 사라졌다. 태블릿 7·10인치는 그대로 2다 — 요청 범위가 모바일뿐이다.
+   */
+  it('멀티뷰 최대 분할 — 모바일은 4, 태블릿 7·10인치는 2 다', () => {
     expect(DEVICE_PROFILES.desktop.maxSplit).toBe(4);
     expect(DEVICE_PROFILES.laptop.maxSplit).toBe(4);
     expect(DEVICE_PROFILES['tablet-13'].maxSplit).toBe(4);
+    expect(DEVICE_PROFILES.mobile.maxSplit).toBe(4);
     expect(DEVICE_PROFILES['tablet-10'].maxSplit).toBe(2);
     expect(DEVICE_PROFILES['tablet-7'].maxSplit).toBe(2);
-    expect(DEVICE_PROFILES.mobile.maxSplit).toBe(2);
   });
 
   it('슬롯 채팅 줄 상한 (FR-14.2)', () => {

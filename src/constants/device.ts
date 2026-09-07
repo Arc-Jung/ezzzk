@@ -129,7 +129,14 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'off',
     allowHover: false,
     settingsUi: 'sheet',
-    maxSplit: 2,
+    /**
+     * 3·4분할 허용 (요청 2026-09-07). 예전에는 2였다 — "개별 영상이 가독 한계 이하"라는
+     * 판단이었는데, 그 판단은 **세로에서 2×2 격자를 쓰던 시절**의 것이다.
+     * 실측 412×915: 격자면 슬롯 202×424(그림은 202×114)이지만, 한 열로 쌓으면 370×208 로
+     * 그림 면적이 3.3배다 (`slotLayout.ts` 의 `portraitColumn` 표). 세로 전용 배치가 생겨
+     * 근거가 사라졌으므로 상한을 푼다.
+     */
+    maxSplit: 4,
     maxSlotChatLines: 2,
     chatPresetUi: 'sheet',
     relaxObservers: true,

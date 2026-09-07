@@ -44,10 +44,10 @@
 | 세로 412×915 — 기본 시청 (**채팅이 영상 아래로 내려간 하단 배치**) | ![모바일 세로 기본](screenshots/demo-mobile-portrait-watch.png)                    |
 | 가로 915×412 — 설정 패널                                           | ![모바일 가로 설정](screenshots/demo-mobile-landscape-settings.png)                |
 | 세로 412×915 — 설정 패널                                           | ![모바일 세로 설정](screenshots/demo-mobile-portrait-settings.png)                 |
-| 가로 915×412 — 멀티뷰 구성 (기기 상한 2분할)                       | ![모바일 가로 멀티뷰 구성](screenshots/demo-mobile-landscape-multiview-config.png) |
-| 세로 412×915 — 멀티뷰 구성 (기기 상한 2분할)                       | ![모바일 세로 멀티뷰 구성](screenshots/demo-mobile-portrait-multiview-config.png)  |
-| 가로 915×412 — 멀티뷰 시청 (기기 상한 2분할)                       | ![모바일 가로 멀티뷰](screenshots/demo-mobile-landscape-multiview.png)             |
-| 세로 412×915 — 멀티뷰 시청 (기기 상한 2분할)                       | ![모바일 세로 멀티뷰](screenshots/demo-mobile-portrait-multiview.png)              |
+| 가로 915×412 — 멀티뷰 구성 (4분할까지)                       | ![모바일 가로 멀티뷰 구성](screenshots/demo-mobile-landscape-multiview-config.png) |
+| 세로 412×915 — 멀티뷰 구성 (4분할까지)                       | ![모바일 세로 멀티뷰 구성](screenshots/demo-mobile-portrait-multiview-config.png)  |
+| 가로 915×412 — 멀티뷰 시청 (4분할 · 2×2)                       | ![모바일 가로 멀티뷰](screenshots/demo-mobile-landscape-multiview.png)             |
+| 세로 412×915 — 멀티뷰 시청 (4분할 · 한 열)                       | ![모바일 세로 멀티뷰](screenshots/demo-mobile-portrait-multiview.png)              |
 
 > ℹ️ `멀티` 버튼은 이전에 보던 구성이 있으면 그대로 이어서 연다 (구성을 바꾸려면 스테이지의 `구성`).
 > **슬롯·사이드 채팅 기능은 버그로 임시 비활성**이며, 멀티뷰는 아직 **베타**다.
