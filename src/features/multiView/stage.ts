@@ -290,27 +290,36 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   left: 0;
   right: 0;
   margin: 0 auto;
-  /*
-   * 🔴 바 높이는 stageTopInset() 을 통해 슬롯 배치 띠로 그대로 환산된다 — 여기서 1px 을
-   * 줄이면 슬롯이 1px 을 더 가져간다. 그래서 세로 여백을 0 으로 두고 버튼 자신의 크기만 남긴다.
-   * (이 주석은 템플릿 리터럴 안이라 백틱을 쓰지 않는다 — 쓰면 CSS 문자열이 끊긴다.)
-   *
-   * 실측 2026-09-07 — 바 높이 = 버튼(min-height: touchTargetPx) + 세로 패딩 + 테두리 2px.
-   *   mobile-portrait  58px (44+12+2) -> 46px (44+0+2)   슬롯 띠 70 -> 54px
-   *   laptop13         46px (32+12+2) -> 34px (32+0+2)   슬롯 띠 58 -> 42px
-   *
-   * ⚠️ 여기서 더 줄이려면 버튼을 터치 타겟(44px) 아래로 내려야 한다. FR-12 위반이라
-   * 하지 않는다 — 세로 여백은 이미 0 이고 남은 것은 버튼 자신뿐이다.
-   */
-  top: 2px;
+  top: 6px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 12px;
+  padding: 6px 12px;
   background: #16181be6;
   border: 1px solid #2a2d31;
   border-radius: 8px;
   z-index: 3;
+}
+/*
+  🔴 영상 위로 겹칠 때만 반투명해진다 (요청 2026-09-07).
+
+  세로 자세는 슬롯을 가운데로 모아 위쪽에 검은 여백이 남으므로, 바는 대개 그 여백에 앉아
+  영상을 하나도 가리지 않는다 — 그때는 불투명하게 둬야 글자가 또렷하다. 여백이 모자라
+  영상 위로 올라갈 때만 50% 로 낮춰 뒤 영상이 비치게 한다.
+  판정은 syncLayout() 의 barOverlapsSlots() 가 하고 data-overlay 로 넘어온다.
+*/
+#${OURS.multiViewStageId} .cm-stage-bar[data-overlay='true'] {
+  background: #16181b80;
+}
+/*
+  🔴 2026-08-16 회귀 방지 — 바가 슬롯 헤더 버튼을 덮으면 버튼이 눌리지 않는다
+  (실측: 버튼 중심점의 elementFromPoint 가 div.cm-stage-bar).
+  예전에는 바가 차지하는 띠를 슬롯 배치에서 통째로 떼어 내 겹칠 수 없게 했지만, 그러면
+  바 높이만큼 영상이 작아진다. 지금은 겹치는 슬롯의 헤더만 바 아래로 밀어 클릭 경로를
+  비운다 — 영상은 무대 전체를 쓰고 헤더는 여전히 눌린다.
+*/
+#${OURS.multiViewStageId} .cm-slot[data-under-bar='true'] .cm-slot__head {
+  padding-top: calc(4px + var(--cm-bar-overlap, 0px));
 }
 #${OURS.multiViewStageId} .cm-stage-bar button {
   display: inline-flex;
@@ -438,17 +447,25 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
 export const STRIP_BAR_GAP_PX = 6;
 
 /**
- * 조작 바 전용 띠의 높이. **순수 함수 — 테스트 대상.**
+ * 바를 영상 위로 띄울지 판정한다. **순수 함수 — 테스트 대상.**
  *
- * 🔴 2026-08-16 회귀: 가운데 상단 조작 바가 슬롯 헤더 버튼(`슬롯 N 초점`·`채팅 줄 수 …`)을
- * 덮어 **버튼 중심점의 `elementFromPoint` 가 `div.cm-stage-bar`** 가 됐다 — 눌리지 않았다
- * (mobile-landscape·mobile-portrait·tablet10-landscape·laptop13 4건).
- * 바의 자리를 슬롯 배치에서 아예 떼어 내면 분할 수·프로필과 무관하게 겹칠 수 없다.
- * 바가 없거나 아직 렌더 전(높이 0)이면 0 — 띠를 만들지 않는다.
+ * 요청 2026-09-07 — "영상과 최대한 안 겹치게 하되, 겹치면 오버레이처럼 띄우자".
+ *
+ * 세로 자세의 슬롯 배치(`portraitColumn`)는 폭이 제약일 때 남는 높이를 위아래로 나눠
+ * 슬롯을 가운데에 모은다. 그 **위쪽 여백은 어차피 검은 공백**이므로, 바가 거기 들어가면
+ * 영상을 하나도 가리지 않는다. 여백이 모자랄 때만 영상 위로 올라간다.
+ *
+ * @param bar 바의 위치·높이 (`top` 은 무대 기준).
+ * @param firstSlotTop 가장 위 슬롯의 y (무대 기준). 슬롯이 없으면 null.
+ * @returns 영상 위로 겹치면 true.
  */
-export function stageTopInset(bar: { top: number; height: number } | null): number {
-  if (!bar || bar.height <= 0) return 0;
-  return Math.ceil(Math.max(0, bar.top) + bar.height + STRIP_BAR_GAP_PX);
+export function barOverlapsSlots(
+  bar: { top: number; height: number } | null,
+  firstSlotTop: number | null,
+): boolean {
+  if (!bar || bar.height <= 0) return false;
+  if (firstSlotTop === null) return false;
+  return Math.max(0, bar.top) + bar.height > firstSlotTop;
 }
 
 /** 사이드 채팅 폭 조절 한 칸. */
@@ -547,6 +564,12 @@ export class MultiViewStage {
   private container: HTMLElement | null = null;
   /** 하단 컨트롤 바. 스트립이 이 바를 피하도록 좌표를 읽는다. */
   private bar: HTMLElement | null = null;
+  /**
+   * 바가 영상 위로 겹칠 때 무대 위쪽에서 바가 덮는 높이(px). 겹치지 않으면 0.
+   * 🔴 이 값만큼 슬롯 헤더를 아래로 밀어 2026-08-16 회귀(바가 헤더 버튼을 덮어 눌리지
+   * 않음)를 구조적으로 막는다.
+   */
+  private barOverlapHeightPx = 0;
   /** 사이드 채팅 표시 여부. `채팅 끄기` 로 접고 다시 켤 수 있다. */
   private chatOpen = true;
   /** 사이드 채팅 패널(BETA). `chatMode: 'none'` 이거나 폭이 부족하면 만들지 않는다. */
@@ -769,18 +792,25 @@ export class MultiViewStage {
     const { width, height, orientation } = this.stageSize();
     const split = Math.max(2, this.runtimes.size) as 2 | 3 | 4;
     /**
-     * 조작 바는 가운데 상단에 있고 슬롯 헤더도 슬롯 `top: 0` 이라 같은 y 대역을 다툰다.
-     * 바가 차지하는 띠를 배치에서 떼어 내 슬롯을 그 아래에서 시작시킨다 (`stageTopInset`).
+     * 🔴 예전에는 바가 차지하는 띠를 배치에서 통째로 떼어 냈다(`stageTopInset`) — 바 높이만큼
+     * 슬롯이 작아졌다. 지금은 **띠를 떼지 않고 슬롯이 무대 전체를 쓴다** (요청 2026-09-07:
+     * 오버레이 형태로).
+     *
+     * 세로 자세는 슬롯을 가운데에 모으므로 위쪽에 검은 여백이 남는다 — 바는 대개 그 여백에
+     * 들어가 **영상을 하나도 가리지 않는다**. 여백이 모자랄 때만 영상 위로 올라가고, 그때는
+     * `data-overlay` 가 서서 반투명해진다.
      */
     const barRect = this.bar?.getBoundingClientRect() ?? null;
-    const rects = computeSlotRects(
-      split,
-      width,
-      height,
-      orientation,
-      SLOT_GAP,
-      stageTopInset(barRect),
-    );
+    const rects = computeSlotRects(split, width, height, orientation, SLOT_GAP);
+
+    /*
+     * 🔴 2026-08-16 회귀 재발 방지 — 바가 슬롯 헤더 버튼을 덮으면 버튼이 눌리지 않는다.
+     * 겹칠 때는 헤더를 바 아래로 밀어 내려 클릭 경로를 비워 둔다 (아래 CSS
+     * `.cm-slot[data-under-bar='true'] .cm-slot__head`).
+     */
+    const overlaps = barOverlapsSlots(barRect, rects[0]?.y ?? null);
+    if (this.bar) this.bar.dataset['overlay'] = overlaps ? 'true' : 'false';
+    this.barOverlapHeightPx = overlaps && barRect ? Math.ceil(barRect.top + barRect.height) : 0;
 
     /**
      * 컨테이너 폭을 무대 폭과 일치시킨다. 사이드 채팅을 켜면 그 폭만큼 비워 두어야
@@ -804,6 +834,21 @@ export class MultiViewStage {
 
       runtime.cell.style.left = `${rect.x}px`;
       runtime.cell.style.top = `${rect.y}px`;
+      /*
+       * 바가 이 슬롯을 덮는가. 덮으면 헤더를 바 아래로 밀어 헤더 버튼의 클릭 경로를
+       * 비워 둔다 (2026-08-16 회귀 방지). CSS 변수로 넘겨 슬롯마다 다른 값을 쓰지 않는다 —
+       * 바는 무대 최상단에 하나뿐이라 덮는 높이도 하나다.
+       */
+      const coveredByBar = this.barOverlapHeightPx > rect.y;
+      runtime.cell.dataset['underBar'] = coveredByBar ? 'true' : 'false';
+      if (coveredByBar) {
+        runtime.cell.style.setProperty(
+          '--cm-bar-overlap',
+          `${Math.max(0, this.barOverlapHeightPx - rect.y)}px`,
+        );
+      } else {
+        runtime.cell.style.removeProperty('--cm-bar-overlap');
+      }
       runtime.cell.style.width = `${rect.width}px`;
       runtime.cell.style.height = `${rect.height}px`;
 
