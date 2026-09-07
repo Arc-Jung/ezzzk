@@ -123,7 +123,8 @@ describe('탭 구성', () => {
   });
 
   it('탭 → 초기화 섹션 매핑이 FR-09.2 표와 일치한다', () => {
-    expect(sectionsForTab('playback')).toEqual(['quality']);
+    // 방송 재개 감시(2026-09-06)도 재생 탭에서 초기화된다.
+    expect(sectionsForTab('playback')).toEqual(['quality', 'liveResume']);
     expect(sectionsForTab('sound')).toEqual(['volume']);
     expect(sectionsForTab('layout')).toEqual(['chatWidth', 'wideScreen', 'ultraWide']);
     expect(sectionsForTab('multiView')).toEqual(['multiView']);

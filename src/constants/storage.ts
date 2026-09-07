@@ -41,6 +41,19 @@ export type MultiViewSet = {
 export type Settings = {
   quality: { enabled: boolean; target: QualityTarget; applyToVod: boolean };
   /**
+   * 방송이 끝난 채널 페이지에서 재개를 감시한다 (요청 2026-09-06).
+   *
+   * 1분마다 치지직 상태 API(`polling/v3/.../live-status`)를 확인하고, `OPEN` 으로 바뀌면
+   * 그때 **한 번** 새로고침해 방송으로 들어간다. 1분마다 페이지를 새로 읽지 않는 이유는
+   * 종료 화면에도 채팅과 다시보기 목록이 살아 있어(실측 2026-09-06) 그때마다 날아가기
+   * 때문이다 — 자세한 대조는 `docs/live-resume-plan.md` §3.
+   *
+   * 🔴 **기본값은 끄기다** (요청 2026-09-06). 자동 새로고침은 사용자가 예상하지 못한 순간에
+   * 화면을 갈아엎는 동작이라 원해서 켠 사람만 겪어야 한다. 꺼져 있으면 폴링도 돌지 않으므로
+   * 켜지 않은 사용자에게 나가는 요청은 0건이다.
+   */
+  liveResume: { enabled: boolean };
+  /**
    * FR-19 오디오 처리 (2026-08-20). 구현 참조: chzzk-plus (kyechan99/chzzk-plus, MIT).
    * 컴프레서는 방송마다 들쭉날쭉한 음량을 눌러 균일하게 만든다. 기본은 켜짐(2026-08-22 변경) —
    * 방송마다 음량 편차가 커 대부분의 시청 환경에서 바로 도움이 된다.
@@ -235,6 +248,8 @@ export const CHAT_WIDTH_RANGE = { min: 15, max: 50 } as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   quality: { enabled: true, target: '1080p', applyToVod: true },
+  // 🔴 기본 끄기 (요청 2026-09-06) — 자동 새로고침은 원해서 켠 사람만 겪어야 한다.
+  liveResume: { enabled: false },
   audio: {
     compressor: { enabled: true, threshold: -50, knee: 40, ratio: 12, attack: 0, release: 0.25 },
   },
