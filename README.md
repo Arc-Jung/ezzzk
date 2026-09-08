@@ -13,7 +13,7 @@
 매 방송 진입마다 반복하는 수동 조작(화질 선택, 음소거 해제, 볼륨 맞추기, 넓은 화면 전환, 채팅창 폭 조절)을 자동화하고,
 자주 쓰는 채팅과 설정 조합을 저장해 두었다가 즉시 불러 쓸 수 있게 한다.
 
-- 지원: 데스크톱 Chrome / Edge, **Edge for Android(베타 이상)** 및 확장을 지원하는 크로미움 모바일 브라우저. **iOS 제외**
+- 지원: **데스크톱 Chrome / Edge.** 모바일 브라우저는 확장을 지원하지 않아 대상이 아니다 (안드로이드·iOS 모두).
 - 설계 우선순위: **모바일·태블릿 10인치급 우선**. 요구가 충돌하면 모바일·태블릿을 채택한다.
 - 외부 서버 없음. 모든 설정은 `chrome.storage.local` 에만 저장하고 권한은 `storage` 하나만 쓴다.
 
@@ -234,31 +234,12 @@ yarn build && yarn pack:crx      # → release/ezzzk-<version>.crx, .zip
 
 ---
 
-### 수동 설치 — Edge for Android (모바일)
+### 좁은 화면·태블릿에서 쓰기
 
-**전제**
-
-- **Edge for Android 의 Dev 또는 Canary 채널**이 필요하다. 정식(Stable) 채널은 확장을 지원하지 않는다.
-- iOS 는 크롬·엣지 모두 확장을 지원하지 않아 **대상이 아니다.**
-
-**절차**
-
-1. Play 스토어에서 **Microsoft Edge Dev** 설치
-   - Edge Dev: https://play.google.com/store/apps/details?id=com.microsoft.emmx.dev
-   - Edge Canary: https://play.google.com/store/apps/details?id=com.microsoft.emmx.canary
-2. **기기에서 바로** [최신 릴리스](https://github.com/Arc-Jung/ezzzk/releases/latest) 를 열어
-   `ezzzk-<version>.zip` 을 받는다. 이 zip 이 곧 빌드 산출물이라 **직접 빌드할 필요가 없다.**
-   - 안드로이드 Edge 로 위 링크를 열고 자산을 탭하면 `Download/` 에 저장된다
-   - PC 에서 받아 옮기려면 USB 파일 전송·클라우드 드라이브, 또는
-     ```bash
-     adb push ~/Downloads/ezzzk-*.zip /sdcard/Download/
-     ```
-3. Edge 에서 `⋯` 메뉴 → **설정** → **정보**(About) 에서 빌드 번호를 여러 번 탭해
-   **개발자 옵션**을 활성화한다 (안드로이드 개발자 모드와 같은 방식)
-4. `⋯` 메뉴 → **확장** → **개발자 모드** 켜기 →
-   **압축 파일에서 설치**(또는 `Install from folder` / `Load unpacked`) 선택
-5. `Download/ezzzk-<version>.zip` (또는 압축을 푼 폴더) 선택
-6. `https://chzzk.naver.com` 접속
+> **모바일 브라우저에는 설치할 수 없다.** 크로미움 계열 모바일 브라우저가 확장을 지원하지
+> 않는다 — Edge for Android 의 Dev·Canary 채널도 더 이상 지원하지 않는다(2026-09-07 확인).
+> 아래 내용은 **데스크톱 브라우저를 좁게 쓰거나 태블릿·폴더블에서 데스크톱 브라우저를 쓸 때**
+> 적용된다. 이 저장소가 모바일 우선으로 설계된 이유이기도 하다.
 
 **모바일에서 반드시 함께 할 설정**
 
@@ -274,7 +255,7 @@ yarn build && yarn pack:crx      # → release/ezzzk-<version>.crx, .zip
 | 단축키    | 모바일·7인치급 태블릿에서는 비활성 (물리 키보드 가정 없음)                    |
 | 터치 타겟 | 44×44px 로 자동 확대                                                          |
 | 창 크기   | 주소창 접힘·분할 화면·회전·IME 로 수시 변한다. 레이아웃은 변화마다 재계산된다 |
-| 멀티뷰    | 최대 2분할 (개별 영상이 가독 한계 이하가 되지 않도록)                         |
+| 멀티뷰    | 4분할까지. 세로 화면에서는 한 열로 쌓아 슬롯이 곧 16:9 그림이 된다            |
 
 ---
 

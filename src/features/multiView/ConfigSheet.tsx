@@ -265,9 +265,18 @@ export function ConfigSheet({
   const usableSlots = useMemo(() => ALL_SLOTS.slice(0, split), [split]);
   const placedSlots = useMemo(() => slots.filter((slot) => slot.index <= split), [slots, split]);
 
-  /** 현재 분할·무대 크기에서의 슬롯·영상 크기. 목업의 "현재 선택" 요약에 쓴다. */
+  /**
+   * 현재 분할·무대 크기에서의 슬롯·영상 크기. 목업의 "현재 선택" 요약에 쓴다.
+   *
+   * 🔴 `orientation` 을 넘기지 않아 **항상 가로(격자)로 계산했다** (감사 2026-09-07).
+   * 세로 3·4분할이 한 열 배치로 바뀐 뒤(2026-09-06) 미리보기가 실제와 다른 숫자를 보여 줬다 —
+   * mobile-portrait 412×915 에서 `슬롯 205×456 · 영상 205×115 (여백 0)` 로 떴는데,
+   * 실제 무대는 `372×209` 이고 슬롯이 곧 그림이라 여백이 없다. 205×456 에 205×115 그림이면
+   * 여백이 341px 인데 "여백 0" 이라고 적혀 있었으니 두 값이 서로 모순이기까지 했다.
+   */
   const preview = useMemo(() => {
-    const rects = computeSlotRects(split, stageSize.width, stageSize.height);
+    const orientation = stageSize.height > stageSize.width ? 'portrait' : 'landscape';
+    const rects = computeSlotRects(split, stageSize.width, stageSize.height, orientation);
     const first = rects[0];
     if (!first) return null;
     const lines = resolveSlotChatLines(slotChatLines, first.width, device.deviceClass);

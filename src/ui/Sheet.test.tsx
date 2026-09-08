@@ -126,3 +126,37 @@ describe('Sheet — 높이(콘텐츠에 맞춰 줄고 늘되 튀지 않게)', ()
     expect(rule).not.toContain('min-height');
   });
 });
+
+/**
+ * 전 화면 감사 회귀 (2026-09-07).
+ *
+ * 3프로필 × 10화면을 훑어 자동 판정에 걸린 것들이다. 눈으로는 놓치기 쉬워 CSS 계약으로 고정한다.
+ */
+describe('시트 버튼 — 터치 타겟과 줄바꿈', () => {
+  /**
+   * 🔴 min-width 가 빠져 있어 FR-12 의 44×44 가 **절반만** 성립했다. 실측에서 멀티뷰 구성
+   * 시트의 슬롯 배치 버튼이 29×44, 설정 패널 되돌리기 버튼이 12×44 로 나왔다 — 폭이 좁으면
+   * 손가락으로 누르기 어렵고 옆 버튼을 잘못 누른다.
+   */
+  it('버튼은 폭과 높이 둘 다 터치 타겟을 지킨다', () => {
+    const rule = SHEET_CSS.slice(SHEET_CSS.indexOf('.cm-sheet button {'));
+    const block = rule.slice(0, rule.indexOf('}'));
+    expect(block).toContain('min-width: var(--cm-target');
+    expect(block).toContain('min-height: var(--cm-target');
+  });
+
+  /** select·input 은 내용에 따라 넓어져야 하므로 폭 하한을 주지 않는다. */
+  it('select·input 에는 폭 하한을 주지 않는다', () => {
+    const rule = SHEET_CSS.slice(SHEET_CSS.indexOf('.cm-sheet select, .cm-sheet input {'));
+    const block = rule.slice(0, rule.indexOf('}'));
+    expect(block).not.toContain('min-width');
+  });
+
+  /**
+   * 🔴 한국어 기본 줄바꿈은 음절마다 끊는다 — 좁은 화면에서 "취소" 가 "취"/"소" 로 두 줄이 됐다.
+   */
+  it('버튼 글자가 음절 단위로 쪼개지지 않는다', () => {
+    const rule = SHEET_CSS.slice(SHEET_CSS.indexOf('.cm-sheet button {'));
+    expect(rule.slice(0, rule.indexOf('}'))).toContain('word-break: keep-all');
+  });
+});

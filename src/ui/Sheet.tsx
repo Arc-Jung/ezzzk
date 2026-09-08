@@ -277,7 +277,26 @@ export const SHEET_CSS = `
   padding: 10px 14px;
   border-top: 1px solid ${BORDER.subtle};
 }
-.cm-sheet button, .cm-sheet select, .cm-sheet input {
+/*
+  🔴 min-width 가 빠져 있었다 (감사 2026-09-07). 높이만 지켜져 FR-12 의 44×44 계약이
+  절반만 성립했다 — 실측에서 멀티뷰 구성 시트의 슬롯 배치 버튼이 모바일 가로에서
+  29×44, 설정 패널 되돌리기 버튼이 12×44 로 나왔다. 폭이 좁은 버튼은 손가락으로
+  누르기 어렵고, 옆 버튼을 잘못 누르기 쉽다.
+
+  select·input 은 폭이 내용에 따라 넓어야 하므로 버튼에만 준다.
+*/
+.cm-sheet button {
+  min-width: var(--cm-target, 32px);
+  min-height: var(--cm-target, 32px);
+  /*
+    🔴 한국어는 기본 줄바꿈 규칙이 음절마다 끊는다. 좁은 화면에서 버튼이 눌리면
+    "취소" 가 "취" / "소" 로 두 줄이 됐다 (실측 2026-09-07 mobile-portrait:
+    추가·취소·멀티뷰 시작 전부). 단어(공백) 단위까지만 끊게 해 한 낱말이 쪼개지지 않게 한다.
+    (이 문자열은 템플릿 리터럴이다 — 주석에 백틱을 쓰지 않는다.)
+  */
+  word-break: keep-all;
+}
+.cm-sheet select, .cm-sheet input {
   min-height: var(--cm-target, 32px);
 }
 .cm-sheet__btn {
