@@ -54,7 +54,7 @@ import {
 } from './audioPipeline';
 import { createIconElement, type IconName } from '../ui/icons';
 import { CONTROL_ITEM_CLASS, ensureControlBarAutoHideCss } from './controlBar';
-import type { Feature } from './types';
+import type { Feature, FeatureContext } from './types';
 
 /** 컴프레서 토글 아이콘 — 정적 SVG 문자열로 미리 렌더한다 (매 버튼 생성 시 재계산할 필요가 없다). */
 const COMPRESSOR_ICON_MARKUP = renderToStaticMarkup(createElement(CompressorIcon, { size: 14 }));
@@ -343,6 +343,30 @@ function hostMutedByMultiView(): boolean {
   return document.getElementById(OURS.multiViewStageId) !== null;
 }
 
+/**
+ * 이 페이지에서 사용자가 마지막으로 맞춘 볼륨·음소거. **기능 재시작을 넘어 살아남아야 한다.**
+ *
+ * 🔴 사용자 보고 (2026-10-02): "멀티뷰에서 한 화면을 전체화면으로 봤더니 볼륨이 50% 로 초기화된다."
+ * 실측(`etc/tmp/probe-mv-fullscreen-volume.mjs`): 슬롯 iframe 이 전체화면이 되면 뷰포트가 커져
+ * deviceClass 가 바뀌고(`laptop → desktop`, `mobile → tablet-10`) `content.tsx` 가 전 기능을
+ * 재시작한다. `start()` 는 볼륨을 설정에서 새로 읽으므로 `restoreLast: false`(기본)면 항상
+ * `defaultLevel` 로 돌아갔다. 슬롯은 `localStorage` 도 쓰지 않아(머리말 🔴) 되살릴 곳이 없었다.
+ * 같은 재시작에서 `autoUnmute` 가 **사용자가 직접 건 음소거**까지 풀었다(같은 프로브 `mute` 모드).
+ *
+ * 모듈 변수라 프레임마다 따로 있다 — 슬롯끼리 섞이지 않는다. `sessionStorage` 는 같은 탭의
+ * 같은 origin iframe 끼리 공유되므로 쓰지 않는다. 페이지 키를 함께 둬 SPA 로 다른 방송에
+ * 들어가면 지금처럼 설정값으로 시작한다.
+ */
+let sessionLevel: { pageKey: string; percent: number; userMuted: boolean } | null = null;
+
+function pageKeyOf(page: FeatureContext['page']): string {
+  return `${page.type}:${page.channelId ?? page.videoNo ?? ''}`;
+}
+
+export function resetVolumeSessionForTests(): void {
+  sessionLevel = null;
+}
+
 function writeVolumeStorage(percent: number, muted: boolean): void {
   const values = volumeStorageValues(percent, muted);
   try {
@@ -402,11 +426,18 @@ export const volumeFeature: Feature = {
     let unmuteAttempts = 0;
     /** 대기 중인 음소거 해제 재시도. 한 번에 하나만 둔다 (중복 예약 금지). */
     let unmuteTimer: ReturnType<typeof setTimeout> | undefined;
-    let percent = clampVolumePercent(
-      ctx.settings.volume.restoreLast
-        ? ctx.settings.volume.lastLevel
-        : ctx.settings.volume.defaultLevel,
-    );
+    const pageKey = pageKeyOf(ctx.page);
+    const remembered = sessionLevel?.pageKey === pageKey ? sessionLevel : null;
+    const settingsLevel = ctx.settings.volume.restoreLast
+      ? ctx.settings.volume.lastLevel
+      : ctx.settings.volume.defaultLevel;
+    let percent = clampVolumePercent(remembered?.percent ?? settingsLevel);
+    /** 사용자가 직접 음소거했는가. 참이면 재시작 뒤에도 자동 해제하지 않는다. */
+    let userMuted = remembered?.userMuted === true;
+    /** 초기 적용값은 기억하지 않는다 — 넣으면 설정 변경(`defaultLevel`)이 먹지 않는다. */
+    const rememberUserChoice = () => {
+      sessionLevel = { pageKey, percent, userMuted };
+    };
 
     /**
      * 지금 붙어 있는 `video`. **참조를 고정하지 않는다** — 플레이어가 리렌더되면(전체화면 전환이
@@ -579,7 +610,10 @@ export const volumeFeature: Feature = {
         persistNative(Math.min(100, percent), video.muted);
       }
       render();
-      if (persistToSettings) persist(percent);
+      if (persistToSettings) {
+        rememberUserChoice();
+        persist(percent);
+      }
     };
 
     /**
@@ -1024,7 +1058,8 @@ export const volumeFeature: Feature = {
     const applyAll = async () => {
       // 초기·재적용에서는 저장하지 않는다 (위 무한 루프 주석 참조).
       setPercent(percent, false);
-      if (!ctx.settings.volume.autoUnmute || hostMutedByMultiView() || !isMuted()) {
+      if (userMuted && isMuted()) info('stayed muted: the user muted this page before a restart');
+      if (!ctx.settings.volume.autoUnmute || hostMutedByMultiView() || userMuted || !isMuted()) {
         render();
         return;
       }
@@ -1127,7 +1162,12 @@ export const volumeFeature: Feature = {
       const observed = unitToPercent(el.volume);
       if (!el.muted && observed !== percent) {
         percent = observed;
+        rememberUserChoice();
         persist(percent);
+      }
+      if (!el.muted && userMuted) {
+        userMuted = false;
+        rememberUserChoice();
       }
       /*
        * 🔴 **플레이어가 스스로 음소거를 되돌린 경우**를 여기서 잡는다 (멀티뷰 슬롯의 주 증상).
@@ -1139,9 +1179,13 @@ export const volumeFeature: Feature = {
        * 활성화(`isUserInitiated`)로 가른다. 자동재생 때문에 우리가 건 음소거도 건너뛴다
        * (`mutedForAutoplay`, 제스처 재시도가 담당한다).
        */
-      if (el.muted && ctx.settings.volume.autoUnmute) {
-        if (isUserInitiatedStrict()) info('stayed muted: the user muted it, not the player');
-        else scheduleUnmuteRetry('player re-muted itself');
+      // 자동 해제가 꺼져 있어도 사용자 음소거는 기억한다 — 나중에 켜면 재시작이 풀어 버린다.
+      if (el.muted) {
+        if (isUserInitiatedStrict()) {
+          info('stayed muted: the user muted it, not the player');
+          userMuted = true;
+          rememberUserChoice();
+        } else if (ctx.settings.volume.autoUnmute) scheduleUnmuteRetry('player re-muted itself');
       }
       render();
     };

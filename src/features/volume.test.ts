@@ -17,6 +17,7 @@ import {
   normalizeStep,
   percentToElementUnit,
   percentToUnit,
+  resetVolumeSessionForTests,
   stepVolume,
   unitToPercent,
   volumeFeature,
@@ -29,6 +30,9 @@ import {
  * 없어진다(그래서 별도의 슬롯 전용 볼륨/컴프레서 구현이 파편화·중복으로 이어졌었다). 슬롯이든
  * 아니든 플레이어가 있으면 지원한다.
  */
+// 볼륨 기억은 모듈 변수라 테스트 사이로 샌다 — 매 테스트를 빈 상태로 시작한다.
+beforeEach(() => resetVolumeSessionForTests());
+
 describe('volumeFeature.supports', () => {
   const baseCtx: FeatureContext = {
     page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
@@ -555,6 +559,74 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     expect(vi.getTimerCount()).toBe(0);
 
     dispose?.();
+  });
+
+  /**
+   * 🔴 사용자 보고 (2026-10-02): 멀티뷰 슬롯을 전체화면으로 보면 볼륨이 50% 로 돌아간다.
+   * 실측 원인은 deviceClass 변화에 따른 **기능 재시작**이다 — dispose → start 로 그대로 재현한다.
+   */
+  describe('기능이 재시작돼도 사용자가 맞춘 볼륨을 유지한다', () => {
+    const startOn = async (featureCtx: FeatureContext = ctx) => {
+      const dispose = volumeFeature.start(featureCtx);
+      await vi.advanceTimersByTimeAsync(3_000);
+      return dispose;
+    };
+    const plus = () =>
+      document.querySelector<HTMLButtonElement>('#cm-volume-control [aria-label="볼륨 높이기"]');
+
+    it('`+` 로 올린 값이 재시작 뒤에도 남는다', async () => {
+      vi.useFakeTimers();
+      const video = addVideo(mountPlayer());
+      const first = await startOn();
+
+      plus()?.click();
+      plus()?.click();
+      expect(shownLabel()).toBe('70%');
+
+      first?.();
+      const next = await startOn();
+      expect(shownLabel()).toBe('70%');
+      expect(video.volume).toBeCloseTo(0.7);
+      next?.();
+    });
+
+    it('네이티브 슬라이더로 바꾼 값도 남는다', async () => {
+      vi.useFakeTimers();
+      const video = addVideo(mountPlayer());
+      const first = await startOn();
+
+      video.volume = 0.3;
+      video.dispatchEvent(new Event('volumechange'));
+
+      first?.();
+      const next = await startOn();
+      expect(shownLabel()).toBe('30%');
+      next?.();
+    });
+
+    it('조절하지 않았으면 재시작 뒤에도 기본 볼륨이다', async () => {
+      vi.useFakeTimers();
+      const video = addVideo(mountPlayer());
+      const first = await startOn();
+
+      first?.();
+      const next = await startOn();
+      expect(shownLabel()).toBe('50%');
+      expect(video.volume).toBeCloseTo(0.5);
+      next?.();
+    });
+
+    it('다른 방송으로 옮기면 기억한 값을 쓰지 않는다', async () => {
+      vi.useFakeTimers();
+      addVideo(mountPlayer());
+      const first = await startOn();
+      plus()?.click();
+      first?.();
+
+      const next = await startOn({ ...ctx, page: { ...ctx.page, channelId: 'b'.repeat(32) } });
+      expect(shownLabel()).toBe('50%');
+      next?.();
+    });
   });
 });
 
@@ -1237,6 +1309,35 @@ describe('volumeFeature — 음소거 해제: 조절 시 해제 · 되돌려지�
 
     expect(video.muted).toBe(true);
     dispose?.();
+  });
+
+  /**
+   * 🔴 실측 2026-10-02 (`etc/tmp/probe-mv-fullscreen-volume.mjs` `mute` 모드): 슬롯을 직접 음소거한 뒤
+   * 전체화면으로 들어가면 deviceClass 재시작의 초기 적용이 음소거를 풀어 소리가 켜졌다.
+   */
+  it('사용자가 직접 건 음소거는 기능이 재시작돼도 유지된다', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    const ctx = ctxWith({ autoUnmute: true }, true);
+    const dispose = volumeFeature.start(ctx);
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { isActive: true, hasBeenActive: true },
+    });
+    document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    setMuted(video, true);
+    await vi.advanceTimersByTimeAsync(1_000);
+    Reflect.deleteProperty(navigator, 'userActivation');
+
+    dispose?.();
+    const next = volumeFeature.start(ctx);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(video.muted).toBe(true);
+    next?.();
   });
 
   it('입력 없이 활성화 플래그만 참이면 사용자 조작으로 인정하지 않는다 (합성 클릭 오염)', async () => {
