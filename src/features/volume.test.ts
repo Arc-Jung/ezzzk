@@ -1360,6 +1360,57 @@ describe('volumeFeature — 음소거 해제: 조절 시 해제 · 되돌려지�
   });
 
   /**
+   * 🔴 사용자 보고 2026-10-04: "최초 접속 시 음소거 → 해제 → 음소거 → 해제 되다가 결국 음소거".
+   * 실측(`etc/tmp/probe-first-visit-mute.mjs`, 크롬 기본 자동재생 정책): 소리를 켜면 브라우저가
+   * 곧바로 재생을 멈추고, 우리가 되돌린 음소거를 "플레이어가 스스로 음소거함"으로 보고 재시도해
+   * 같은 실패를 8회 반복했다. 정책은 시간이 지나도 안 풀린다 → 한 번 막히면 제스처만 기다린다.
+   */
+  it('자동재생 정책에 막히면 타이머로 재시도하지 않고 첫 사용자 제스처에서 소리를 켠다', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root, true);
+    let muted = true;
+    let paused = false;
+    let gesture = false;
+    let unmuteTries = 0;
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => paused });
+    Object.defineProperty(video, 'muted', {
+      configurable: true,
+      get: () => muted,
+      set: (next: boolean) => {
+        if (next === muted) return;
+        muted = next;
+        if (!next) unmuteTries += 1;
+        video.dispatchEvent(new Event('volumechange'));
+        // 제스처 없이 소리를 켜면 브라우저가 재생을 멈춘다 (실측).
+        if (!next && !gesture) {
+          paused = true;
+          video.dispatchEvent(new Event('pause'));
+        }
+      },
+    });
+    video.play = () => {
+      paused = false;
+      return Promise.resolve();
+    };
+
+    const dispose = volumeFeature.start(ctxWith({ autoUnmute: true }));
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(unmuteTries).toBe(1);
+    expect(muted).toBe(true);
+    expect(paused).toBe(false);
+
+    gesture = true;
+    document.body.click();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(muted).toBe(false);
+    expect(paused).toBe(false);
+    dispose?.();
+  });
+
+  /**
    * 🔴 멀티뷰가 열려 있는 **호스트 페이지**에서는 자동 해제를 하지 않는다.
    * `multiView/hostPlayer.ts` 가 소리 겹침(FR-14)을 막으려 일부러 음소거해 둔 상태라,
    * 여기서 풀면 슬롯 소리 위에 원본 소리가 겹쳐 난다.

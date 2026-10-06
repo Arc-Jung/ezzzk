@@ -934,7 +934,16 @@ export const volumeFeature: Feature = {
 
       if (el.muted) return false;
       if (wasPlaying && el.paused) {
-        // 자동재생 정책으로 정지됐다 → 원상 복구하고 사용자 제스처를 기다린다. 재생을 끊지 않는다.
+        /*
+         * 자동재생 정책으로 정지됐다 → 원상 복구하고 사용자 제스처를 기다린다. 재생을 끊지 않는다.
+         *
+         * 🔴 `mutedForAutoplay` 를 올려 **타이머 재시도를 멈춘다** (사용자 보고 2026-10-04:
+         * "최초 접속 시 음소거 → 해제 → 음소거 → 해제 되다가 결국 음소거"). 정책은 시간이 지나도
+         * 풀리지 않는데, 아래 복구 음소거를 `onVolumeChange` 가 "플레이어가 스스로 다시 음소거함"
+         * 으로 보고 재시도를 예약해 같은 실패를 8회(약 25초) 반복했다 — 실측
+         * `etc/tmp/probe-first-visit-mute.mjs`. 소리는 첫 제스처(`armGestureRetry`)에서 켠다.
+         */
+        mutedForAutoplay = true;
         el.muted = true;
         persistNative(percent, true);
         try {
