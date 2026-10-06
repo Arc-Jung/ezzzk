@@ -11,7 +11,7 @@
  *   `volume=0.1758`, 슬라이더는 `30` 표시. → `video.muted` 또는 볼륨 버튼 `aria-label`
  *   (`음소거`=소리 켜짐 / `음소거 해제`=음소거됨)로 판별한다.
  * - ⚠️ 음소거 상태가 localStorage 로 라이브↔VOD 간 전파된다 → 이동마다 재적용.
- * - 🔴 **`localStorage` 는 origin 전체가 공유한다 — 슬롯 iframe 에서는 절대 쓰지 않는다**
+ * - 🔴 **치지직 전역 키(`player-volume*`)는 origin 전체가 공유한다 — 슬롯 iframe 에서는 절대 쓰지 않는다**
  *   (사용자 보고 2026-08-23: "멀티뷰 → 싱글뷰 전환 시 음소거가 되는 문제"). 슬롯도 같은
  *   `chzzk.naver.com` 페이지를 iframe 으로 불러와 이 기능이 그대로 도는데, 슬롯이 이
  *   전역 키에 쓰면 호스트 페이지·다른 슬롯의 값을 덮어쓴다. 특히 슬롯은 매번 새로 로드되는
@@ -350,12 +350,12 @@ function hostMutedByMultiView(): boolean {
  * 실측(`etc/tmp/probe-mv-fullscreen-volume.mjs`): 슬롯 iframe 이 전체화면이 되면 뷰포트가 커져
  * deviceClass 가 바뀌고(`laptop → desktop`, `mobile → tablet-10`) `content.tsx` 가 전 기능을
  * 재시작한다. `start()` 는 볼륨을 설정에서 새로 읽으므로 `restoreLast: false`(기본)면 항상
- * `defaultLevel` 로 돌아갔다. 슬롯은 `localStorage` 도 쓰지 않아(머리말 🔴) 되살릴 곳이 없었다.
+ * `defaultLevel` 로 돌아갔다. 슬롯은 치지직 전역 키도 쓰지 않아(머리말 🔴) 되살릴 곳이 없었다.
  * 같은 재시작에서 `autoUnmute` 가 **사용자가 직접 건 음소거**까지 풀었다(같은 프로브 `mute` 모드).
  *
  * 모듈 변수라 프레임마다 따로 있다 — 슬롯끼리 섞이지 않는다. `sessionStorage` 는 같은 탭의
  * 같은 origin iframe 끼리 공유되므로 쓰지 않는다. 페이지 키를 함께 둬 SPA 로 다른 방송에
- * 들어가면 지금처럼 설정값으로 시작한다.
+ * 들어가면 그 채널의 저장값(`CHANNEL_VOLUME_STORAGE_KEY`), 없으면 설정값으로 시작한다.
  */
 let sessionLevel: { pageKey: string; percent: number; userMuted: boolean } | null = null;
 
@@ -365,6 +365,38 @@ function pageKeyOf(page: FeatureContext['page']): string {
 
 export function resetVolumeSessionForTests(): void {
   sessionLevel = null;
+}
+
+/**
+ * 방송(채널)별 마지막 볼륨 `{ [channelId]: percent }` (사용자 요청 2026-10-06).
+ *
+ * 치지직 전역 키(`player-volume*`)와 달리 **채널마다 따로**라 슬롯 프레임도 쓴다 — 한 화면이
+ * 저장해도 다른 채널 값을 덮지 않는다. 그래서 멀티뷰에서도 화면마다 채널 값이 적용된다.
+ */
+export const CHANNEL_VOLUME_STORAGE_KEY = 'ezzzk.channelVolume';
+
+function readChannelVolumes(): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(CHANNEL_VOLUME_STORAGE_KEY) ?? '{}');
+    return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function readChannelVolume(channelId: string): number | null {
+  const value = readChannelVolumes()[channelId];
+  return typeof value === 'number' && Number.isFinite(value) ? clampVolumePercent(value) : null;
+}
+
+export function saveChannelVolume(channelId: string, percent: number): void {
+  const volumes = readChannelVolumes();
+  volumes[channelId] = percent;
+  try {
+    localStorage.setItem(CHANNEL_VOLUME_STORAGE_KEY, JSON.stringify(volumes));
+  } catch (e) {
+    warning('failed to persist channel volume to localStorage', e);
+  }
 }
 
 function writeVolumeStorage(percent: number, muted: boolean): void {
@@ -428,15 +460,24 @@ export const volumeFeature: Feature = {
     let unmuteTimer: ReturnType<typeof setTimeout> | undefined;
     const pageKey = pageKeyOf(ctx.page);
     const remembered = sessionLevel?.pageKey === pageKey ? sessionLevel : null;
+    const { channelId } = ctx.page;
+    const channelLevel = channelId ? readChannelVolume(channelId) : null;
     const settingsLevel = ctx.settings.volume.restoreLast
       ? ctx.settings.volume.lastLevel
       : ctx.settings.volume.defaultLevel;
-    let percent = clampVolumePercent(remembered?.percent ?? settingsLevel);
+    let percent = clampVolumePercent(remembered?.percent ?? channelLevel ?? settingsLevel);
     /** 사용자가 직접 음소거했는가. 참이면 재시작 뒤에도 자동 해제하지 않는다. */
     let userMuted = remembered?.userMuted === true;
     /** 초기 적용값은 기억하지 않는다 — 넣으면 설정 변경(`defaultLevel`)이 먹지 않는다. */
     const rememberUserChoice = () => {
       sessionLevel = { pageKey, percent, userMuted };
+    };
+    /**
+     * 채널 저장은 **사용자가 직접 바꾼 볼륨만** 한다. 플레이어가 스스로 복원한 값(전역
+     * `player-volume`)까지 저장하면 그 값이 다음 진입마다 채널 값으로 굳는다.
+     */
+    const saveChannel = () => {
+      if (channelId) saveChannelVolume(channelId, percent);
     };
 
     /**
@@ -612,6 +653,7 @@ export const volumeFeature: Feature = {
       render();
       if (persistToSettings) {
         rememberUserChoice();
+        saveChannel();
         persist(percent);
       }
     };
@@ -1169,9 +1211,11 @@ export const volumeFeature: Feature = {
       const el = e.currentTarget as HTMLVideoElement | null;
       if (!el) return;
       const observed = unitToPercent(el.volume);
-      if (!el.muted && observed !== percent) {
+      // 100% 초과는 요소에 100 까지만 들어간다 — 그 이벤트를 "100 으로 내렸다"로 읽지 않는다.
+      if (!el.muted && observed !== Math.min(100, percent)) {
         percent = observed;
         rememberUserChoice();
+        if (isUserInitiatedStrict()) saveChannel();
         persist(percent);
       }
       if (!el.muted && userMuted) {
