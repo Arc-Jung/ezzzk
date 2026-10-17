@@ -427,8 +427,9 @@ export function LayoutTab({
    * 자동 하단 배치는 저장하지 않으므로(자동값을 저장하면 가로로 돌아와도 하단에 눌러앉는다)
    * 저장값만 보면 세로에서 `right` 로 오판한다.
    */
+  const ratioKey = activeClaim()?.mode === 'bottom' ? 'bottomRatio' : 'rightRatio';
   const ratioRange = chatRatioRangeFor(
-    activeClaim()?.mode === 'bottom' ? 'bottom' : 'right',
+    ratioKey === 'bottomRatio' ? 'bottom' : 'right',
     { width: viewportWidth, height: viewportHeight },
     CHAT_WIDTH_RANGE.min,
     CHAT_WIDTH_RANGE.max,
@@ -447,7 +448,9 @@ export function LayoutTab({
             unit=" %"
             onChange={(next) =>
               // 직접 조절하면 기기별 기본값보다 이 값이 우선한다 (FR-12 연동).
-              update({ chatWidth: { ...chatWidth, ratio: next, ratioSource: 'manual' } })
+              update({
+                chatWidth: { ...chatWidth, ratio: next, [ratioKey]: next, ratioSource: 'manual' },
+              })
             }
           />
           <span className="cm-sheet__note">
@@ -462,6 +465,8 @@ export function LayoutTab({
                   ratio: DEFAULT_SETTINGS.chatWidth.ratio,
                   // auto 로 되돌리면 기기 유형별 기본 점유율을 다시 따른다.
                   ratioSource: 'auto',
+                  rightRatio: null,
+                  bottomRatio: null,
                 },
               })
             }

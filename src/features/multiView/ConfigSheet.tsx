@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  MultiViewLayout,
   MultiViewSlot,
   Settings,
   SlotIndex,
@@ -18,6 +19,7 @@ import type {
   SplitCount,
 } from '../../constants/storage';
 import { Sheet } from '../../ui/Sheet';
+import { fetchLiveStatus, type LiveStatus } from '../liveResume';
 import { CloseIcon, LiveDotIcon, MinusIcon, PlusIcon } from '../../ui/icons';
 import { OURS } from '../../constants/class';
 import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
@@ -41,6 +43,9 @@ import {
   type LiveCursor,
 } from './followList';
 import type { DeviceDecision } from '../../device';
+
+export const SLOT_STATUS_REFRESH_MS = 30_000;
+const SLOT_STATUS_TIMEOUT_MS = 10_000;
 
 const ALL_SLOTS: SlotIndex[] = [1, 2, 3, 4];
 /** 스크롤로 자동 로드할 최대 페이지 수. 이후는 `더 보기` 를 눌러야 한다. */
@@ -76,6 +81,11 @@ export function ConfigSheet({
   const maxSplit = device.profile.maxSplit;
   const [split, setSplit] = useState<SplitCount>(
     Math.min(settings.multiView.defaultSplit, maxSplit) as SplitCount,
+  );
+  const [layout, setLayout] = useState<MultiViewLayout>(
+    settings.multiView.defaultSplit === 4 && maxSplit >= 4
+      ? (settings.multiView.layout ?? 'grid')
+      : 'grid',
   );
   const [slots, setSlots] = useState<MultiViewSlot[]>(() => {
     const base = settings.multiView.restoreLastLayout ? [...settings.multiView.slots] : [];
@@ -265,6 +275,40 @@ export function ConfigSheet({
   const usableSlots = useMemo(() => ALL_SLOTS.slice(0, split), [split]);
   const placedSlots = useMemo(() => slots.filter((slot) => slot.index <= split), [slots, split]);
 
+  const selectedChannelIds = useMemo(
+    () => [...new Set(placedSlots.map((slot) => slot.channelId))],
+    [placedSlots],
+  );
+  const [slotStatuses, setSlotStatuses] = useState<Record<string, LiveStatus>>({});
+
+  useEffect(() => {
+    if (selectedChannelIds.length === 0) return;
+    let disposed = false;
+    let controller: AbortController | undefined;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      controller = new AbortController();
+      const signal = controller.signal;
+      timeoutTimer = setTimeout(() => controller?.abort(), SLOT_STATUS_TIMEOUT_MS);
+      await Promise.all(
+        selectedChannelIds.map(async (channelId) => {
+          const status = await fetchLiveStatus(channelId, signal);
+          if (!disposed) setSlotStatuses((previous) => ({ ...previous, [channelId]: status }));
+        }),
+      );
+      clearTimeout(timeoutTimer);
+      if (!disposed) refreshTimer = setTimeout(() => void refresh(), SLOT_STATUS_REFRESH_MS);
+    };
+    void refresh();
+    return () => {
+      disposed = true;
+      controller?.abort();
+      clearTimeout(timeoutTimer);
+      clearTimeout(refreshTimer);
+    };
+  }, [selectedChannelIds]);
+
   /**
    * 현재 분할·무대 크기에서의 슬롯·영상 크기. 목업의 "현재 선택" 요약에 쓴다.
    *
@@ -276,7 +320,15 @@ export function ConfigSheet({
    */
   const preview = useMemo(() => {
     const orientation = stageSize.height > stageSize.width ? 'portrait' : 'landscape';
-    const rects = computeSlotRects(split, stageSize.width, stageSize.height, orientation);
+    const rects = computeSlotRects(
+      split,
+      stageSize.width,
+      stageSize.height,
+      orientation,
+      undefined,
+      0,
+      layout,
+    );
     const first = rects[0];
     if (!first) return null;
     const lines = resolveSlotChatLines(slotChatLines, first.width, device.deviceClass);
@@ -288,7 +340,15 @@ export function ConfigSheet({
       settings.chatFont.slotPx,
     );
     return { rect: first, lines, metrics };
-  }, [split, stageSize, slotChatLines, placement, device.deviceClass, settings.chatFont.slotPx]);
+  }, [
+    split,
+    layout,
+    stageSize,
+    slotChatLines,
+    placement,
+    device.deviceClass,
+    settings.chatFont.slotPx,
+  ]);
 
   const assign = (channel: FollowChannel, index: SlotIndex) => {
     setSlots((prev) => {
@@ -357,6 +417,7 @@ export function ConfigSheet({
       ...settings.multiView,
       enabled: true,
       defaultSplit: split,
+      layout,
       slots: placedSlots,
       activeSlot: placedSlots.some((s) => s.index === activeSlot)
         ? activeSlot
@@ -406,10 +467,11 @@ export function ConfigSheet({
                   type="radio"
                   name="cm-split"
                   value={value}
-                  checked={split === value}
+                  checked={split === value && layout === 'grid'}
                   disabled={!available}
                   onChange={() => {
                     setSplit(value);
+                    setLayout('grid');
                     setPlacement(recommendedPlacement(value));
                   }}
                 />
@@ -417,11 +479,32 @@ export function ConfigSheet({
               </label>
             );
           })}
+          <label className={maxSplit >= 4 ? '' : 'cm-disabled'}>
+            <input
+              type="radio"
+              name="cm-split"
+              value="main-sidebar"
+              checked={split === 4 && layout === 'main-sidebar'}
+              disabled={maxSplit < 4}
+              onChange={() => {
+                setSplit(4);
+                setLayout('main-sidebar');
+                setPlacement(recommendedPlacement(4));
+              }}
+            />
+            메인 70% + 오른쪽 3개
+          </label>
         </fieldset>
         <button type="button" className="cm-sheet__btn" onClick={() => setSlots([])}>
           초기화
         </button>
       </div>
+      {split === 4 && layout === 'main-sidebar' ? (
+        <p className="cm-sheet__note">
+          1번 슬롯을 왼쪽 70%에, 2~4번 슬롯을 오른쪽 30%에 세로로 배치합니다. 세로 화면에서는 한
+          열로 배치합니다.
+        </p>
+      ) : null}
       {maxSplit === 2 ? (
         <p className="cm-sheet__note">
           이 기기({device.deviceClass})에서는 개별 영상이 너무 작아져 3·4분할을 제공하지 않습니다.
@@ -507,7 +590,7 @@ export function ConfigSheet({
       <div className="cm-mv-columns">
         <section>
           <h3>슬롯 배치</h3>
-          <div className="cm-mv-grid" data-split={split}>
+          <div className="cm-mv-grid" data-split={split} data-layout={layout}>
             {usableSlots.map((index) => {
               const slot = slots.find((s) => s.index === index);
               return (
@@ -517,8 +600,8 @@ export function ConfigSheet({
                       {CIRCLED[index - 1]}{' '}
                       {slot ? (
                         <>
-                          {/* 배치된 슬롯의 실제 방송 여부는 저장하지 않는다 — 항상 강조색으로 표시 (미검증: 오프라인 배치와 구분 없음). */}
-                          <LiveDotIcon size={10} className="cm-mv-live--on" /> {slot.channelName}
+                          <SlotLiveStatus status={slotStatuses[slot.channelId] ?? 'UNKNOWN'} />{' '}
+                          {slot.channelName}
                         </>
                       ) : (
                         <>
@@ -705,6 +788,17 @@ export function ConfigSheet({
         </section>
       </div>
     </Sheet>
+  );
+}
+
+function SlotLiveStatus({ status }: { status: LiveStatus }) {
+  const label =
+    status === 'OPEN' ? '방송 중' : status === 'CLOSE' ? '방송 종료' : '방송 상태 미확인';
+  const state = status === 'OPEN' ? 'on' : status === 'CLOSE' ? 'off' : 'unknown';
+  return (
+    <span role="img" aria-label={label} title={label}>
+      <LiveDotIcon size={10} className={`cm-mv-live--${state}`} />
+    </span>
   );
 }
 

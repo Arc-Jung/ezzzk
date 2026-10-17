@@ -869,18 +869,18 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
   });
 
   /**
-   * 🔴 겹칠 때만 반투명해진다. 여백에 앉아 있을 때까지 반투명하면 글자가 흐려질 뿐이다.
+   * 영상과 겹치면 배경을 더 투명하게 한다. 버튼의 터치 타겟과 글자는 유지한다.
    * 그리고 겹칠 때는 헤더를 밀어 내려야 버튼이 눌린다 — 둘은 한 쌍이라 같이 검사한다.
    */
-  it('겹칠 때만 반투명해지고, 겹친 슬롯의 헤더는 바 아래로 밀린다', () => {
+  it('겹칠 때 더 투명해지고, 겹친 슬롯의 헤더는 바 아래로 밀린다', () => {
     const css = buildStageCss(44, false);
 
     const overlayRule = css.slice(css.indexOf(".cm-stage-bar[data-overlay='true']"));
-    expect(overlayRule.slice(0, overlayRule.indexOf('}'))).toContain('#16181b80');
+    expect(overlayRule.slice(0, overlayRule.indexOf('}'))).toContain('#16181b66');
 
-    // 기본(겹치지 않음)은 불투명 쪽 값이 그대로다.
+    // 기본 배경은 영상 위에 겹쳤을 때보다 진하게 유지한다.
     const baseRule = css.slice(css.indexOf('.cm-stage-bar {'));
-    expect(baseRule.slice(0, baseRule.indexOf('}'))).toContain('#16181be6');
+    expect(baseRule.slice(0, baseRule.indexOf('}'))).toContain('#16181bbf');
 
     const headRule = css.slice(css.indexOf(".cm-slot[data-under-bar='true'] .cm-slot__head"));
     expect(headRule.slice(0, headRule.indexOf('}'))).toContain('var(--cm-bar-overlap');
@@ -974,6 +974,40 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
    * 1·3 처럼 띄어진다. 예전 구현은 번호로 사각형을 찾아 빈 번호에서 `continue` 했고, 배치를 못 받은
    * 슬롯이 옛 좌표에 남아 겹쳤다(겹침 27,600px², 조작 바까지 덮여 버튼 8개가 안 눌렸다).
    */
+  it('저장한 메인 70% 배치를 실제 슬롯에 적용하고 설정 변경 시 격자로 복원한다', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      multiView: { ...DEFAULT_SETTINGS.multiView, layout: 'main-sidebar' as const },
+    };
+    const stage = new MultiViewStage(settings, decideDevice('desktop'), {
+      onRequestConfig: vi.fn(),
+      onExit: vi.fn(),
+      onActiveSlotChange: vi.fn(),
+      onChatWidthChange: vi.fn(),
+    });
+    stage.open(
+      ([1, 2, 3, 4] as const).map((index) => ({
+        index,
+        channelId: String(index).repeat(32),
+        channelName: `방송 ${index}`,
+      })),
+    );
+    try {
+      const cells = [...document.querySelectorAll<HTMLElement>('.cm-slot')];
+      const mainW = parseInt(cells[0]!.style.width);
+      const sideW = parseInt(cells[1]!.style.width);
+      expect(mainW / (mainW + sideW)).toBeCloseTo(0.7, 2);
+      expect(cells[1]!.style.left).toBe(cells[2]!.style.left);
+      expect(cells[2]!.style.left).toBe(cells[3]!.style.left);
+      expect(new Set(cells.slice(1).map((cell) => cell.style.top)).size).toBe(3);
+      stage.updateSettings(DEFAULT_SETTINGS);
+      expect(cells[0]!.style.width).toBe(cells[1]!.style.width);
+      expect(cells[0]!.style.left).toBe(cells[2]!.style.left);
+    } finally {
+      stage.close();
+    }
+  });
+
   it('슬롯 번호가 비어 있어도(1·3) 모든 슬롯이 배치를 받는다', () => {
     const onActiveSlotChange = vi.fn();
     const stage = new MultiViewStage(DEFAULT_SETTINGS, decideDevice(), {

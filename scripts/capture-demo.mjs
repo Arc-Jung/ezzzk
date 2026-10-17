@@ -43,7 +43,8 @@ const CHANNEL_RETRIES = 4;
  * 한 샷만 다시 찍고 싶을 때 쓴다 (`DEMO_SHOTS=multiview`). 디버깅용이므로 이때는
  * README 조각을 **다시 쓰지 않는다** — 일부만 담긴 표로 덮으면 README 가 깨진다.
  */
-const ONLY_SHOTS = process.env['DEMO_SHOTS']?.split(',').filter(Boolean) ?? null;
+const ONLY_SHOTS =
+  (process.env['DEMO_SHOTS'] ?? process.argv[2])?.split(',').filter(Boolean) ?? null;
 
 /**
  * 광고 판별 셀렉터는 **`src/features/adSkip.ts` 의 `AD` 상수를 그대로 읽어** 쓴다.
@@ -262,7 +263,7 @@ const SHOTS = [
     setup: async (page) => {
       const stage = page.locator('#cm-multiview-stage .cm-slot').first();
       try {
-        await stage.waitFor({ state: 'attached', timeout: 12_000 });
+        await stage.waitFor({ state: 'attached', timeout: 60_000 });
       } catch {
         /**
          * 복원 경로가 안 먹으면 정식 경로로 연다 — 구성 시트에서 `멀티뷰 시작`.
@@ -281,6 +282,67 @@ const SHOTS = [
        * 10초로는 **본문이 빈 순간**이 찍혔다 (2026-08-19 실측) → 채팅이 흐를 시간까지 준다.
        */
       await page.waitForTimeout(16_000);
+      // iframe 껍데기만 준비된 검은 화면을 촬영하지 않는다.
+      for (const frame of page.frames().filter((entry) => entry !== page.mainFrame())) {
+        await frame.evaluate(async () => {
+          const video = document.querySelector('video');
+          if (video?.paused) {
+            void video.play().catch(() => {
+              /* 아래 재생 검증에서 실패 사유를 보고한다. */
+            });
+          }
+        });
+      }
+      const deadline = Date.now() + 60_000;
+      let states = [];
+      let previousTimes = new Map();
+      let playingStreak = 0;
+      while (Date.now() < deadline) {
+        states = await Promise.all(
+          page
+            .frames()
+            .filter((entry) => entry !== page.mainFrame())
+            .map((frame) =>
+              frame
+                .evaluate(() => {
+                  const video = document.querySelector('video');
+                  return video
+                    ? {
+                        slot: new URL(location.href).searchParams.get('cmSlot'),
+                        readyState: video.readyState,
+                        currentTime: video.currentTime,
+                        width: video.videoWidth,
+                        paused: video.paused,
+                        error: video.error?.message ?? null,
+                      }
+                    : null;
+                })
+                .catch(() => null),
+            ),
+        );
+        if (
+          states.filter(
+            (state) =>
+              state &&
+              state.slot &&
+              state.readyState >= 4 &&
+              !state.paused &&
+              !state.error &&
+              state.width > 0 &&
+              state.currentTime > (previousTimes.get(state.slot) ?? Infinity),
+          ).length >= 4
+        ) {
+          playingStreak += 1;
+          if (playingStreak >= 3) return;
+        } else {
+          playingStreak = 0;
+        }
+        previousTimes = new Map(
+          states.filter(Boolean).map((state) => [state.slot, state.currentTime]),
+        );
+        await page.waitForTimeout(1000);
+      }
+      throw new Error(`방송 4개가 재생되지 않았습니다: ${JSON.stringify(states)}`);
     },
     /** 슬롯 껍데기만 있는 화면은 데모로 쓸 수 없다 — iframe 이 붙었는지까지 본다. */
     verify: async (page) => {
@@ -319,6 +381,39 @@ const SHOTS = [
   },
 ];
 
+// 새 배치는 기존 4분할과 별도 파일로 남겨 두 배치를 모두 비교할 수 있게 한다.
+const gridShot = SHOTS.find((shot) => shot.key === 'multiview');
+SHOTS.push({
+  ...gridShot,
+  key: 'multiview-main-sidebar',
+  file: (p) => `demo-${p}-multiview-main-sidebar.png`,
+  caption: '멀티뷰 시청 — 메인 70% + 오른쪽 3개',
+  layout: 'main-sidebar',
+  landscapeOnly: true,
+  verify: async (page) => {
+    await gridShot.verify(page);
+    const sizes = await page.locator('#cm-multiview-stage .cm-slot').evaluateAll((cells) =>
+      cells
+        .map((cell) => ({
+          slot: Number(cell.dataset.slot),
+          ...Object.fromEntries(
+            ['x', 'y', 'width', 'height'].map((key) => [key, cell.getBoundingClientRect()[key]]),
+          ),
+        }))
+        .sort((a, b) => a.slot - b.slot),
+    );
+    if (sizes.length !== 4) throw new Error('메인 배치에 방송 4개가 필요합니다');
+    const [main, ...side] = sizes;
+    if (
+      Math.abs(main.width / (main.width + side[0].width) - 0.7) > 0.01 ||
+      side.some((rect) => rect.x <= main.x || rect.width !== side[0].width) ||
+      !(side[0].y < side[1].y && side[1].y < side[2].y)
+    ) {
+      throw new Error('메인 70% + 오른쪽 3개 배치가 적용되지 않았습니다');
+    }
+  },
+});
+
 /** 라이브 목록에서 성인 채널을 걸러 **무작위 순서**로 돌려준다. */
 async function fetchLiveChannels() {
   const res = await fetch(LIVES_URL, { headers: { 'User-Agent': UA } });
@@ -343,6 +438,8 @@ async function fetchLiveChannels() {
 async function captureProfile(profile, channels) {
   const context = await openLiveContext(profile, {
     profileDir: resolve(ROOT, `etc/tmp/playwright/demo/${profile.key}`),
+    // 촬영 환경의 오디오 장치 오류가 영상 시계까지 멈추지 않게 한다.
+    browserArgs: ['--disable-audio-output'],
   });
   const done = [];
   const failed = [];
@@ -353,6 +450,7 @@ async function captureProfile(profile, channels) {
     for (const [shotIndex, shot] of SHOTS.entries()) {
       // 일부 샷만 다시 찍고 싶을 때: `DEMO_SHOTS=multiview node scripts/capture-demo.mjs`
       if (ONLY_SHOTS && !ONLY_SHOTS.includes(shot.key)) continue;
+      if (shot.landscapeOnly && profile.viewport.height > profile.viewport.width) continue;
       let saved = false;
       let lastReason = '(원인 미기록)';
 
@@ -367,11 +465,13 @@ async function captureProfile(profile, channels) {
         const slots =
           shot.key === 'config-sheet'
             ? []
-            : channels.slice(0, 4).map((c, i) => ({
-                index: i + 1,
-                channelId: c.channelId,
-                channelName: c.channelName,
-              }));
+            : Array.from({ length: 4 }, (_, i) => channels[(attempt + i) % channels.length]).map(
+                (c, i) => ({
+                  index: i + 1,
+                  channelId: c.channelId,
+                  channelName: c.channelName,
+                }),
+              );
 
         await seedSettings(context, {
           debug: false,
@@ -379,6 +479,7 @@ async function captureProfile(profile, channels) {
             enabled: shot.multiView,
             restoreLastLayout: true,
             defaultSplit: 4,
+            layout: shot.layout ?? 'grid',
             activeSlot: 1,
             slots,
             /*
@@ -413,7 +514,8 @@ async function captureProfile(profile, channels) {
            * 바뀌어 우리 버튼이 사라지고, 화면도 방송이 아니라 광고가 찍힌다.
            * 상한을 넘기면 던져서 다음 채널로 넘어간다.
            */
-          await waitForAdToEnd(page, `${profile.key}/${shot.key} · ${main.channelName}`);
+          if (!shot.multiView)
+            await waitForAdToEnd(page, `${profile.key}/${shot.key} · ${main.channelName}`);
           await shot.setup(page);
 
           /**
@@ -440,6 +542,16 @@ async function captureProfile(profile, channels) {
           saved = true;
         } catch (e) {
           lastReason = `${main.channelName}: ${String(e).split('\n')[0]}`;
+          console.info(
+            `    · 재시도 ${attempt + 1}/${CHANNEL_RETRIES} ${profile.key}/${shot.key} — ${lastReason}`,
+          );
+          const diagnosticDir = resolve(ROOT, 'etc/shots/demo-failures');
+          mkdirSync(diagnosticDir, { recursive: true });
+          await page
+            .screenshot({ path: resolve(diagnosticDir, `${profile.key}-${shot.key}.png`) })
+            .catch((error) =>
+              console.info(`    · 실패 화면 저장 불가: ${String(error).split('\n')[0]}`),
+            );
         } finally {
           await page.close();
         }
@@ -470,7 +582,9 @@ async function main() {
       .join(', ')}`,
   );
 
-  const profiles = PROFILES.filter((p) => DEMO_PROFILES.includes(p.key));
+  const profiles = PROFILES.filter((p) =>
+    (process.argv[3]?.split(',') ?? DEMO_PROFILES).includes(p.key),
+  );
   console.info(`[demo] 프로필 ${profiles.length}종 동시 캡처 → ${OUT_DIR}`);
 
   const results = await Promise.all(profiles.map((p) => captureProfile(p, channels)));

@@ -199,12 +199,20 @@ export function Popup() {
             <span>기본 분할</span>
             <select
               aria-label="기본 분할 수"
-              value={multiView.defaultSplit}
+              value={
+                multiView.defaultSplit === 4 && multiView.layout === 'main-sidebar'
+                  ? 'main-sidebar'
+                  : multiView.defaultSplit
+              }
               onChange={(e) =>
                 update({
                   multiView: {
                     ...multiView,
-                    defaultSplit: Number(e.target.value) as SplitCount,
+                    defaultSplit:
+                      e.target.value === 'main-sidebar'
+                        ? 4
+                        : (Number(e.target.value) as SplitCount),
+                    layout: e.target.value === 'main-sidebar' ? 'main-sidebar' : 'grid',
                   },
                 })
               }
@@ -212,6 +220,7 @@ export function Popup() {
               <option value={2}>2분할</option>
               <option value={3}>3분할</option>
               <option value={4}>4분할</option>
+              <option value="main-sidebar">메인 70% + 오른쪽 3개</option>
             </select>
           </div>
           {/* 멀티뷰 채팅 임시 비활성화 (`features/multiView/chatFeature.ts`, 2026-08-22). */}

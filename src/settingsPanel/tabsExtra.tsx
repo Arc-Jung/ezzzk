@@ -53,10 +53,16 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         <span>기본 분할</span>
         <select
           aria-label="기본 분할 수"
-          value={multiView.defaultSplit}
+          value={
+            multiView.defaultSplit === 4 && multiView.layout === 'main-sidebar'
+              ? 'main-sidebar'
+              : multiView.defaultSplit
+          }
           onChange={(event) => {
-            const split = Number(event.target.value) as SplitCount;
-            patch({ defaultSplit: split, slotChatPlacement: recommendedPlacement(split) });
+            const layout = event.target.value === 'main-sidebar' ? 'main-sidebar' : 'grid';
+            const split =
+              layout === 'main-sidebar' ? 4 : (Number(event.target.value) as SplitCount);
+            patch({ defaultSplit: split, layout, slotChatPlacement: recommendedPlacement(split) });
           }}
         >
           {SPLITS.map((split) => (
@@ -68,6 +74,9 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
               {split}분할
             </option>
           ))}
+          <option value="main-sidebar" disabled={!isSplitAvailable(4, device.deviceClass)}>
+            메인 70% + 오른쪽 3개
+          </option>
         </select>
       </div>
       <Toggle

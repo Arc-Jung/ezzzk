@@ -21,6 +21,7 @@ export type QualityTarget = 'auto' | '1080p' | '720p' | '480p' | 'best';
 export type SlotLines = 0 | 1 | 2 | 3 | 4 | 5;
 export type SlotIndex = 1 | 2 | 3 | 4;
 export type SplitCount = 2 | 3 | 4;
+export type MultiViewLayout = 'grid' | 'main-sidebar';
 
 export type ChatPreset = { id: string; label: string; text: string; order: number };
 
@@ -90,6 +91,9 @@ export type Settings = {
     enabled: boolean;
     /** 전체 폭 대비 비율(%) */
     ratio: number;
+    /** 배치별 수동 크기(%). null 이면 해당 배치의 자동 크기를 쓴다. */
+    rightRatio: number | null;
+    bottomRatio: number | null;
     /**
      * 채팅 배치 위치. `right` = 영상 오른쪽(기본), `bottom` = 영상 아래.
      * 채팅 폭 컨트롤의 위치 버튼이 두 값을 번갈아 바꾼다 (2026-08-12 요청).
@@ -173,6 +177,8 @@ export type Settings = {
   multiView: {
     enabled: boolean;
     defaultSplit: SplitCount;
+    /** 4분할 가로 화면: 기본 격자 또는 메인 70% + 오른쪽 3개. */
+    layout: MultiViewLayout;
     /**
      * 비활성 슬롯 화질을 720p 로 낮출지. **기본 끄기**(2026-08-12 요청) —
      * 비활성 슬롯도 목표 화질로 재생한다. 켜면 대역폭·CPU 를 아낀다.
@@ -260,6 +266,8 @@ export const DEFAULT_SETTINGS: Settings = {
   chatWidth: {
     enabled: true,
     ratio: 30,
+    rightRatio: null,
+    bottomRatio: null,
     placement: 'right',
     ratioSource: 'auto',
     placementSource: 'auto',
@@ -292,6 +300,7 @@ export const DEFAULT_SETTINGS: Settings = {
   multiView: {
     enabled: false,
     defaultSplit: 4,
+    layout: 'grid',
     // 요청에 따라 기본값은 **끄기** — 비활성 슬롯도 목표 화질(1080p)로 재생한다.
     lowerInactiveQuality: false,
     restoreLastLayout: true,

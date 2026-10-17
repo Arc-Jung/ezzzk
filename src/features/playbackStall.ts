@@ -5,7 +5,8 @@
  *
  * 판정 신호: `video` 요소는 붙었지만 **스트림 데이터를 한 번도 받지 못했다**
  * (`readyState < HAVE_CURRENT_DATA` 이고 `currentTime` 이 계속 0). 이 상태가 일정 시간
- * 이어지면 `video.load()` 로 소스를 다시 물려 재요청하고 재생을 다시 시도한다.
+ * 이어지면 일반 URL 소스는 다시 요청하고 재생을 재시도한다. blob/MSE 와 srcObject 는
+ * 플레이어가 관리하므로 load() 로 분리하지 않고 재생만 시도한다.
  *
  * ⚠️ 이미 데이터를 한 번이라도 받은 뒤 사용자가 직접 멈춘 경우까지 되살리면 안 된다 —
  * 그런 경우는 `currentTime > 0` 이거나 `readyState` 가 이미 올라가 있으므로 이 판정에
@@ -84,10 +85,17 @@ export const playbackStallFeature: Feature = {
         `playback stalled (readyState=${video.readyState}); recovering ` +
           `(${recoveryAttempts}/${MAX_STALL_RECOVERY_ATTEMPTS})`,
       );
-      try {
-        video.load();
-      } catch (e) {
-        warning('video.load() failed during stall recovery', e);
+      // 치지직 HLS 는 MediaSource 를 붙인 뒤 blob URL 을 해제한다.
+      // 여기서 load() 하면 이미 해제된 URL 을 다시 요청해 ERR_FILE_NOT_FOUND →
+      // MEDIA_ERR_SRC_NOT_SUPPORTED 가 된다 (실브라우저 재현 2026-10-17).
+      // srcObject 와 아직 소스가 없는 video 도 플레이어의 초기화를 그대로 기다린다.
+      const source = video.currentSrc || video.src;
+      if (source && !source.startsWith('blob:') && !video.srcObject) {
+        try {
+          video.load();
+        } catch (e) {
+          warning('video.load() failed during stall recovery', e);
+        }
       }
       void video.play()?.catch?.(() => undefined);
       scheduleCheck(STALL_RECHECK_DELAY_MS);

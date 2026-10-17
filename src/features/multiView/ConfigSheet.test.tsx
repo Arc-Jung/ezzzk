@@ -7,15 +7,25 @@
  * 붙거나 아예 실패해 `.cm-mv-scroll` 의 `min-height: 72px`(행 하나 높이)만 남았다.
  * 사용자가 "채널이 한 개밖에 안 보인다"고 보고한 증상과 일치한다.
  */
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
-import { ConfigSheet } from './ConfigSheet';
+import { ConfigSheet, SLOT_STATUS_REFRESH_MS } from './ConfigSheet';
 import { decideDevice } from '../../device';
 import { DEFAULT_SETTINGS } from '../../constants/storage';
 import type { FollowChannel } from './followList';
 import { auditIconButtons } from '../../ui/iconButtonAudit.test-utils';
+
+vi.mock('../liveResume', async () => {
+  const actual = await vi.importActual<typeof import('../liveResume')>('../liveResume');
+  return { ...actual, fetchLiveStatus: vi.fn(async () => 'UNKNOWN') };
+});
+import { fetchLiveStatus } from '../liveResume';
+
+beforeEach(() => {
+  vi.mocked(fetchLiveStatus).mockReset().mockResolvedValue('UNKNOWN');
+});
 
 vi.mock('./followList', async () => {
   const actual = await vi.importActual<typeof import('./followList')>('./followList');
@@ -66,6 +76,7 @@ afterEach(() => {
   host = null;
   document.body.replaceChildren();
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 function followChannel(
@@ -261,5 +272,165 @@ describe('ConfigSheet — 아이콘 버튼 접근성', () => {
     const close = document.querySelector<HTMLButtonElement>('.cm-sheet__close');
     expect(close?.textContent?.trim()).toBe('');
     expect(close?.getAttribute('aria-label')).toBe('닫기');
+  });
+});
+
+describe('ConfigSheet — 메인 70% 레이아웃', () => {
+  it('선택한 배치와 4개 슬롯을 시작 설정으로 넘기고 기존 4분할로 돌아갈 수 있다', async () => {
+    vi.mocked(fetchFollowings).mockResolvedValue({ ok: true, channels: [] });
+    vi.mocked(fetchLivePage).mockResolvedValue({ channels: [], next: null });
+    const props = baseProps();
+    props.settings = {
+      ...DEFAULT_SETTINGS,
+      multiView: {
+        ...DEFAULT_SETTINGS.multiView,
+        slots: [1, 2, 3, 4].map((n) => ({
+          index: n as 1 | 2 | 3 | 4,
+          channelId: `channel-${n}`,
+          channelName: `방송 ${n}`,
+        })),
+      },
+    };
+    await mount(<ConfigSheet {...props} />);
+    const input = document.querySelector<HTMLInputElement>('input[value="main-sidebar"]')!;
+    await act(async () => input.click());
+    expect(input.checked).toBe(true);
+    expect(document.querySelector('.cm-mv-grid')?.getAttribute('data-layout')).toBe('main-sidebar');
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-label="멀티뷰 시작"]')!.click(),
+    );
+    expect(props.onStart).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        defaultSplit: 4,
+        layout: 'main-sidebar',
+        slots: props.settings.multiView.slots,
+      }),
+    );
+    await act(async () =>
+      document.querySelector<HTMLInputElement>('input[name="cm-split"][value="4"]')!.click(),
+    );
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-label="멀티뷰 시작"]')!.click(),
+    );
+    expect(props.onStart).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultSplit: 4, layout: 'grid' }),
+    );
+  });
+
+  it('저장한 배치를 다시 선택하고 4분할을 지원하지 않는 기기에서는 선택을 막는다', async () => {
+    vi.mocked(fetchFollowings).mockResolvedValue({ ok: true, channels: [] });
+    vi.mocked(fetchLivePage).mockResolvedValue({ channels: [], next: null });
+    const props = baseProps();
+    await mount(
+      <ConfigSheet
+        {...props}
+        settings={{
+          ...DEFAULT_SETTINGS,
+          multiView: {
+            ...DEFAULT_SETTINGS.multiView,
+            layout: 'main-sidebar',
+          },
+        }}
+      />,
+    );
+    expect(document.querySelector<HTMLInputElement>('input[value="main-sidebar"]')?.checked).toBe(
+      true,
+    );
+    await act(async () =>
+      root!.render(<ConfigSheet {...props} device={decideDevice('tablet-10')} />),
+    );
+    expect(document.querySelector<HTMLInputElement>('input[value="main-sidebar"]')?.disabled).toBe(
+      true,
+    );
+  });
+});
+
+describe('ConfigSheet — 선택된 방송 상태', () => {
+  const selectedProps = () => {
+    vi.mocked(fetchFollowings).mockResolvedValue({ ok: true, channels: [] });
+    vi.mocked(fetchLivePage).mockResolvedValue({ channels: [], next: null });
+    return {
+      ...baseProps(),
+      settings: {
+        ...DEFAULT_SETTINGS,
+        multiView: {
+          ...DEFAULT_SETTINGS.multiView,
+          slots: [
+            { index: 1 as const, channelId: 'a'.repeat(32), channelName: '현재 방송' },
+            { index: 2 as const, channelId: 'b'.repeat(32), channelName: '저장된 종료 방송' },
+          ],
+        },
+      },
+    };
+  };
+
+  it('인기·팔로우 목록에 없는 저장된 방송도 조회해 방송 중은 초록색, 종료는 빨간색으로 구분한다', async () => {
+    const props = selectedProps();
+    vi.mocked(fetchLiveStatus).mockImplementation(async (id) =>
+      id === 'a'.repeat(32) ? 'OPEN' : 'CLOSE',
+    );
+    await mount(<ConfigSheet {...props} />);
+    const cells = document.querySelectorAll('.cm-mv-cell');
+    expect(cells[0]?.querySelector('[aria-label="방송 중"] .cm-mv-live--on')).not.toBeNull();
+    expect(cells[1]?.querySelector('[aria-label="방송 종료"] .cm-mv-live--off')).not.toBeNull();
+    expect(fetchLiveStatus).toHaveBeenCalledTimes(2);
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-label="멀티뷰 시작"]')!.click(),
+    );
+    expect(props.onStart.mock.calls[0]?.[0].slots).toEqual(props.settings.multiView.slots);
+  });
+
+  it('창을 열어 둔 동안 종료·재개 상태를 갱신하고 닫으면 조회를 중단한다', async () => {
+    vi.useFakeTimers();
+    const props = selectedProps();
+    vi.mocked(fetchLiveStatus).mockResolvedValue('OPEN');
+    await mount(<ConfigSheet {...props} />);
+    expect(document.querySelectorAll('.cm-mv-cell .cm-mv-live--on')).toHaveLength(2);
+    vi.mocked(fetchLiveStatus).mockResolvedValue('CLOSE');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SLOT_STATUS_REFRESH_MS);
+    });
+    expect(document.querySelectorAll('.cm-mv-cell .cm-mv-live--off')).toHaveLength(2);
+    vi.mocked(fetchLiveStatus).mockResolvedValue('OPEN');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SLOT_STATUS_REFRESH_MS);
+    });
+    expect(document.querySelectorAll('.cm-mv-cell .cm-mv-live--on')).toHaveLength(2);
+    const signal = vi.mocked(fetchLiveStatus).mock.calls.at(-1)?.[1];
+    await act(async () => root!.unmount());
+    root = null;
+    expect(signal?.aborted).toBe(true);
+    const calls = vi.mocked(fetchLiveStatus).mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SLOT_STATUS_REFRESH_MS * 2);
+    });
+    expect(fetchLiveStatus).toHaveBeenCalledTimes(calls);
+  });
+
+  it('상태 조회 실패는 방송 종료로 표시하지 않고 회색으로 구분한다', async () => {
+    await mount(<ConfigSheet {...selectedProps()} />);
+    expect(
+      document.querySelectorAll('.cm-mv-cell [aria-label="방송 상태 미확인"] .cm-mv-live--unknown'),
+    ).toHaveLength(2);
+    expect(document.querySelector('.cm-mv-cell .cm-mv-live--off')).toBeNull();
+  });
+
+  it('방송을 슬롯에서 비우면 진행 중인 조회를 취소하고 늦게 온 응답은 무시한다', async () => {
+    const props = selectedProps();
+    const pending: Array<(value: 'CLOSE') => void> = [];
+    vi.mocked(fetchLiveStatus).mockImplementation(
+      () => new Promise((resolve) => pending.push(resolve)),
+    );
+    await mount(<ConfigSheet {...props} />);
+    const signal = vi.mocked(fetchLiveStatus).mock.calls[0]?.[1];
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[aria-label="슬롯 2 비우기"]')!.click(),
+    );
+    expect(signal?.aborted).toBe(true);
+    await act(async () => {
+      pending.forEach((resolve) => resolve('CLOSE'));
+    });
+    expect(document.querySelectorAll('.cm-mv-cell .cm-mv-live--off')).toHaveLength(1);
+    expect(document.querySelectorAll('.cm-mv-cell')[1]?.textContent).toContain('비어 있음');
   });
 });

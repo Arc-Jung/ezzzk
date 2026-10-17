@@ -38,6 +38,7 @@ describe('isPlaybackStalled', () => {
 function mountVideo(): HTMLVideoElement {
   document.body.innerHTML = '<div id="live_player_layout"><video></video></div>';
   const video = document.querySelector('video') as HTMLVideoElement;
+  video.src = 'https://example.com/live.mp4';
   let loadCalls = 0;
   let playCalls = 0;
   Object.defineProperty(video, 'load', {
@@ -93,6 +94,39 @@ describe('playbackStallFeature', () => {
     vi.advanceTimersByTime(STALL_CHECK_DELAY_MS);
 
     expect((video as unknown as { __loadCalls: number }).__loadCalls).toBe(1);
+    expect((video as unknown as { __playCalls: number }).__playCalls).toBe(1);
+    dispose?.();
+  });
+
+  it.each(['blob:https://chzzk.naver.com/revoked-stream', ''])(
+    '플레이어가 관리하는 소스(%s)는 재요청하지 않고 스트림이 준비되기를 기다린다',
+    (source) => {
+      vi.useFakeTimers();
+      const video = mountVideo();
+      video.removeAttribute('src');
+      Object.defineProperty(video, 'currentSrc', { configurable: true, value: source });
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 0 });
+      Object.defineProperty(video, 'currentTime', { configurable: true, value: 0 });
+      const dispose = playbackStallFeature.start(ctx);
+      vi.advanceTimersByTime(STALL_CHECK_DELAY_MS + STALL_RECHECK_DELAY_MS);
+      expect((video as unknown as { __loadCalls: number }).__loadCalls).toBe(0);
+      expect((video as unknown as { __playCalls: number }).__playCalls).toBe(2);
+      // HLS 초기화가 늦게 끝나도 원래 MediaSource 를 유지해 재생할 수 있어야 한다.
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
+      Object.defineProperty(video, 'currentTime', { configurable: true, value: 3 });
+      vi.advanceTimersByTime(STALL_RECHECK_DELAY_MS * 2);
+      expect((video as unknown as { __loadCalls: number }).__loadCalls).toBe(0);
+      dispose?.();
+    },
+  );
+
+  it('srcObject 로 연결된 스트림은 load() 로 분리하지 않는다', () => {
+    vi.useFakeTimers();
+    const video = mountVideo();
+    Object.defineProperty(video, 'srcObject', { configurable: true, value: {} });
+    const dispose = playbackStallFeature.start(ctx);
+    vi.advanceTimersByTime(STALL_CHECK_DELAY_MS);
+    expect((video as unknown as { __loadCalls: number }).__loadCalls).toBe(0);
     expect((video as unknown as { __playCalls: number }).__playCalls).toBe(1);
     dispose?.();
   });

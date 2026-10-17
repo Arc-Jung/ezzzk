@@ -91,6 +91,28 @@ export function parseLiveStatus(body: unknown): LiveStatus {
   return 'UNKNOWN';
 }
 
+/** 방송 상태 공용 조회. 조회 실패를 종료로 오인하지 않도록 UNKNOWN 으로 돌린다. */
+export async function fetchLiveStatus(
+  channelId: string,
+  signal?: AbortSignal,
+): Promise<LiveStatus> {
+  try {
+    const response = await fetch(STATUS_URL(channelId), {
+      credentials: 'omit',
+      headers: { Accept: 'application/json' },
+      ...(signal ? { signal } : {}),
+    });
+    if (!response.ok) {
+      warning(`liveResume: live-status responded ${response.status}`);
+      return 'UNKNOWN';
+    }
+    return parseLiveStatus(await response.json());
+  } catch (e) {
+    if (!signal?.aborted) warning('liveResume: live-status request failed', e);
+    return 'UNKNOWN';
+  }
+}
+
 /** 저장된 카운터를 읽는다. 형태가 깨졌거나 유효 시간이 지났으면 없는 것으로 본다. */
 export function readReloadState(raw: string | null, channelId: string, now: number): ReloadState {
   const empty: ReloadState = { channelId, count: 0, at: now };
@@ -131,9 +153,6 @@ export const liveResumeFeature: Feature = {
     // 슬롯이 제멋대로 리로드되면 멀티뷰 무대가 깨진다.
     !ctx.page.isSlotFrame,
   start: (ctx) => {
-    // 🔴 `const channelId = ctx.page.channelId` 뒤에 null 검사를 두면 안 된다. 아래
-    //    `function fetchStatus` 선언은 호이스팅되어 좁혀지기 전 타입(`string | null`)을 본다.
-    //    검사를 먼저 하고 그다음에 캡처해야 `string` 으로 확정된다.
     if (ctx.page.channelId === null) return;
     const channelId = ctx.page.channelId;
 
@@ -180,28 +199,6 @@ export const liveResumeFeature: Feature = {
       }
     };
 
-    /**
-     * 🔴 **절대 던지지 않는다.** 던지면 `tick` 이 거부되고 다음 주기를 예약하는 코드에
-     * 닿지 못해 **폴링이 영원히 멈춘다** — 네트워크가 한 번 끊긴 것만으로 기능이 죽는다.
-     * 실패는 전부 `UNKNOWN` 으로 접어 호출부가 다음 주기를 잡게 한다.
-     */
-    async function fetchStatus(): Promise<LiveStatus> {
-      try {
-        const response = await fetch(STATUS_URL(channelId), {
-          credentials: 'omit',
-          headers: { Accept: 'application/json' },
-        });
-        if (!response.ok) {
-          warning(`liveResume: live-status responded ${response.status}`);
-          return 'UNKNOWN';
-        }
-        return parseLiveStatus(await response.json());
-      } catch (e) {
-        warning('liveResume: live-status request failed', e);
-        return 'UNKNOWN';
-      }
-    }
-
     async function tick(): Promise<void> {
       if (disposed) return;
 
@@ -212,7 +209,7 @@ export const liveResumeFeature: Feature = {
         return;
       }
 
-      const status = await fetchStatus();
+      const status = await fetchLiveStatus(channelId);
       if (disposed) return;
       completedPolls += 1;
 
