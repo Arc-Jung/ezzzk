@@ -112,6 +112,14 @@ export const CONFIG_SHEET_CSS = `
 .cm-mv-grid[data-split='3'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cm-mv-grid[data-split='3'] .cm-mv-cell:first-child { grid-row: span 2; }
 .cm-mv-grid[data-split='4'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cm-mv-grid[data-split='4'][data-layout='main-sidebar'] {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+.cm-mv-grid[data-split='4'][data-layout='main-sidebar'] .cm-mv-cell:first-child {
+  grid-row: span 3;
+}
+
 
 .cm-mv-cell {
   display: flex;
@@ -226,6 +234,8 @@ export const CONFIG_SHEET_CSS = `
 .cm-mv-channels .cm-sheet__btn { padding: 2px 7px; }
 /* 방송 상태 점(LiveDotIcon) 색 — currentColor 라 부모에서 color 만 정한다. 빨강은 볼륨 과증폭 경고에 이미 쓰여 의미가 충돌하므로 우리 강조색(ACCENT)을 쓴다. */
 .cm-mv-live--on { color: ${ACCENT}; }
+.cm-mv-live--off { color: #ff5c5c; }
+.cm-mv-live--unknown { color: ${FG.muted}; }
 /* 텍스트와 나란히 놓이는 아이콘(빈 슬롯 +, 방송 상태 점) 은 글자 기준선에 맞춰 살짝 내린다. */
 .cm-mv-cell__head svg,
 .cm-mv-channels svg { vertical-align: -1px; }

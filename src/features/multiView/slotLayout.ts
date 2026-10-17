@@ -10,7 +10,7 @@
  */
 
 import { DEVICE_PROFILES, type DeviceClass } from '../../constants/device';
-import type { SlotIndex, SlotLines, SplitCount } from '../../constants/storage';
+import type { MultiViewLayout, SlotIndex, SlotLines, SplitCount } from '../../constants/storage';
 import { pictureSize } from '../../utils/viewport';
 
 /** 슬롯 사이 간격(px). 실측에서 4분할 959 = (1920 − 2) / 2 로 확인된 값. */
@@ -128,6 +128,7 @@ function portraitColumn(
  * - 2분할: 가로에서는 좌우, 세로에서는 상하 (모바일·7인치급 세로 자세 대응)
  * - 3분할: 좌측 1개가 두 행을 차지하고 우측에 2개를 쌓는다.
  *   우측 슬롯은 1920×1080 에서 959×539 = 정확히 16:9 가 되어 여백이 0 이다.
+ * - 4분할 main-sidebar: 왼쪽 70% 메인 + 오른쪽 30%에 3행 (가로 화면 전용).
  * - 4분할: 2×2. 1920×1080 에서 959×539 로 이미 16:9 다.
  *
  * 🔴 `topInset` — **스테이지 조작 바 전용 띠**를 무대 위쪽에서 떼어 낸다 (2026-08-16 회귀).
@@ -144,6 +145,7 @@ export function computeSlotRects(
   orientation: Orientation = 'landscape',
   gap: number = SLOT_GAP,
   topInset = 0,
+  layout: MultiViewLayout = 'grid',
 ): SlotRect[] {
   if (stageW <= 0 || stageH <= 0) return [];
 
@@ -197,6 +199,24 @@ export function computeSlotRects(
     if (orientation === 'portrait') {
       const column = portraitColumn(split, stageW, usableH, gap);
       if (column) return column;
+    }
+
+    if (split === 4 && layout === 'main-sidebar') {
+      const availableW = Math.max(0, stageW - gap);
+      const mainW = Math.floor(availableW * 0.7);
+      const sideW = availableW - mainW;
+      const availableH = Math.max(0, usableH - gap * 2);
+      const rowH = Math.floor(availableH / 3);
+      return [
+        { index: 1, x: 0, y: 0, width: mainW, height: usableH },
+        ...Array.from({ length: 3 }, (_, i) => ({
+          index: (i + 2) as SlotIndex,
+          x: mainW + gap,
+          y: i * (rowH + gap),
+          width: sideW,
+          height: i === 2 ? availableH - rowH * 2 : rowH,
+        })),
+      ];
     }
 
     if (split === 3) {

@@ -82,7 +82,10 @@ export const PROFILES = [
   },
 ];
 
-export async function openLiveContext(profile, { profileDir, freshProfile = true } = {}) {
+export async function openLiveContext(
+  profile,
+  { profileDir, freshProfile = true, browserArgs = [] } = {},
+) {
   /*
    * 🔴 브라우저 프로필은 **반드시 `etc/` 아래**에 만든다 (저장소 규칙, CLAUDE.md).
    * 기본값이 루트였을 때 `.playwright-probe-*` 디렉터리가 루트를 뒤덮었다 — `.gitignore` 에
@@ -156,6 +159,7 @@ export async function openLiveContext(profile, { profileDir, freshProfile = true
       `--load-extension=${DIST}`,
       '--autoplay-policy=no-user-gesture-required',
       '--mute-audio',
+      ...browserArgs,
       ...(headed ? [`--window-position=${windowX},${windowY}`] : ['--headless=new']),
     ],
     viewport: profile.viewport,

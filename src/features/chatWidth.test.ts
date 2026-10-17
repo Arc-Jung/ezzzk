@@ -732,6 +732,91 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
     dispose?.();
   });
 
+  it('오른쪽 너비와 아래쪽 높이를 따로 저장하고 위치 전환·재시작 후 복원한다', async () => {
+    const dispose = chatWidthFeature.start(makeCtx({}));
+    click('채팅 폭 늘리기');
+    await flush();
+    expect(savedChatWidth()).toMatchObject({ rightRatio: 27, bottomRatio: null });
+
+    placementButton()?.click();
+    click('채팅 폭 늘리기');
+    await flush();
+    expect(savedChatWidth()).toMatchObject({ rightRatio: 27, bottomRatio: 27 });
+    click('채팅 폭 늘리기');
+    await flush();
+    expect(savedChatWidth()).toMatchObject({ rightRatio: 27, bottomRatio: 29 });
+
+    placementButton()?.click();
+    await flush();
+    expect(layoutCss()).toContain(`width: ${ratioToPx(27, VIEWPORT_WIDTH)}px !important`);
+    expect(savedChatWidth()).toMatchObject({ ratio: 27, rightRatio: 27, bottomRatio: 29 });
+    dispose?.();
+    resetLayoutArbiterForTest();
+    document.getElementById('cm-chat-width-control')?.remove();
+
+    const restarted = chatWidthFeature.start(makeCtx(savedChatWidth()));
+    placementButton()?.click();
+    await flush();
+    expect(layoutCss()).toContain(`height: ${ratioToPx(29, 768)}px !important`);
+    restarted?.();
+  });
+
+  it('이전 버전의 수동 크기는 첫 시작에 현재 배치로 옮겨 저장한다', async () => {
+    const dispose = chatWidthFeature.start(makeCtx({ ratio: 45, ratioSource: 'manual' }));
+    await flush();
+    expect(savedChatWidth()).toMatchObject({ rightRatio: 45, bottomRatio: null });
+    placementButton()?.click();
+    await flush();
+    expect(savedChatWidth()).toMatchObject({
+      ratio: 25,
+      ratioSource: 'auto',
+      rightRatio: 45,
+      bottomRatio: null,
+    });
+    dispose?.();
+  });
+
+  it('화면 회전 시 각 배치의 수동값만 복원하고 반대쪽은 자동 크기를 유지한다', async () => {
+    const dispose = chatWidthFeature.start(makeCtx({}));
+    try {
+      click('채팅 폭 늘리기');
+      await flush();
+      Object.defineProperty(window, 'innerWidth', { value: 540, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: 960, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+      const auto = autoBottomChatRatio({ width: 540, height: 960 });
+      await vi.waitFor(() =>
+        expect(savedChatWidth()).toMatchObject({
+          ratio: auto,
+          ratioSource: 'auto',
+          rightRatio: 27,
+          bottomRatio: null,
+        }),
+      );
+      click('채팅 폭 줄이기');
+      await flush();
+      const bottom = savedChatWidth().bottomRatio;
+      expect(bottom).toBe(auto - STEP);
+
+      Object.defineProperty(window, 'innerWidth', { value: VIEWPORT_WIDTH, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+      await vi.waitFor(() =>
+        expect(savedChatWidth()).toMatchObject({
+          ratio: 27,
+          ratioSource: 'manual',
+          rightRatio: 27,
+          bottomRatio: bottom,
+        }),
+      );
+      expect(layoutCss()).toContain(`width: ${ratioToPx(27, VIEWPORT_WIDTH)}px !important`);
+    } finally {
+      dispose?.();
+      Object.defineProperty(window, 'innerWidth', { value: VIEWPORT_WIDTH, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
+    }
+  });
+
   /**
    * m8 회귀 — 기기 기본값이 이미 상한이면 `+` 는 값을 못 바꾼다. 그래도 **오버라이드 승격**은
    * 일어나야 한다. 조기 반환하면 초광폭에서 `+` 가 영원히 죽은 버튼이 된다.

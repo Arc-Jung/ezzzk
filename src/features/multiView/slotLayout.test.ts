@@ -14,6 +14,54 @@ import {
   SLOT_GAP,
 } from './slotLayout';
 
+describe('computeSlotRects — 메인 70% + 오른쪽 3개', () => {
+  it('메인은 전체 높이를 쓰고 나머지 3개는 오른쪽 30%를 빈틈없이 나눈다', () => {
+    const rects = computeSlotRects(4, 1920, 1080, 'landscape', 2, 0, 'main-sidebar');
+    expect(rects).toEqual([
+      { index: 1, x: 0, y: 0, width: 1342, height: 1080 },
+      { index: 2, x: 1344, y: 0, width: 576, height: 358 },
+      { index: 3, x: 1344, y: 360, width: 576, height: 358 },
+      { index: 4, x: 1344, y: 720, width: 576, height: 360 },
+    ]);
+  });
+
+  it.each([
+    [1365, 767, 0],
+    [1920, 1080, 48],
+    [2561, 1441, 0],
+  ])('%dx%d 화면과 상단 여백 %dpx 에서 70:30 비율과 무대 경계를 지킨다', (width, height, inset) => {
+    const [main, ...side] = computeSlotRects(
+      4,
+      width,
+      height,
+      'landscape',
+      2,
+      inset,
+      'main-sidebar',
+    );
+    expect(main!.width / (width - 2)).toBeCloseTo(0.7, 2);
+    expect(main!.y).toBe(inset);
+    expect(main!.height).toBe(height - inset);
+    side.forEach((rect, i) => {
+      expect(rect.x).toBe(main!.width + 2);
+      expect(rect.x + rect.width).toBe(width);
+      expect(rect.y).toBe(i === 0 ? inset : side[i - 1]!.y + side[i - 1]!.height + 2);
+    });
+    expect(side[2]!.y + side[2]!.height).toBe(height);
+  });
+
+  it('세로 화면과 2·3개 방송에서는 기존 배치를 쓴다', () => {
+    expect(computeSlotRects(4, 412, 915, 'portrait', 2, 0, 'main-sidebar')).toEqual(
+      computeSlotRects(4, 412, 915, 'portrait'),
+    );
+    for (const split of [2, 3] as const) {
+      expect(computeSlotRects(split, 1920, 1080, 'landscape', 2, 0, 'main-sidebar')).toEqual(
+        computeSlotRects(split, 1920, 1080),
+      );
+    }
+  });
+});
+
 describe('computeSlotRects — 실측 기준값 재현 (1920×1080)', () => {
   it('4분할 슬롯은 959×539 다 (gap 2px)', () => {
     const rects = computeSlotRects(4, 1920, 1080);

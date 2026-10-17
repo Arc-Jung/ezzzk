@@ -551,6 +551,23 @@ export const chatWidthFeature: Feature = {
      * 이전 버전 값에서도 접힘이 유지돼야 한다.
      */
     let widthOverride = ctx.settings.chatWidth.ratioSource === 'manual' || collapsed;
+    // 너비(오른쪽)와 높이(아래)는 서로 다른 크기다. 수동값만 배치별로 기억한다.
+    const savedRatios: Record<ChatPlacement, number | null> = {
+      right: ctx.settings.chatWidth.rightRatio ?? null,
+      bottom: ctx.settings.chatWidth.bottomRatio ?? null,
+    };
+    // 이전 버전의 단일 수동값은 시작 시 실제로 적용되는 배치에만 물려준다.
+    let needsRatioMigration =
+      savedRatios.right === null && savedRatios.bottom === null && widthOverride;
+    if (needsRatioMigration) {
+      const viewport = readViewport();
+      const initialPlacement =
+        ctx.settings.chatWidth.placementSource === 'manual' ||
+        !isPortraitViewport(viewport.width, viewport.height)
+          ? ctx.settings.chatWidth.placement
+          : 'bottom';
+      savedRatios[initialPlacement] = ratio;
+    }
 
     /**
      * 사용자가 **배치**를 직접 정했는가. 참이면 자세에 따른 자동 하단 배치를 덮는다.
@@ -597,32 +614,46 @@ export const chatWidthFeature: Feature = {
      * 없으므로 세로에서는 계속 자동 하단 배치가 유지된다.
      */
     const syncAutoLayout = (): void => {
-      const next = effectiveChatLayout(
-        { ratio, ratioSource: ctx.settings.chatWidth.ratioSource, placement: storedPlacement },
-        ctx.device.profile,
-        readViewport(),
-        min,
-        max,
-        { widthOverride, placementOverride },
-      );
-      if (next.placement === placement && next.ratio === ratio) return;
-      const ratioChanged = next.ratio !== ratio;
+      const viewport = readViewport();
+      const settings = {
+        ratio: DEFAULT_SETTINGS.chatWidth.ratio,
+        ratioSource: 'auto' as const,
+        placement: storedPlacement,
+      };
+      const automatic = effectiveChatLayout(settings, ctx.device.profile, viewport, min, max, {
+        placementOverride,
+      });
+      const savedRatio = savedRatios[automatic.placement];
+      widthOverride = savedRatio !== null || collapsed;
+      const range = chatRatioRangeFor(automatic.placement, viewport, min, max);
+      const next = {
+        placement: automatic.placement,
+        ratio:
+          savedRatio === null ? automatic.ratio : clampChatRatio(savedRatio, range.min, range.max),
+      };
+      if (next.placement === placement && next.ratio === ratio && !needsRatioMigration) return;
+      needsRatioMigration = false;
       ratio = next.ratio;
       placement = next.placement;
       updatePlacementButton();
-      // 자동으로 고른 점유율은 저장에도 반영한다 — 그러지 않으면 설정 패널의 스테퍼가
-      // 죽은 저장값(예: 30%)을 보여 주고, `+` 첫 클릭이 실제 적용값(35%)과 같은 값을 만들어
-      // "눌러도 안 커진다"가 된다 (실측 2026-08-15 `ratio-9to16`).
-      // ⚠️ `placement` 는 저장하지 않는다 — 자동 하단 배치가 저장되면 가로로 돌아와도 하단에
-      // 눌러앉는다. 배치는 `togglePlacement` 만 저장한다.
-      if (ratioChanged && !widthOverride) persistAutoRatio();
+      // 현재 값은 설정 패널 표시용으로도 저장하되, 반대 배치의 수동값은 보존한다.
+      persistCurrentRatio();
       info(`chat layout auto-adjusted: ${ratio}% (${placement})`);
     };
 
-    /** 자동 계산된 점유율만 저장한다 (오버라이드 플래그는 건드리지 않는다). */
-    const persistAutoRatio = (): void => {
-      void guardAsync('chatWidth.persistAutoRatio', () =>
-        updateSection('chatWidth', { ratio }, { origin: 'chatWidth' }),
+    /** 현재 배치의 표시값과 배치별 수동값을 함께 저장한다. */
+    const persistCurrentRatio = (): void => {
+      void guardAsync('chatWidth.persistCurrentRatio', () =>
+        updateSection(
+          'chatWidth',
+          {
+            ratio,
+            ratioSource: savedRatios[placement] === null ? 'auto' : 'manual',
+            rightRatio: savedRatios.right,
+            bottomRatio: savedRatios.bottom,
+          },
+          { origin: 'chatWidth' },
+        ),
       );
     };
 
@@ -630,6 +661,7 @@ export const chatWidthFeature: Feature = {
       ratioSource?: 'auto' | 'manual';
       placementSource?: 'auto' | 'manual';
     }): void => {
+      if (sources?.ratioSource === 'manual') savedRatios[placement] = ratio;
       void guardAsync('chatWidth.persist', () =>
         // origin 을 붙여 자기 재시작을 막는다 — `+`/`-` 클릭마다 컨트롤이 재생성되고
         // 폭 조정자 참조 카운트가 순환하는 것을 피한다.
@@ -637,7 +669,15 @@ export const chatWidthFeature: Feature = {
         // 배치를 저장하면 가로로 돌아와도 하단에 눌러앉는다.
         updateSection(
           'chatWidth',
-          { ratio, collapsed, placement: storedPlacement, ...(sources ?? {}) },
+          {
+            ratio,
+            collapsed,
+            placement: storedPlacement,
+            ratioSource: savedRatios[placement] === null ? 'auto' : 'manual',
+            rightRatio: savedRatios.right,
+            bottomRatio: savedRatios.bottom,
+            ...(sources ?? {}),
+          },
           { origin: 'chatWidth' },
         ),
       );
@@ -789,6 +829,7 @@ export const chatWidthFeature: Feature = {
       storedPlacement = placement;
       // 배치만 사용자 값이 된다 — 점유율은 계속 자동(기기별 기본값)을 따른다.
       placementOverride = true;
+      syncAutoLayout();
       withScrollPreserved(apply);
       updatePlacementButton();
       // 🔴 `placement` 만 저장하면 재시작 때 자동 배치가 다시 이겨 **사용자가 고른 배치가 조용히

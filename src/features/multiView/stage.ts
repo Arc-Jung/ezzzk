@@ -290,26 +290,26 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   left: 0;
   right: 0;
   margin: 0 auto;
-  top: 6px;
+  top: 4px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  background: #16181be6;
+  gap: 6px;
+  padding: 3px 8px;
+  background: #16181bbf;
   border: 1px solid #2a2d31;
   border-radius: 8px;
   z-index: 3;
 }
 /*
-  🔴 영상 위로 겹칠 때만 반투명해진다 (요청 2026-09-07).
+  영상 위에서는 배경을 더 투명하게 한다.
 
   세로 자세는 슬롯을 가운데로 모아 위쪽에 검은 여백이 남으므로, 바는 대개 그 여백에 앉아
-  영상을 하나도 가리지 않는다 — 그때는 불투명하게 둬야 글자가 또렷하다. 여백이 모자라
-  영상 위로 올라갈 때만 50% 로 낮춰 뒤 영상이 비치게 한다.
+  영상을 하나도 가리지 않는다. 기본 배경은 불투명도 75%, 영상 위에서는 40% 로 낮추고,
+  버튼 배경도 70% 로 해 뒤 영상이 비치면서 글자와 아이콘은 선명하게 유지한다.
   판정은 syncLayout() 의 barOverlapsSlots() 가 하고 data-overlay 로 넘어온다.
 */
 #${OURS.multiViewStageId} .cm-stage-bar[data-overlay='true'] {
-  background: #16181b80;
+  background: #16181b66;
 }
 /*
   🔴 2026-08-16 회귀 방지 — 바가 슬롯 헤더 버튼을 덮으면 버튼이 눌리지 않는다
@@ -328,10 +328,10 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   gap: 4px;
   min-width: ${touchTargetPx}px;
   min-height: ${touchTargetPx}px;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 1px solid #2a2d31;
   border-radius: 5px;
-  background: #1c1f22;
+  background: #1c1f22b3;
   color: #e9ecef;
   cursor: pointer;
 }
@@ -801,7 +801,15 @@ export class MultiViewStage {
      * `data-overlay` 가 서서 반투명해진다.
      */
     const barRect = this.bar?.getBoundingClientRect() ?? null;
-    const rects = computeSlotRects(split, width, height, orientation, SLOT_GAP);
+    const rects = computeSlotRects(
+      split,
+      width,
+      height,
+      orientation,
+      SLOT_GAP,
+      0,
+      this.settings.multiView.layout,
+    );
 
     /*
      * 🔴 2026-08-16 회귀 재발 방지 — 바가 슬롯 헤더 버튼을 덮으면 버튼이 눌리지 않는다.
