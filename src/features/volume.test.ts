@@ -7,6 +7,7 @@ import { auditIconButtons } from '../ui/iconButtonAudit.test-utils';
 import { resetInputTrackingForTests } from './multiView/userIntent';
 import type { FeatureContext } from './types';
 import {
+  CHANNEL_VOLUME_STORAGE_KEY,
   VOLUME_STORAGE_KEYS,
   DEFAULT_SLIDER_CLEARANCE_PX,
   sliderClearancePx,
@@ -17,7 +18,9 @@ import {
   normalizeStep,
   percentToElementUnit,
   percentToUnit,
+  readChannelVolume,
   resetVolumeSessionForTests,
+  saveChannelVolume,
   stepVolume,
   unitToPercent,
   volumeFeature,
@@ -30,8 +33,46 @@ import {
  * 없어진다(그래서 별도의 슬롯 전용 볼륨/컴프레서 구현이 파편화·중복으로 이어졌었다). 슬롯이든
  * 아니든 플레이어가 있으면 지원한다.
  */
-// 볼륨 기억은 모듈 변수라 테스트 사이로 샌다 — 매 테스트를 빈 상태로 시작한다.
-beforeEach(() => resetVolumeSessionForTests());
+// 볼륨 기억(모듈 변수·채널별 localStorage)은 테스트 사이로 샌다 — 매 테스트를 빈 상태로 시작한다.
+// 테스트 환경에는 `localStorage` 가 없다(undefined) → 테스트마다 빈 메모리 저장소를 끼운다.
+let store: Record<string, string>;
+beforeEach(() => {
+  resetVolumeSessionForTests();
+  store = {};
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+  });
+});
+afterEach(() => vi.unstubAllGlobals());
+
+describe('readChannelVolume / saveChannelVolume', () => {
+  it('채널마다 따로 저장하고 읽는다', () => {
+    saveChannelVolume('a', 30);
+    saveChannelVolume('b', 80);
+    expect(readChannelVolume('a')).toBe(30);
+    expect(readChannelVolume('b')).toBe(80);
+    expect(readChannelVolume('c')).toBeNull();
+  });
+
+  it('깨진 값은 무시하고 다음 저장으로 복구한다', () => {
+    localStorage.setItem(CHANNEL_VOLUME_STORAGE_KEY, 'not json');
+    expect(readChannelVolume('a')).toBeNull();
+    saveChannelVolume('a', 40);
+    expect(readChannelVolume('a')).toBe(40);
+  });
+
+  it('숫자가 아닌 값은 무시한다', () => {
+    localStorage.setItem(CHANNEL_VOLUME_STORAGE_KEY, JSON.stringify({ a: '70', b: null }));
+    expect(readChannelVolume('a')).toBeNull();
+    expect(readChannelVolume('b')).toBeNull();
+  });
+});
 
 describe('volumeFeature.supports', () => {
   const baseCtx: FeatureContext = {
@@ -616,6 +657,33 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
       next?.();
     });
 
+    it('새로 들어와도(세션 기억 없음) 그 채널에서 마지막으로 맞춘 볼륨으로 시작한다', async () => {
+      vi.useFakeTimers();
+      const video = addVideo(mountPlayer());
+      const first = await startOn();
+      plus()?.click();
+      plus()?.click();
+      first?.();
+
+      resetVolumeSessionForTests(); // 새로고침·재방문과 같다 — 모듈 변수가 비고 localStorage 만 남는다
+      const next = await startOn();
+      expect(shownLabel()).toBe('70%');
+      expect(video.volume).toBeCloseTo(0.7);
+      next?.();
+    });
+
+    it('채널에 저장된 100% 초과 볼륨은 시작할 때 100% 로 깎이지 않는다', async () => {
+      vi.useFakeTimers();
+      saveChannelVolume('a'.repeat(32), 150);
+      const video = addVideo(mountPlayer());
+      video.volume = 0.5;
+      const dispose = await startOn();
+      expect(video.volume).toBe(1);
+      expect(shownLabel()).toBe('150%');
+      expect(readChannelVolume('a'.repeat(32))).toBe(150);
+      dispose?.();
+    });
+
     it('다른 방송으로 옮기면 기억한 값을 쓰지 않는다', async () => {
       vi.useFakeTimers();
       addVideo(mountPlayer());
@@ -639,7 +707,7 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
  * 페이지라 "자동재생 차단 → 강제 음소거" 경로를 자주 타는데, 그때마다 전역 키를 `muted:true`
  * 로 덮어써 멀티뷰를 나간 뒤(또는 다음 새로고침) 호스트 페이지가 음소거로 시작했다.
  */
-describe('volumeFeature — 슬롯 프레임은 localStorage(origin 공유) 를 건드리지 않는다 (2026-08-23)', () => {
+describe('volumeFeature — 슬롯 프레임은 치지직 전역 볼륨 키(origin 공유)를 건드리지 않는다 (2026-08-23)', () => {
   function mountPlayer(): HTMLElement {
     const layout = document.createElement('div');
     layout.id = 'live_player_layout';
@@ -687,23 +755,7 @@ describe('volumeFeature — 슬롯 프레임은 localStorage(origin 공유) 를 
     };
   }
 
-  let store: Record<string, string>;
-
-  beforeEach(() => {
-    store = {};
-    vi.stubGlobal('localStorage', {
-      getItem: (key: string) => store[key] ?? null,
-      setItem: (key: string, value: string) => {
-        store[key] = value;
-      },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
-    });
-  });
-
   afterEach(() => {
-    vi.unstubAllGlobals();
     vi.useRealTimers();
     document.body.innerHTML = '';
   });
@@ -719,7 +771,7 @@ describe('volumeFeature — 슬롯 프레임은 localStorage(origin 공유) 를 
     dispose?.();
   });
 
-  it('슬롯 프레임은 localStorage 를 전혀 건드리지 않는다', async () => {
+  it('슬롯 프레임은 치지직 전역 볼륨 키를 건드리지 않는다', async () => {
     vi.useFakeTimers();
     const dispose = volumeFeature.start(ctxFor(true));
     const root = mountPlayer();
@@ -728,6 +780,45 @@ describe('volumeFeature — 슬롯 프레임은 localStorage(origin 공유) 를 
 
     expect(store['player-volume']).toBeUndefined();
     expect(store['player-volume-muted']).toBeUndefined();
+    dispose?.();
+  });
+
+  it('슬롯 프레임도 채널별 볼륨은 저장하고 다음 진입에 적용한다 (2026-10-06)', async () => {
+    vi.useFakeTimers();
+    const first = volumeFeature.start(ctxFor(true));
+    const video = addVideo(mountPlayer());
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    // 치지직 슬라이더를 직접 끈 것 — 브라우저 활성화와 실입력이 함께 있어야 사용자 조작이다.
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { isActive: true, hasBeenActive: true },
+    });
+    document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    video.volume = 0.3;
+    video.dispatchEvent(new Event('volumechange'));
+    Reflect.deleteProperty(navigator, 'userActivation');
+    first?.();
+    document.body.innerHTML = '';
+    resetVolumeSessionForTests();
+
+    const next = volumeFeature.start(ctxFor(true));
+    const nextVideo = addVideo(mountPlayer());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(nextVideo.volume).toBeCloseTo(0.3);
+    expect(store['player-volume']).toBeUndefined();
+    next?.();
+  });
+
+  it('플레이어가 스스로 바꾼 볼륨(사용자 입력 없음)은 채널 값으로 저장하지 않는다', async () => {
+    vi.useFakeTimers();
+    const dispose = volumeFeature.start(ctxFor(true));
+    const video = addVideo(mountPlayer());
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    video.volume = 0.8;
+    video.dispatchEvent(new Event('volumechange'));
+    expect(readChannelVolume('a'.repeat(32))).toBeNull();
     dispose?.();
   });
 });
