@@ -119,7 +119,7 @@ export type Settings = {
     max: number;
     collapsed: boolean;
   };
-  wideScreen: { enabled: boolean };
+  wideScreen: { enabled: boolean; mode?: PlaybackScreenMode };
   powerCollect: { enabled: boolean };
   ultraWide: {
     enabled: boolean;
@@ -173,7 +173,7 @@ export type Settings = {
   /** FR-18 광고 SKIP 버튼 자동 클릭. 기본 켜기 */
   adSkip: { enabled: boolean };
   device: { override: 'auto' | DeviceClass };
-  promoHide: { banner: boolean; playerTooltip: boolean };
+  promoHide: { banner: boolean; playerTooltip: boolean; disableCheatkeyNavigation: boolean };
   multiView: {
     enabled: boolean;
     defaultSplit: SplitCount;
@@ -296,7 +296,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // 요청에 따라 기본으로 자동 스킵한다.
   adSkip: { enabled: true },
   device: { override: 'auto' },
-  promoHide: { banner: true, playerTooltip: true },
+  promoHide: { banner: true, playerTooltip: true, disableCheatkeyNavigation: false },
   multiView: {
     enabled: false,
     defaultSplit: 4,
@@ -331,3 +331,12 @@ export const BUILTIN_PRESETS: { name: string; values: Partial<Settings> }[] = [
     values: { chatWidth: { ...DEFAULT_SETTINGS.chatWidth, ratio: 15 } },
   },
 ];
+
+export type PlaybackScreenMode = 'default' | 'wide' | 'fullscreen';
+
+/** 기존 자동 넓은 화면 설정도 그대로 읽는다. */
+export function playbackScreenMode(setting: Settings['wideScreen']): PlaybackScreenMode {
+  if (setting.mode === 'default' || setting.mode === 'wide' || setting.mode === 'fullscreen')
+    return setting.mode;
+  return setting.enabled ? 'wide' : 'default';
+}

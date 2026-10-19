@@ -22,13 +22,14 @@
  */
 
 import { ID, PROMO } from '../constants/class';
-import { qs, qsa } from '../utils/dom';
+import { qs, qsa, upsertStyle, removeStyle } from '../utils/dom';
 import { observe } from '../utils/observe';
 import { info } from '../utils/log';
 import type { Feature } from './types';
 
 /** 숨긴 요소 표시용 속성. 해제 시 이 속성으로 되찾는다. */
 const HIDDEN_ATTR = 'data-cm-promo-hidden';
+const NAVIGATION_STYLE_ID = 'cm-cheatkey-navigation-style';
 
 const EXCLUDE_IDS: readonly string[] = PROMO.excludeIds;
 
@@ -66,9 +67,18 @@ export const promoHideFeature: Feature = {
   id: 'promoHide',
   watches: ['promoHide'],
   supports: (ctx) =>
-    (ctx.settings.promoHide.banner || ctx.settings.promoHide.playerTooltip) &&
+    (ctx.settings.promoHide.banner ||
+      ctx.settings.promoHide.playerTooltip ||
+      ctx.settings.promoHide.disableCheatkeyNavigation) &&
     ctx.page.type !== 'unsupported',
   start: (ctx) => {
+    if (ctx.settings.promoHide.disableCheatkeyNavigation) {
+      // 새로 렌더된 버튼에도 적용되며, 키보드 초점에서도 제외한다.
+      upsertStyle(NAVIGATION_STYLE_ID, `${PROMO.navigationOverlay} { display: none !important; }`);
+    }
+    if (!ctx.settings.promoHide.banner && !ctx.settings.promoHide.playerTooltip) {
+      return () => removeStyle(NAVIGATION_STYLE_ID);
+    }
     const apply = () => {
       if (ctx.settings.promoHide.banner) {
         for (const el of qsa<HTMLElement>(PROMO.bodyDirectChild)) {
@@ -108,6 +118,7 @@ export const promoHideFeature: Feature = {
       stopBody();
       stopTooltip?.();
       restoreAll();
+      removeStyle(NAVIGATION_STYLE_ID);
     };
   },
 };

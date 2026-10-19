@@ -16,6 +16,7 @@ import {
   TABS,
   TAB_IDS,
   Toggle,
+  PlaybackTab,
   chatOccupancyText,
   formatLoss,
   placementTradeOff,
@@ -49,6 +50,28 @@ function mount(node: ReactElement) {
     root!.render(node);
   });
 }
+
+describe('재생 시작 화면 선택', () => {
+  it('기본·넓은 화면·전체화면을 하나의 설정으로 저장한다', () => {
+    const update = vi.fn();
+    mount(
+      <PlaybackTab settings={DEFAULT_SETTINGS} device={decideDevice('auto')} update={update} />,
+    );
+    const select = host!.querySelector<HTMLSelectElement>('select[aria-label="재생 시작 화면"]')!;
+    expect([...select.options].map((option) => option.text)).toEqual([
+      '기본',
+      '넓은 화면',
+      '전체화면',
+    ]);
+    for (const mode of ['default', 'wide', 'fullscreen']) {
+      act(() => {
+        select.value = mode;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(update).toHaveBeenLastCalledWith({ wideScreen: { enabled: mode === 'wide', mode } });
+    }
+  });
+});
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -124,9 +147,9 @@ describe('탭 구성', () => {
 
   it('탭 → 초기화 섹션 매핑이 FR-09.2 표와 일치한다', () => {
     // 방송 재개 감시(2026-09-06)도 재생 탭에서 초기화된다.
-    expect(sectionsForTab('playback')).toEqual(['quality', 'liveResume']);
+    expect(sectionsForTab('playback')).toEqual(['quality', 'liveResume', 'wideScreen']);
     expect(sectionsForTab('sound')).toEqual(['volume']);
-    expect(sectionsForTab('layout')).toEqual(['chatWidth', 'wideScreen', 'ultraWide']);
+    expect(sectionsForTab('layout')).toEqual(['chatWidth', 'ultraWide']);
     expect(sectionsForTab('multiView')).toEqual(['multiView']);
     expect(sectionsForTab('chat')).toEqual([
       'chatFont',

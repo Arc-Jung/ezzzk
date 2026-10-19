@@ -4,7 +4,14 @@
  * 모든 변경은 즉시 저장되며 별도 "저장" 버튼이 없다.
  */
 
-import { CHAT_FONT_RANGE, LIMITS, type SlotLines, type SplitCount } from '../constants/storage';
+import {
+  playbackScreenMode,
+  type PlaybackScreenMode,
+  CHAT_FONT_RANGE,
+  LIMITS,
+  type SlotLines,
+  type SplitCount,
+} from '../constants/storage';
 import { lineHeightForFont, visibleLines } from '../features/chatFont';
 import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
 import { Stepper } from './Stepper';
@@ -26,8 +33,7 @@ export function Popup() {
     );
   }
 
-  const { quality, volume, wideScreen, powerCollect, chatFont, multiView, chatClutter, adSkip } =
-    settings;
+  const { quality, volume, powerCollect, chatFont, multiView, chatClutter, adSkip } = settings;
 
   return (
     <div className="cm-popup">
@@ -50,12 +56,19 @@ export function Popup() {
               1080p 자동
             </label>
             <label className="cm-label">
-              <input
-                type="checkbox"
-                checked={wideScreen.enabled}
-                onChange={(e) => update({ wideScreen: { enabled: e.target.checked } })}
-              />
-              자동 넓은 화면
+              재생 시작 화면
+              <select
+                aria-label="재생 시작 화면"
+                value={playbackScreenMode(settings.wideScreen)}
+                onChange={(event) => {
+                  const mode = event.target.value as PlaybackScreenMode;
+                  update({ wideScreen: { enabled: mode === 'wide', mode } });
+                }}
+              >
+                <option value="default">기본</option>
+                <option value="wide">넓은 화면</option>
+                <option value="fullscreen">전체화면</option>
+              </select>
             </label>
             <label className="cm-label">
               <input

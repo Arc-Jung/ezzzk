@@ -70,6 +70,15 @@ describe('ensureWideScreen — 이미 넓으면 토글하지 않는다', () => {
     expect(clicks).toBe(1);
   });
 
+  it('기본 화면을 선택하면 저장된 넓은 화면을 끈다', async () => {
+    const button = mountButton('좁은 화면');
+    const click = vi.fn(() => button.setAttribute('aria-label', '넓은 화면'));
+    button.addEventListener('click', click);
+    await expect(ensureWideScreen({ timeoutMs: 50, targetWide: false })).resolves.toBe(false);
+    await expect(ensureWideScreen({ timeoutMs: 50, targetWide: false })).resolves.toBe(false);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
   it('이미 넓은 화면이면 클릭하지 않는다 (멱등)', async () => {
     const button = mountButton('좁은 화면');
     let clicks = 0;

@@ -12,6 +12,8 @@ import type { ReactNode } from 'react';
 import { DEVICE_CLASSES } from '../constants/device';
 import {
   CHAT_WIDTH_RANGE,
+  playbackScreenMode,
+  type PlaybackScreenMode,
   DEFAULT_SETTINGS,
   type QualityTarget,
   type Settings,
@@ -65,11 +67,11 @@ export const TABS: readonly { id: TabId; title: string }[] = [
 export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
   switch (tab) {
     case 'playback':
-      return ['quality', 'liveResume'];
+      return ['quality', 'liveResume', 'wideScreen'];
     case 'sound':
       return ['volume'];
     case 'layout':
-      return ['chatWidth', 'wideScreen', 'ultraWide'];
+      return ['chatWidth', 'ultraWide'];
     case 'multiView':
       return ['multiView'];
     case 'chat':
@@ -233,6 +235,24 @@ export function PlaybackTab({ settings, update }: TabProps) {
         checked={quality.applyToVod}
         onChange={(next) => update({ quality: { ...quality, applyToVod: next } })}
       />
+      <div className="cm-sheet__row">
+        <span>재생 시작 화면</span>
+        <select
+          aria-label="재생 시작 화면"
+          value={playbackScreenMode(settings.wideScreen)}
+          onChange={(event) => {
+            const mode = event.target.value as PlaybackScreenMode;
+            update({ wideScreen: { enabled: mode === 'wide', mode } });
+          }}
+        >
+          <option value="default">기본</option>
+          <option value="wide">넓은 화면</option>
+          <option value="fullscreen">전체화면</option>
+        </select>
+      </div>
+      <p className="cm-sheet__note">
+        └ 전체화면 자동 전환이 차단되면 영상 영역을 한 번 누를 때 전환합니다.
+      </p>
       <h3>방송 재개</h3>
       <Toggle
         label="방송이 다시 시작되면 자동으로 들어가기"
@@ -418,7 +438,7 @@ export function LayoutTab({
   viewportWidth,
   viewportHeight,
 }: TabProps & { viewportWidth: number; viewportHeight: number }) {
-  const { chatWidth, wideScreen, ultraWide } = settings;
+  const { chatWidth, ultraWide } = settings;
   /**
    * 🔴 스테퍼 범위는 **지금 적용 중인 배치**를 따른다 (실측 2026-08-16, 412×915).
    * 세로 하단 배치의 자동 점유율은 74.6% 라 저장 상한 50 을 넘는다 — 그대로 두면 `+` 가
@@ -492,11 +512,6 @@ export function LayoutTab({
         </select>
       </div>
 
-      <Toggle
-        label="자동 넓은 화면"
-        checked={wideScreen.enabled}
-        onChange={(next) => update({ wideScreen: { enabled: next } })}
-      />
       <Toggle
         label="초광폭 가로 모드"
         checked={ultraWide.enabled}
@@ -584,6 +599,16 @@ export function MiscTab({ settings, device, update }: TabProps) {
         label="치트키 툴팁 숨김"
         checked={promoHide.playerTooltip}
         onChange={(next) => update({ promoHide: { ...promoHide, playerTooltip: next } })}
+      />
+      <Toggle
+        label="치트키 이동 영역 비활성화"
+        checked={promoHide.disableCheatkeyNavigation}
+        onChange={(next) =>
+          update({ promoHide: { ...promoHide, disableCheatkeyNavigation: next } })
+        }
+        hint={
+          <p className="cm-sheet__note">└ 진행바 위 치트키 안내용 클릭 영역을 비활성화합니다.</p>
+        }
       />
       <div className="cm-sheet__row">
         <span>기기 유형</span>

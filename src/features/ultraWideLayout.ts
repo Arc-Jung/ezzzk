@@ -37,6 +37,7 @@ import {
 } from '../utils/viewport';
 import { guardAsync, info } from '../utils/log';
 import { isScrolledToBottom } from './chatFont';
+import { playbackScreenMode } from '../constants/storage';
 import { ensureWideScreen } from './wideScreen';
 import { createIconElement } from '../ui/icons';
 import type { Feature } from './types';
@@ -152,7 +153,7 @@ export function isLandscape(width: number, height: number): boolean {
 
 export const ultraWideFeature: Feature = {
   id: 'ultraWide',
-  watches: ['ultraWide'],
+  watches: ['ultraWide', 'wideScreen'],
   supports: (ctx) =>
     ctx.settings.ultraWide.enabled && hasSideChat(ctx.page.type) && !ctx.page.isSlotFrame,
   start: (ctx) => {
@@ -200,7 +201,7 @@ export const ultraWideFeature: Feature = {
       }
 
       // 순서 1: 넓은 화면이 먼저다. 없으면 레터박스가 남는다.
-      if (!wideScreenRequested) {
+      if (!wideScreenRequested && playbackScreenMode(ctx.settings.wideScreen) === 'wide') {
         wideScreenRequested = true;
         void guardAsync('ultraWide.wideScreen', async () => {
           const state = await ensureWideScreen();
