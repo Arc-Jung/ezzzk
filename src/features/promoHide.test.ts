@@ -122,7 +122,7 @@ describe('치트키 이동 영역 비활성화', () => {
 
   it('기존 배너 숨김과 별개로 켜고 끌 수 있다', () => {
     const ctx = context();
-    expect(DEFAULT_SETTINGS.promoHide.disableCheatkeyNavigation).toBe(false);
+    expect(DEFAULT_SETTINGS.promoHide.disableCheatkeyNavigation).toBe(true);
     expect(promoHideFeature.supports(ctx)).toBe(true);
     ctx.settings.promoHide.disableCheatkeyNavigation = false;
     expect(promoHideFeature.supports(ctx)).toBe(false);

@@ -296,7 +296,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // 요청에 따라 기본으로 자동 스킵한다.
   adSkip: { enabled: true },
   device: { override: 'auto' },
-  promoHide: { banner: true, playerTooltip: true, disableCheatkeyNavigation: false },
+  promoHide: { banner: true, playerTooltip: true, disableCheatkeyNavigation: true },
   multiView: {
     enabled: false,
     defaultSplit: 4,
