@@ -12,6 +12,7 @@
  * - 전체화면과 독립이며 SPA 라우팅 후에도 유지된다(content.tsx 가 재시작하므로 멱등만 보장한다).
  */
 
+import { playbackScreenMode } from '../constants/storage';
 import { PLAYER } from '../constants/class';
 import { hasWideScreenButton } from '../pageType';
 import { normalizeText, qs, qsVisible, sleep, waitFor } from '../utils/dom';
@@ -98,13 +99,14 @@ const MAX_READY_ROUNDS = 10;
 let inFlight: Promise<boolean | null> | null = null;
 
 /**
- * 넓은 화면을 켠다. **이미 켜져 있으면 아무것도 하지 않는다.**
+ * 넓은 화면을 켠다. targetWide=false 이면 기본 화면으로 돌린다.
+ * 이미 목표 상태이면 아무것도 하지 않는다.
  * FR-10 도 이 함수를 그대로 쓴다 — 토글 로직을 복제하지 않는다.
  *
  * @returns 실행 후 넓은 화면 상태. 판정 불가·버튼 없음이면 null.
  */
 export async function ensureWideScreen(
-  options: { timeoutMs?: number; isCancelled?: () => boolean } = {},
+  options: { timeoutMs?: number; isCancelled?: () => boolean; targetWide?: boolean } = {},
 ): Promise<boolean | null> {
   // 라우팅·설정 변경으로 재초기화가 겹칠 수 있다. 진행 중이면 그 결과를 공유한다.
   if (inFlight) return inFlight;
@@ -117,7 +119,10 @@ export async function ensureWideScreen(
 async function runEnsureWideScreen({
   timeoutMs = 10_000,
   isCancelled = () => false,
-}: { timeoutMs?: number; isCancelled?: () => boolean } = {}): Promise<boolean | null> {
+  targetWide = true,
+}: { timeoutMs?: number; isCancelled?: () => boolean; targetWide?: boolean } = {}): Promise<
+  boolean | null
+> {
   const rendered = await waitFor<HTMLElement>(PLAYER.viewModeButton, { timeoutMs });
   if (!rendered) {
     warning('wide screen button not rendered, skipping');
@@ -136,10 +141,9 @@ async function runEnsureWideScreen({
       warning('wide screen state is unknown from aria-label, not toggling');
       return null;
     }
-    if (state) {
-      if (attempt === 1) info('wide screen already active, no toggle');
-      else info(`wide screen active after ${attempt - 1} toggle(s)`);
-      return true;
+    if (state === targetWide) {
+      info(`wide screen already ${String(targetWide)}, no toggle`);
+      return targetWide;
     }
 
     button.click();
@@ -147,21 +151,27 @@ async function runEnsureWideScreen({
     if (isCancelled()) return null;
 
     // 재확인 — 플레이어 복원 로직이 되돌렸다면 다음 시도에서 다시 켠다.
-    if (isWideScreenActive(findViewModeButton()?.getAttribute('aria-label') ?? null) === true) {
-      info(`wide screen toggled on (attempt ${attempt})`);
-      return true;
+    if (
+      isWideScreenActive(findViewModeButton()?.getAttribute('aria-label') ?? null) === targetWide
+    ) {
+      info(`wide screen set to ${String(targetWide)} (attempt ${attempt})`);
+      return targetWide;
     }
   }
 
-  warning(`wide screen did not stay on after ${MAX_ATTEMPTS} attempts`);
-  return false;
+  warning(`wide screen did not stay ${String(targetWide)} after ${MAX_ATTEMPTS} attempts`);
+  return !targetWide;
 }
 
 export const wideScreenFeature: Feature = {
   id: 'wideScreen',
   watches: ['wideScreen'],
-  supports: (ctx) => ctx.settings.wideScreen.enabled && hasWideScreenButton(ctx.page.type),
+  supports: (ctx) =>
+    playbackScreenMode(ctx.settings.wideScreen) !== 'fullscreen' &&
+    (ctx.settings.wideScreen.enabled || ctx.settings.wideScreen.mode === 'default') &&
+    hasWideScreenButton(ctx.page.type),
   start: (ctx) => {
+    const targetWide = playbackScreenMode(ctx.settings.wideScreen) === 'wide';
     let disposed = false;
     /** 켜졌거나(true) 상한까지 실패해 그만뒀다. 더 이상 시도하지 않는다. */
     let settled = false;
@@ -204,14 +214,14 @@ export const wideScreenFeature: Feature = {
       running = true;
       rounds += 1;
       void guardAsync('wideScreen.ensure', async () => {
-        const state = await ensureWideScreen({ isCancelled: () => disposed });
+        const state = await ensureWideScreen({ isCancelled: () => disposed, targetWide });
         running = false;
         if (disposed) return state;
 
-        if (state === true) {
+        if (state === targetWide) {
           settled = true;
           stopWatching();
-          info(`wide screen state after start: true (round ${rounds})`);
+          info(`wide screen state after start: ${String(state)} (round ${rounds})`);
           return state;
         }
         // `null`(label 판정 불가) · `false`(계속 되돌려짐) — 컨트롤바가 다시 그려지면 또 본다.

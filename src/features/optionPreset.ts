@@ -8,7 +8,13 @@
  * 페이지 구조와 무관한 순수 상태 관리라 DOM 을 만지지 않는다 — Feature 가 아니다.
  */
 
-import { BUILTIN_PRESETS, DEFAULT_SETTINGS, LIMITS, type Settings } from '../constants/storage';
+import {
+  BUILTIN_PRESETS,
+  DEFAULT_SETTINGS,
+  LIMITS,
+  playbackScreenMode,
+  type Settings,
+} from '../constants/storage';
 
 export type OptionPreset = Settings['optionPresets'][number];
 
@@ -63,7 +69,9 @@ export function summarizePreset(
     `${volume.defaultLevel}%`,
     `채팅 ${chatWidth.ratio}%`,
   ];
-  if (wideScreen.enabled) parts.push('와이드');
+  const mode = playbackScreenMode(wideScreen);
+  if (mode === 'wide') parts.push('와이드');
+  if (mode === 'fullscreen') parts.push('전체화면');
   if (multiView.enabled && multiView.slots.length >= 2) {
     parts.push(`${multiView.defaultSplit}분할`);
   }

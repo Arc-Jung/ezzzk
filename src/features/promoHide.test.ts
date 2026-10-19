@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { isPromoBanner } from './promoHide';
+import { isPromoBanner, promoHideFeature } from './promoHide';
+import { DEFAULT_SETTINGS } from '../constants/storage';
+import { decideDevice } from '../device';
+import type { FeatureContext } from './types';
 
 /**
  * 🔴 회귀 고정 대상: "텍스트만으로 걸러 `#root` 가 매칭돼 페이지 전체가 사라진" 실증 사고.
@@ -69,5 +72,59 @@ describe('isPromoBanner', () => {
     const el = makeDiv('', BANNER_TEXT);
     expect(isPromoBanner(el, { width: 250, height: 50 })).toBe(true);
     expect(isPromoBanner(el, { width: 600, height: 300 })).toBe(true);
+  });
+});
+
+describe('치트키 이동 영역 비활성화', () => {
+  const context = (): FeatureContext => ({
+    page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    device: decideDevice('auto'),
+    settings: {
+      ...DEFAULT_SETTINGS,
+      promoHide: {
+        banner: false,
+        playerTooltip: false,
+        disableCheatkeyNavigation: true,
+      },
+    },
+  });
+
+  it('투명 버튼만 제외하고 진행바·재생 버튼을 보존하며 해제하면 복원한다', () => {
+    document.body.innerHTML = `<div id="live_player_layout"><video></video>
+      <div class="pzp-pc__bottom-buttons"><div class="slider">
+        <button class="_wrap_example_1">구매 안내</button>
+        <div role="slider" class="pzp-pc__progress-slider"></div>
+      </div><button class="pzp-pc__playback-switch">재생</button></div></div>
+      <button class="_wrap_unrelated_1">다른 버튼</button>`;
+    const overlay = document.querySelector<HTMLElement>('.slider > button')!;
+    const originalDisplay = getComputedStyle(overlay).display;
+    const dispose = promoHideFeature.start(context());
+    try {
+      expect(getComputedStyle(overlay).display).toBe('none');
+      for (const selector of [
+        '[role="slider"]',
+        '.pzp-pc__playback-switch',
+        '._wrap_unrelated_1',
+      ]) {
+        expect(getComputedStyle(document.querySelector(selector)!).display).not.toBe('none');
+      }
+      // React 가 새로 렌더한 버튼에도 CSS 가 바로 적용된다.
+      const replacement = document.createElement('button');
+      replacement.className = '_wrap_replaced_2';
+      overlay.parentElement!.appendChild(replacement);
+      expect(getComputedStyle(replacement).display).toBe('none');
+    } finally {
+      dispose?.();
+    }
+    expect(getComputedStyle(overlay).display).toBe(originalDisplay);
+    expect(document.querySelector('video')).not.toBeNull();
+  });
+
+  it('기존 배너 숨김과 별개로 켜고 끌 수 있다', () => {
+    const ctx = context();
+    expect(DEFAULT_SETTINGS.promoHide.disableCheatkeyNavigation).toBe(true);
+    expect(promoHideFeature.supports(ctx)).toBe(true);
+    ctx.settings.promoHide.disableCheatkeyNavigation = false;
+    expect(promoHideFeature.supports(ctx)).toBe(false);
   });
 });

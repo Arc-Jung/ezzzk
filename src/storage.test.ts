@@ -1,11 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SETTINGS,
+  playbackScreenMode,
   SCHEMA_VERSION,
   SCHEMA_VERSION_KEY,
   STORAGE_KEY,
 } from './constants/storage';
 import { mergeSettings, migrate } from './storage';
+
+describe('재생 시작 화면', () => {
+  it('기존 자동 넓은 화면 on/off 값을 선택 모드로 읽는다', () => {
+    expect(playbackScreenMode(mergeSettings({ wideScreen: { enabled: true } }).wideScreen)).toBe(
+      'wide',
+    );
+    expect(playbackScreenMode(mergeSettings({ wideScreen: { enabled: false } }).wideScreen)).toBe(
+      'default',
+    );
+  });
+
+  it.each(['default', 'wide', 'fullscreen'] as const)('선택한 %s 모드를 보존한다', (mode) => {
+    expect(
+      playbackScreenMode(
+        mergeSettings({ wideScreen: { enabled: mode === 'wide', mode } }).wideScreen,
+      ),
+    ).toBe(mode);
+  });
+});
 
 /** chrome.storage.local 을 메모리로 대체한다 (chrome API 는 jsdom 에 없다). */
 function installFakeChrome(initial: Record<string, unknown> = {}) {

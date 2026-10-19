@@ -182,6 +182,12 @@ export const PROMO = {
   banner: { minW: 250, maxW: 600, minH: 50, maxH: 300, text: '치트키' },
   /** 플레이어 내 툴팁. `#live_player_layout div.pzp-pc__bottom-buttons-left > div.tooltip` */
   playerTooltip: '#live_player_layout div.pzp-pc__bottom-buttons-left > div.tooltip',
+  /**
+   * 2026-10-19 치지직 플레이어 소스 확인: 타임머신 미지원 상태에서 진행바 위에
+   * 구매 안내용 빈 button(_wrap_*)을 올린다. 실제 seek 슬라이더와 구분한다.
+   */
+  navigationOverlay:
+    '#live_player_layout .pzp-pc__bottom-buttons > .slider > button[class*="_wrap_"]',
 } as const;
 
 /** 확장이 삽입하는 노드의 ID·클래스. 치지직 것과 겹치지 않게 `cm-` 접두어를 쓴다. */
