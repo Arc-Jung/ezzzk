@@ -32,7 +32,7 @@ export const CHANNELS = [
 
 /**
  * 필수 검증 프로필 3종 (README 「테스트 방침」). 순서는 모바일 우선.
- * 캡처 대상을 늘리지 않는다 — 이 3종이면 충분하다.
+ * 폴드 참조 프로필은 명시적으로 선택해 추가 검증한다.
  */
 export const PROFILES = [
   {
@@ -80,6 +80,24 @@ export const PROFILES = [
     expectDeviceClass: 'laptop',
     minTargetPx: 32,
   },
+  // 삼성 공개 패널 해상도 / 기준 DPR 2.625를 반올림한 CSS 뷰포트.
+  // 실기기 측정값이 아니며 주소창·화면 배율에 따라 실제 뷰포트는 달라진다.
+  ...[
+    ['fold8-ultra-cover', '폴드8 울트라 커버', 411, 960],
+    ['fold8-ultra-open', '폴드8 울트라 펼침', 859, 954],
+    ['fold8-ultra-open-landscape', '폴드8 울트라 펼침 가로', 954, 859],
+    ['fold8-cover', '폴드8 커버', 475, 751],
+    ['fold8-open', '폴드8 펼침', 704, 933],
+    ['fold8-open-landscape', '폴드8 펼침 가로', 933, 704],
+  ].map(([key, label, width, height]) => ({
+    key,
+    label: `${label} ${width}×${height} (참조 에뮬레이션)`,
+    viewport: { width, height },
+    deviceScaleFactor: 2.625,
+    hasTouch: true,
+    expectDeviceClass: width < 480 ? 'mobile' : 'tablet-10',
+    minTargetPx: 44,
+  })),
 ];
 
 export async function openLiveContext(

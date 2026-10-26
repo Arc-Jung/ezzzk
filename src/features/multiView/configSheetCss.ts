@@ -30,6 +30,7 @@ import { OURS } from '../../constants/class';
 export const CONFIG_SHEET_CSS = `
 .cm-mv-splits {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin: 0;

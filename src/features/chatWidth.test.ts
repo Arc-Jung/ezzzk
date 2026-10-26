@@ -1564,3 +1564,27 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
     dispose?.();
   });
 });
+
+describe('펼친 폴드의 채팅 자동 배치', () => {
+  const settings = { ratio: 30, ratioSource: 'auto' as const, placement: 'right' as const };
+  it.each([
+    [954, 859],
+    [933, 704],
+  ])('%d×%d에서는 영상 아래의 여백을 채팅으로 쓴다', (width, height) => {
+    const viewport = { width, height };
+    const result = effectiveChatLayout(settings, DEVICE_PROFILES['tablet-10'], viewport, 15, 50);
+    expect(result.placement).toBe('bottom');
+    expect(height * (1 - result.ratio / 100)).toBeGreaterThanOrEqual((width * 9) / 16);
+    expect(
+      effectiveChatLayout(settings, DEVICE_PROFILES['tablet-10'], viewport, 15, 50, {
+        placementOverride: true,
+      }).placement,
+    ).toBe('right');
+  });
+  it('긴 커버 가로 화면은 오른쪽 채팅을 유지한다', () => {
+    expect(
+      effectiveChatLayout(settings, DEVICE_PROFILES.mobile, { width: 960, height: 411 }, 15, 50)
+        .placement,
+    ).toBe('right');
+  });
+});

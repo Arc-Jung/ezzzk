@@ -99,6 +99,22 @@ export function isPortraitViewport(width: number, height: number): boolean {
   return height > width;
 }
 
+/** 펼친 폴드의 낮은 가로 비율에서는 아래쪽 여백을 채팅으로 쓴다. */
+function prefersBottomChat(
+  viewport: { width: number; height: number },
+  profile: { chatRatioPortrait: number | null },
+): boolean {
+  const { width, height } = viewport;
+  return (
+    isPortraitViewport(width, height) ||
+    (profile.chatRatioPortrait !== null &&
+      width >= 600 &&
+      width <= 1000 &&
+      height > 0 &&
+      width / height <= 1.4)
+  );
+}
+
 /**
  * 하단 배치에서 **영상 그림이 최소한 지켜야 할 몫**. 유효 상한(`chatRatioRangeFor`)의 근거다.
  *
@@ -222,15 +238,9 @@ export function effectiveChatLayout(
     placementOverride = false,
   }: { widthOverride?: boolean; placementOverride?: boolean } = {},
 ): { placement: ChatPlacement; ratio: number } {
-  /*
-   * 🔴 자세만 본다 (2026-08-20 요청): **세로로 조금이라도 길면 아래, 가로면 오른쪽.**
-   *
-   * 이전에는 `profile.chatRatioPortrait !== null` 을 함께 요구했다. 그래서 그 값이 없는
-   * 프로필(노트북·데스크톱)은 창을 세로로 길게 줄여도 채팅이 오른쪽에 남아, 폭이 좁아질수록
-   * 영상과 채팅이 둘 다 찌그러졌다. 자동 하단 점유율(`autoBottomChatRatio`)은 뷰포트만으로
-   * 계산되므로 프로필 값이 없어도 하단 배치가 성립한다.
-   */
-  const autoBottom = isPortraitViewport(viewport.width, viewport.height);
+  // 세로 화면과 펼친 폴드의 낮은 가로 비율에서는 영상 아래 여백을 활용한다.
+  // 수동 배치는 이 자동 판단보다 우선한다.
+  const autoBottom = prefersBottomChat(viewport, profile);
 
   const placement: ChatPlacement = placementOverride || !autoBottom ? settings.placement : 'bottom';
 
@@ -563,7 +573,7 @@ export const chatWidthFeature: Feature = {
       const viewport = readViewport();
       const initialPlacement =
         ctx.settings.chatWidth.placementSource === 'manual' ||
-        !isPortraitViewport(viewport.width, viewport.height)
+        !prefersBottomChat(viewport, ctx.device.profile)
           ? ctx.settings.chatWidth.placement
           : 'bottom';
       savedRatios[initialPlacement] = ratio;

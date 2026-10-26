@@ -178,7 +178,8 @@ export const SETTINGS_PANEL_CSS = `
 /* 좁은 화면(태블릿 세로·모바일)에서는 탭 레일을 위쪽 가로 줄로 접는다. */
 @media (max-width: 700px) {
   .cm-sp { flex-direction: column; }
-  .cm-sp__rail { flex-direction: row; flex-wrap: wrap; width: 100%; min-width: 0; }
+  .cm-sp__rail { flex-direction: row; flex-wrap: nowrap; width: 100%; min-width: 0; box-sizing: border-box; overflow-x: auto; }
+  .cm-sp__tab { flex: 0 0 auto; white-space: nowrap; }
   .cm-sp__panel { width: 100%; }
 }
 
@@ -194,7 +195,8 @@ export const SETTINGS_PANEL_CSS = `
 */
 @media (max-height: 560px) {
   .cm-sp { flex-direction: column; }
-  .cm-sp__rail { flex-direction: row; flex-wrap: wrap; width: 100%; min-width: 0; }
+  .cm-sp__rail { flex-direction: row; flex-wrap: nowrap; width: 100%; min-width: 0; box-sizing: border-box; overflow-x: auto; }
+  .cm-sp__tab { flex: 0 0 auto; white-space: nowrap; }
   .cm-sp__panel { width: 100%; }
 }
 /*

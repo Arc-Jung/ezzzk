@@ -94,7 +94,8 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'if-physical-keyboard',
     allowHover: false,
     settingsUi: 'popup+sheet',
-    maxSplit: 2,
+    // 접힘·펼침 전환에서 모바일의 3·4분할 선택을 유지한다.
+    maxSplit: 4,
     maxSlotChatLines: 3,
     chatPresetUi: 'chips-2rows',
     relaxObservers: true,
@@ -107,7 +108,8 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'off',
     allowHover: false,
     settingsUi: 'sheet',
-    maxSplit: 2,
+    // 접힘·펼침 전환에서 모바일의 3·4분할 선택을 유지한다.
+    maxSplit: 4,
     maxSlotChatLines: 2,
     chatPresetUi: 'sheet',
     relaxObservers: true,
