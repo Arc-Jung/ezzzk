@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { pictureSize } from '../../utils/viewport';
 import {
   clampSplit,
   computeSlotRects,
@@ -354,15 +355,12 @@ describe('기기별 분할 상한 (FR-14 표)', () => {
     }
   });
 
-  /** 모바일은 2026-09-07 에 4분할까지 열렸다 — 아래 `모바일` 블록에서 따로 본다. */
-  it('태블릿 7·10인치는 2분할까지이고 3·4분할 선택이 비활성이다', () => {
+  it('태블릿 7·10인치로 펼쳐져도 3·4분할이 유지된다', () => {
     for (const cls of ['tablet-10', 'tablet-7'] as const) {
-      expect(maxSplitFor(cls)).toBe(2);
-      expect(isSplitAvailable(2, cls)).toBe(true);
-      expect(isSplitAvailable(3, cls)).toBe(false);
-      expect(isSplitAvailable(4, cls)).toBe(false);
-      expect(clampSplit(4, cls)).toBe(2);
-      expect(clampSplit(3, cls)).toBe(2);
+      expect(maxSplitFor(cls)).toBe(4);
+      expect(isSplitAvailable(3, cls)).toBe(true);
+      expect(isSplitAvailable(4, cls)).toBe(true);
+      expect(clampSplit(4, cls)).toBe(4);
     }
   });
 
@@ -557,5 +555,38 @@ describe('fitListScrollHeight — 마지막 행이 푸터에 잘리지 않는다
 
   it('터치 기기의 큰 행(44+8=52px)에서도 배수로 맞춘다', () => {
     expect(fitListScrollHeight(200, 20, 52)).toBe(20 + 3 * 52);
+  });
+});
+
+describe('폴드 커버·펼침·회전 배치', () => {
+  it.each([
+    [859, 954],
+    [820, 900],
+  ])('펼친 세로 %d×%d에서는 4개 영상을 격자로 더 크게 표시한다', (width, height) => {
+    const inset = 52;
+    const rects = computeSlotRects(4, width, height, 'portrait', 2, inset);
+    expect(rects[0]!.y).toBe(inset);
+    expect(rects[0]!.y).toBe(rects[1]!.y);
+    expect(rects[1]!.x).toBeGreaterThan(rects[0]!.x);
+    const oldHeight = Math.floor((height - inset - 6) / 4);
+    const oldArea = oldHeight * Math.round((oldHeight * 16) / 9);
+    for (const rect of rects) {
+      const picture = pictureSize(rect.width, rect.height);
+      expect(picture.width * picture.height).toBeGreaterThan(oldArea);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(width);
+      expect(rect.y + rect.height).toBeLessThanOrEqual(height);
+    }
+  });
+
+  it.each([
+    [411, 960],
+    [475, 751],
+    [704, 933],
+  ])('한 열이 유리한 %d×%d에서는 넓은 영상 배치를 유지한다', (width, height) => {
+    const rects = computeSlotRects(4, width, height, 'portrait', 2, 52);
+    expect(new Set(rects.map((rect) => rect.x)).size).toBe(1);
+    for (let i = 1; i < rects.length; i++) {
+      expect(rects[i]!.y).toBeGreaterThan(rects[i - 1]!.y + rects[i - 1]!.height);
+    }
   });
 });

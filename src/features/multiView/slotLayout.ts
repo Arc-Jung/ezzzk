@@ -70,16 +70,8 @@ export function isSplitAvailable(split: SplitCount, deviceClass: DeviceClass): b
 /**
  * 세로 자세에서 슬롯 `count` 개를 **한 열로** 쌓는다 (모바일 3·4분할, 2026-09-07).
  *
- * 🔴 세로에서 격자(2×2)를 쓰면 안 된다. 412×915 실측으로 비교하면 슬롯 하나가 담는 그림이
- * 3배 넘게 차이난다.
- *
- * | 배치 | 슬롯 크기 | 그림 면적 |
- * | --- | --- | --- |
- * | 2×2 격자 | 202×424 (16:9 그림은 202×114) | 23,028px² — 슬롯마다 310px 가 레터박스 |
- * | 1열 4행 | 370×208 (슬롯 = 그림) | 76,960px² |
- *
- * 세로는 **폭이 제약**이므로 슬롯을 넓게 쓰고 높이로 나누는 쪽이 언제나 크다. 2분할이 이미
- * 같은 이유로 전용 분기를 갖고 있다(2026-08-22 실측) — 3·4분할로 같은 원리를 넓힌 것이다.
+ * 긴 커버 화면에서는 한 열이 유리하다. 펼친 폴드처럼 정사각형에 가까우면
+ * 격자의 영상 면적이 더 클 수 있어 호출부에서 두 배치를 비교한다.
  *
  * 두 경우로 갈린다.
  * 1. 폭 제약 — 폭을 다 쓴 16:9 높이로 전부 들어가면 그대로 쌓고 남는 높이는 위아래로 나눈다.
@@ -192,16 +184,24 @@ export function computeSlotRects(
     }
 
     /*
-     * 세로 자세의 3·4분할은 한 열로 쌓는다 (2026-09-07). 2분할이 이미 위에서 같은 이유로
-     * 전용 분기를 쓰고 있다 — 아래 격자는 가로 자세 전용이다.
+     * 세로 자세의 3·4분할은 한 열과 격자의 영상 크기를 비교한다.
+     * 폴드 내부 화면처럼 비율이 다른 화면에서도 더 넓게 보이는 쪽을 쓴다.
      * `portraitColumn` 이 null 이면(무대가 비정상적으로 작다) 기존 격자로 물러난다.
      */
     if (orientation === 'portrait') {
       const column = portraitColumn(split, stageW, usableH, gap);
-      if (column) return column;
+      if (column) {
+        // 자세만으로 결정하면 펼친 폴드에서도 폭을 낭비한다. 가장 작은 영상의
+        // 16:9 그림 면적을 비교해 긴 커버 화면의 한 열 배치는 유지한다.
+        const gridPicture = pictureSize(halfW, halfH);
+        const columnPicture = pictureSize(column[0]!.width, column[0]!.height);
+        if (columnPicture.width * columnPicture.height >= gridPicture.width * gridPicture.height) {
+          return column;
+        }
+      }
     }
 
-    if (split === 4 && layout === 'main-sidebar') {
+    if (split === 4 && layout === 'main-sidebar' && orientation === 'landscape') {
       const availableW = Math.max(0, stageW - gap);
       const mainW = Math.floor(availableW * 0.7);
       const sideW = availableW - mainW;

@@ -258,7 +258,7 @@ const SHOTS = [
   {
     key: 'multiview',
     file: (p) => `demo-${p}-multiview.png`,
-    caption: '멀티뷰 시청 화면 (4분할 · 세로 화면에서는 한 열로 쌓는다)',
+    caption: '멀티뷰 시청 화면 (4분할 · 화면 비율에 맞춰 배치)',
     multiView: true,
     setup: async (page) => {
       const stage = page.locator('#cm-multiview-stage .cm-slot').first();
@@ -524,6 +524,30 @@ async function captureProfile(profile, channels) {
            * 동작하지 않는 것처럼 보인다.
            */
           await shot.verify(page);
+
+          if (profile.key.startsWith('fold8') && !shot.multiView) {
+            // 참조 화면도 검은 플레이어가 아니라 실제 재생 중인 프레임을 저장한다.
+            await page.waitForFunction(
+              () => {
+                const video = document.querySelector('#live_player_layout video');
+                return video && video.readyState >= 3 && !video.paused && !video.error;
+              },
+              undefined,
+              { timeout: 30_000 },
+            );
+            const before = await page
+              .locator('#live_player_layout video')
+              .first()
+              .evaluate((video) => video.currentTime);
+            await page.waitForTimeout(1200);
+            const advancing = await page
+              .locator('#live_player_layout video')
+              .first()
+              .evaluate((video, previous) => video.currentTime > previous, before);
+            if (!advancing) throw new Error('참조 화면의 영상 재생 시간이 진행되지 않습니다');
+          }
+
+          if (shot.key === 'watch') await revealControls(page);
 
           // 탭 노출은 3초 뒤 닫힌다 — 판정과 저장 사이에 닫히지 않게 직전에 한 번 더 띄운다.
           await revealTapOnlyControls(page);

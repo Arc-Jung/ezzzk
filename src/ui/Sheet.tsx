@@ -318,4 +318,9 @@ export const SHEET_CSS = `
   gap: 10px;
   padding: 5px 0;
 }
+/* 커버 화면과 회전한 폴드에서도 바깥 여백보다 조작 공간을 우선한다. */
+@media (pointer: coarse) and (max-width: 1000px) {
+  .cm-sheet { width: min(${SHEET_MAX_W}px, 96vw); }
+  .cm-sheet:not(:has(.cm-mv-columns)) { max-height: 94dvh; }
+}
 `.trim();

@@ -317,7 +317,7 @@ describe('ConfigSheet — 메인 70% 레이아웃', () => {
     );
   });
 
-  it('저장한 배치를 다시 선택하고 4분할을 지원하지 않는 기기에서는 선택을 막는다', async () => {
+  it('저장한 배치를 다시 선택하고 태블릿으로 펼쳐도 선택할 수 있다', async () => {
     vi.mocked(fetchFollowings).mockResolvedValue({ ok: true, channels: [] });
     vi.mocked(fetchLivePage).mockResolvedValue({ channels: [], next: null });
     const props = baseProps();
@@ -340,7 +340,7 @@ describe('ConfigSheet — 메인 70% 레이아웃', () => {
       root!.render(<ConfigSheet {...props} device={decideDevice('tablet-10')} />),
     );
     expect(document.querySelector<HTMLInputElement>('input[value="main-sidebar"]')?.disabled).toBe(
-      true,
+      false,
     );
   });
 });

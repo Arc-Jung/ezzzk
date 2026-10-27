@@ -501,8 +501,8 @@ export function ConfigSheet({
       </div>
       {split === 4 && layout === 'main-sidebar' ? (
         <p className="cm-sheet__note">
-          1번 슬롯을 왼쪽 70%에, 2~4번 슬롯을 오른쪽 30%에 세로로 배치합니다. 세로 화면에서는 한
-          열로 배치합니다.
+          1번 슬롯을 왼쪽 70%에, 2~4번 슬롯을 오른쪽 30%에 세로로 배치합니다. 세로 화면에서는 화면
+          비율에 맞춰 자동 배치합니다.
         </p>
       ) : null}
       {maxSplit === 2 ? (
