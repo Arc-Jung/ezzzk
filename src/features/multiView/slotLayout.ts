@@ -117,7 +117,7 @@ function portraitColumn(
 /**
  * 슬롯 사각형 배치.
  *
- * - 2분할: 가로에서는 좌우, 세로에서는 상하 (모바일·7인치급 세로 자세 대응)
+ * - 2분할: 세로는 상하, 가로는 상하·좌우 중 실제 영상 면적이 큰 배치.
  * - 3분할: 좌측 1개가 두 행을 차지하고 우측에 2개를 쌓는다.
  *   우측 슬롯은 1920×1080 에서 959×539 = 정확히 16:9 가 되어 여백이 0 이다.
  * - 4분할 main-sidebar: 왼쪽 70% 메인 + 오른쪽 30%에 3행 (가로 화면 전용).
@@ -152,7 +152,14 @@ export function computeSlotRects(
 
   const rects = ((): SlotRect[] => {
     if (split === 2) {
-      if (orientation === 'portrait') {
+      // 주소창이 보이는 폴드 내부 화면은 폭이 높이보다 길어질 수 있다.
+      // 자세만 보고 좌우로 나누면 영상 폭이 절반이 된다. 실제 무대에서
+      // 각 배치의 가장 작은 16:9 그림을 비교해 최대화 전후에도 크게 표시한다.
+      const stackedPicture = pictureSize(stageW, halfH);
+      const sidePicture = pictureSize(halfW, usableH);
+      const preferStacked =
+        stackedPicture.width * stackedPicture.height > sidePicture.width * sidePicture.height;
+      if (orientation === 'portrait' || preferStacked) {
         /*
          * 🔴 **높이를 균등 분할하면 슬롯의 절반이 검은 띠가 된다** (실측 2026-08-22,
          * mobile-portrait 412×915: 슬롯 412×421 인데 16:9 영상은 412×232 — 슬롯마다

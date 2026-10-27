@@ -85,6 +85,8 @@ export const PROFILES = [
   ...[
     ['fold8-ultra-cover', '폴드8 울트라 커버', 411, 960],
     ['fold8-ultra-open', '폴드8 울트라 펼침', 859, 954],
+    // 사용자 첨부 일반 모드 1228×1142의 비율. 주소창으로 높이가 줄어든 경우.
+    ['fold8-ultra-browser', '폴드8 울트라 주소창 표시', 859, 798],
     ['fold8-ultra-open-landscape', '폴드8 울트라 펼침 가로', 954, 859],
     ['fold8-cover', '폴드8 커버', 475, 751],
     ['fold8-open', '폴드8 펼침', 704, 933],

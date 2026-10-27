@@ -590,3 +590,43 @@ describe('폴드 커버·펼침·회전 배치', () => {
     }
   });
 });
+
+describe('2분할 — 폴드 주소창 표시·최대화 전환', () => {
+  it.each([
+    [859, 798], // 첨부 일반 모드 1228×1142의 비율을 CSS 크기로 환산
+    [954, 760], // 펼친 가로 + 브라우저 도구 모음
+    [954, 859],
+    [859, 954], // 최대화·세로
+  ])('%d×%d에서 두 영상을 상하로 배치하고 좌우보다 크게 표시한다', (width, height) => {
+    const orientation = width >= height ? 'landscape' : 'portrait';
+    const rects = computeSlotRects(2, width, height, orientation);
+    const [top, bottom] = rects;
+    expect(top!.x).toBe(0);
+    expect(bottom!.x).toBe(0);
+    expect(top!.width).toBe(width);
+    expect(bottom!.y).toBeGreaterThanOrEqual(top!.y + top!.height + SLOT_GAP);
+    expect(bottom!.y + bottom!.height).toBeLessThanOrEqual(height);
+    const oldPicture = pictureSize(Math.floor((width - SLOT_GAP) / 2), height);
+    for (const rect of rects) {
+      const picture = pictureSize(rect.width, rect.height);
+      expect(picture.width * picture.height).toBeGreaterThan(oldPicture.width * oldPicture.height);
+    }
+  });
+
+  it('주소창·최대화로 비율이 1:1을 넘어도 배치가 좌우로 뒤집히지 않는다', () => {
+    const layouts = [798, 954, 798].map((height) =>
+      computeSlotRects(2, 859, height, height > 859 ? 'portrait' : 'landscape'),
+    );
+    for (const rects of layouts) expect(rects[1]!.x).toBe(0);
+  });
+
+  it.each([
+    [915, 412],
+    [1920, 1080],
+  ])('넓은 %d×%d 화면은 좌우 배치를 유지한다', (width, height) => {
+    const [left, right] = computeSlotRects(2, width, height, 'landscape');
+    expect(left!.y).toBe(0);
+    expect(right!.y).toBe(0);
+    expect(right!.x).toBeGreaterThanOrEqual(left!.width + SLOT_GAP);
+  });
+});

@@ -45,3 +45,17 @@ yarn demo:shots settings,multiview fold8-ultra-cover,fold8-ultra-open,fold8-ultr
 ```sh
 yarn demo:shots watch,config-sheet fold8-ultra-cover,fold8-cover,fold8-ultra-open,fold8-ultra-open-landscape,fold8-open-landscape
 ```
+
+## 2분할: 주소창이 보이는 일반 모드
+
+일반 모드에서 주소창이 높이를 차지하면 펼친 폴드도 가로 뷰포트로 분류될 수 있다. 2분할은 상하·좌우 배치에서 실제 16:9 영상 면적을 비교해 더 크게 보이는 쪽을 선택한다. 첨부된 일반 모드 화면의 콘텐츠 영역 비율(1228×1142)을 859×798 CSS 뷰포트로 재현했다. 이는 실기기 CSS 크기 측정값이 아니다.
+
+실제 두 방송의 재생을 확인하고, 같은 페이지에서 일반 → 최대화 → 일반 복귀까지 상하 배치가 유지되는지 검증한 뒤 캡처했다. 넓은 16:9·초광폭 화면은 좌우 배치를 유지한다.
+
+| 주소창으로 높이가 줄어든 859×798 | 펼친 세로 859×954 |
+| --- | --- |
+| ![주소창 표시 2분할](demo-fold8-ultra-browser-multiview-two.png) | ![펼친 화면 2분할](demo-fold8-ultra-open-multiview-two.png) |
+
+```sh
+yarn demo:shots multiview-two fold8-ultra-browser,fold8-ultra-open
+```
