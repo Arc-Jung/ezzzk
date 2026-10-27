@@ -55,6 +55,10 @@ export const ICON_PATHS = {
   target: 'M11 8a3 3 0 1 1-6 0a3 3 0 1 1 6 0M8 1v2M8 13v2M1 8h2M13 8h2',
   chatBubble:
     'M2.5 3.5h11a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1h-7L2.5 13.5V11a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z',
+  captions: [
+    { tag: 'rect', x: 1.5, y: 2.5, width: 13, height: 11, rx: 1.5 },
+    { tag: 'path', d: 'M4 8h3M9 8h3M4 10.5h8' },
+  ],
   fullscreen: 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10',
   resizeHorizontal: 'M2.5 8h11M5 5l-2.5 3L5 11M11 5l2.5 3L11 11',
   chevronRight: 'M6 3.5l5 4.5-5 4.5',

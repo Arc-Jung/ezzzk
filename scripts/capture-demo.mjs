@@ -590,6 +590,61 @@ SHOTS.push({
 });
 
 SHOTS.push({
+  ...subtitleShot,
+  key: 'chat-subtitle-toggle',
+  caption: '컨트롤바 자막 아이콘 — 오버레이 켜기·끄기',
+  file: (p) => `demo-${p}-chat-subtitle-toggle.png`,
+  setup: async (page) => {
+    await subtitleShot.setup(page);
+    await revealControls(page);
+    const button = page.locator('#cm-chat-subtitle-button');
+    await button.click();
+    await page.locator('#cm-chat-subtitle').waitFor({ state: 'detached' });
+    await page.waitForFunction(
+      () =>
+        document.getElementById('cm-chat-subtitle-button')?.getAttribute('aria-pressed') ===
+        'false',
+    );
+    await revealControls(page);
+    await button.click();
+    await subtitleShot.setup(page);
+    await page.waitForFunction(
+      () =>
+        document.getElementById('cm-chat-subtitle-button')?.getAttribute('aria-pressed') === 'true',
+    );
+  },
+});
+const subtitleMultiShot = SHOTS.find((shot) => shot.key === 'chat-subtitle-multiview');
+SHOTS.push({
+  ...subtitleMultiShot,
+  key: 'chat-subtitle-multiview-toggle',
+  caption: '멀티뷰 상단 자막 아이콘 — 모든 슬롯 오버레이 켜기·끄기',
+  file: (p) => `demo-${p}-chat-subtitle-multiview-toggle.png`,
+  setup: async (page, channels) => {
+    await subtitleMultiShot.setup(page, channels);
+    const button = page.locator('#cm-chat-subtitle-stage-button');
+    await button.click();
+    await page.waitForFunction(
+      () =>
+        document.getElementById('cm-chat-subtitle-stage-button')?.getAttribute('aria-pressed') ===
+        'false',
+    );
+    for (const frame of page
+      .frames()
+      .filter((frame) => new URL(frame.url()).searchParams.has('cmSlot'))) {
+      await frame.locator('#cm-chat-subtitle').waitFor({ state: 'detached' });
+    }
+    await button.click();
+    await page.waitForFunction(
+      () =>
+        document.getElementById('cm-chat-subtitle-stage-button')?.getAttribute('aria-pressed') ===
+        'true',
+    );
+    await page.waitForTimeout(1500);
+  },
+});
+
+SHOTS.push({
   key: 'cleanbot-settings',
   explicitOnly: true,
   multiView: false,
@@ -768,7 +823,8 @@ async function captureProfile(profile, channels) {
             if (!advancing) throw new Error('참조 화면의 영상 재생 시간이 진행되지 않습니다');
           }
 
-          if (shot.key === 'watch') await revealControls(page);
+          if (shot.key === 'watch' || shot.key === 'chat-subtitle-toggle')
+            await revealControls(page);
 
           // 탭 노출은 3초 뒤 닫힌다 — 판정과 저장 사이에 닫히지 않게 직전에 한 번 더 띄운다.
           await revealTapOnlyControls(page);

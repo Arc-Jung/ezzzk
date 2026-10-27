@@ -1,6 +1,6 @@
 # 자막형 채팅
 
-설정 → **채팅** → **영상 위에 자막형 채팅 표시**에서 켠다. 기본값은 끄기이며 기존 채팅창과 입력창을 유지한다. 일반 라이브·전체화면·멀티뷰의 각 슬롯에서 사용할 수 있다.
+설정 → **채팅** → **영상 위에 자막형 채팅 표시**에서 켠다. 영상 컨트롤바의 자막 아이콘으로도 켜고 끌 수 있다. 켜짐은 초록색으로 표시하고, 멀티뷰 상단의 같은 아이콘은 모든 슬롯에 적용한다. 설정창과 같은 값을 저장하며 위치·색·줄 수는 유지한다. 기본값은 끄기이며 기존 채팅창과 입력창을 유지한다. 일반 라이브·전체화면·멀티뷰의 각 슬롯에서 사용할 수 있다.
 
 [유튜브 자막 설정](https://support.google.com/youtube/answer/100078?hl=ko)의 배경색·불투명도·글자색·크기 구성을 참고했다.
 
@@ -23,9 +23,10 @@
 - 채팅 표시 순서와 최신 메시지 반영, 3~6줄 범위, 영상 내부 배치 확인.
 - 실제 설정 UI로 좌측·가운데·우측 하단 전환 및 우측 하단 저장 확인.
 - 실제 설정 UI로 글자 크기 17px·불투명도 70% 변경 → 끄기·켜기 → 새로고침 후 유지 확인.
+- 아이콘으로 끄기·켜기 시 표시 상태와 저장값 동기화, 재생 클릭 전파 차단, 컨트롤바 재생성 후 복원 확인.
 - 전체화면에서도 자막이 fullscreen 요소 내부에 표시되는지 확인.
 - 멀티뷰에서도 원본 채팅이 있는 슬롯의 자막 표시 확인.
-- 타입 검사·빌드·린트·포맷 검사 통과. 테스트 1,271개 통과, 4개 건너뜀.
+- 타입 검사·빌드·린트·포맷 검사 통과. 테스트 1,280개 통과, 4개 건너뜀.
 
 | 화면 | 자막형 채팅 | 설정 |
 | --- | --- | --- |
@@ -43,4 +44,15 @@
 yarn demo:shots chat-subtitle,chat-subtitle-settings laptop13,fold8-ultra-open,mobile-landscape
 yarn demo:shots chat-subtitle-fullscreen laptop13
 yarn demo:shots chat-subtitle-multiview fold8-ultra-open
+```
+
+## 빠른 켜기·끄기
+
+| 영상 컨트롤바 | 멀티뷰 상단 바 |
+| --- | --- |
+| ![자막 토글](demo-laptop13-chat-subtitle-toggle.png) | ![멀티뷰 자막 토글](demo-fold8-ultra-open-chat-subtitle-multiview-toggle.png) |
+
+```sh
+yarn demo:shots chat-subtitle-toggle laptop13,fold8-ultra-open
+yarn demo:shots chat-subtitle-multiview-toggle fold8-ultra-open
 ```
