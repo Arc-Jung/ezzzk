@@ -18,6 +18,8 @@ import { adSkipFeature } from './adSkip';
 import { autoFullscreenFeature } from './autoFullscreen';
 import { chatClutterHideFeature } from './chatClutterHide';
 import { chatFontFeature } from './chatFont';
+import { chatSubtitleButtonFeature } from './chatSubtitleButton';
+import { chatSubtitleFeature } from './chatSubtitle';
 import { chatPresetFeature } from './chatPreset';
 import { chatUserFilterFeature } from './chatUserFilter';
 import { chatWidthFeature } from './chatWidth';
@@ -42,6 +44,8 @@ export const FEATURES: Feature[] = [
   promoHideFeature, // FR-13
   chatClutterHideFeature, // FR-16
   chatFontFeature, // FR-15
+  chatSubtitleFeature,
+  chatSubtitleButtonFeature,
   qualityFeature, // FR-01
   volumeFeature, // FR-02, FR-03
   playbackStallFeature, // 검은 화면 재생 실패 재시도
@@ -51,7 +55,7 @@ export const FEATURES: Feature[] = [
   chatWidthFeature, // FR-05
   chatPresetFeature, // FR-04
   chatUserFilterFeature, // FR-11
-  chzzkCleanBotFeature, // 치지직 내장 클린봇 기본 끄기
+  chzzkCleanBotFeature, // 치지직 내장 클린봇 켜기·끄기
   powerCollectFeature, // FR-06
   // 방송 재개 감시 — 종료 화면(플레이어 없음)에서만 도는 폴링이라 다른 기능과 순서가 무관하다.
   liveResumeFeature,

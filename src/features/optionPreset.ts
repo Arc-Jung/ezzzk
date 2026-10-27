@@ -26,6 +26,8 @@ export const PRESET_FIELDS = [
   'wideScreen',
   'powerCollect',
   'chatFont',
+  'chatSubtitle',
+  'chzzkCleanBot',
   'ultraWide',
   'multiView',
 ] as const satisfies readonly (keyof Settings)[];

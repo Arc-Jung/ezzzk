@@ -87,6 +87,17 @@ export type Settings = {
   chatPresetBehavior: 'send' | 'fill';
   /** FR-15 — 사이드 11~24(기본 14 = 치지직 원본), 슬롯 10~16(기본 12) */
   chatFont: { sidePx: number; slotPx: number };
+  /** 영상 하단에 최근 채팅을 자막처럼 표시한다. 0줄은 화면에 맞춰 3~6줄. */
+  chatSubtitle: {
+    enabled: boolean;
+    position: 'left' | 'center' | 'right';
+    lines: 0 | 3 | 4 | 5 | 6;
+    fontPx: number;
+    textColor: string;
+    backgroundColor: string;
+    backgroundOpacity: number;
+    showNickname: boolean;
+  };
   chatWidth: {
     enabled: boolean;
     /** 전체 폭 대비 비율(%) */
@@ -138,15 +149,8 @@ export type Settings = {
     videoAlign: 'left' | 'center';
   };
   chatUserFilter: { enabled: boolean; persistPerChannel: boolean };
-  /**
-   * 치지직 내장 클린봇(욕설 필터)을 우리 확장이 기본으로 꺼 준다. 자체 필터를 만드는 게
-   * 아니다 — 치지직 계정 설정의 클린봇 토글 자체를 끈다.
-   *
-   * 🔴 **기본값은 끄기다(= 클린봇을 그대로 켜 둔다).** 확장이 기본값으로 사용자의 네이버 계정
-   * 설정을 바꾸는 동작이라 크롬 웹스토어 심사에서 거부·게시중단 위험이 크다(2026-09-03 검토).
-   * 클린봇이 정상 발언까지 가린다고 느끼는 사용자는 설정에서 직접 켜서 쓴다.
-   */
-  chzzkCleanBot: { disable: boolean };
+  /** 치지직 내장 클린봇. enabled 미지정 시 기존 상태 유지, 과거 disable 설정도 지원한다. */
+  chzzkCleanBot: { disable: boolean; enabled?: boolean };
   /**
    * FR-16 채팅 영역 부가 요소 숨김. 기본값은 모두 숨김(true).
    * ⚠️ 광고 배너는 대상이 아니다 — 본 확장은 광고를 차단하지 않는다 (FR-13 과 같은 범위 원칙).
@@ -263,6 +267,16 @@ export const DEFAULT_SETTINGS: Settings = {
   chatPresets: [],
   chatPresetBehavior: 'send',
   chatFont: { sidePx: CHAT_FONT_RANGE.side.default, slotPx: CHAT_FONT_RANGE.slot.default },
+  chatSubtitle: {
+    enabled: false,
+    position: 'right',
+    lines: 0,
+    fontPx: 16,
+    textColor: '#ffffff',
+    backgroundColor: '#000000',
+    backgroundOpacity: 65,
+    showNickname: true,
+  },
   chatWidth: {
     enabled: true,
     ratio: 30,

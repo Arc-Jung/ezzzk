@@ -107,6 +107,8 @@ export type ControlBarButtonOptions = {
   /** 인라인 SVG 아이콘. `content` 와 함께 주면 아이콘이 이긴다. */
   icon?: IconName;
   onClick: () => void;
+  /** 삽입·재삽입 시 최신 토글 상태 등을 반영한다. */
+  onMount?: (button: HTMLButtonElement) => void;
   /** 터치 타겟 최소 크기. 기기 프로필의 touchTargetPx 를 넘긴다. */
   minTargetPx?: number;
   /** 확장 배지 표시 — 네이티브 설정 버튼과 혼동을 막는다 (§11 미결정 8) */
@@ -214,6 +216,7 @@ export function mountControlBarButton(options: ControlBarButtonOptions): Dispose
     if (node.parentElement !== container) {
       // firstChild 앞에 넣는다 — 그룹이 왼쪽으로 자라고 네이티브 버튼은 밀리지 않는다.
       container.insertBefore(node, container.firstChild);
+      options.onMount?.(node);
     }
   };
 

@@ -37,6 +37,8 @@ import {
 import { Stepper } from '../popup/Stepper';
 import { RevertButton, Toggle, placementTradeOff, type TabProps } from './tabs';
 import { CloseIcon } from '../ui/icons';
+import { cleanBotTarget, readCleanBotState } from '../features/chzzkCleanBot';
+import { ChatSubtitleOptions } from './ChatSubtitleOptions';
 
 const SPLITS: SplitCount[] = [2, 3, 4];
 
@@ -252,6 +254,16 @@ export function ChatTab({
 
   return (
     <>
+      <h3>클린봇</h3>
+      <Toggle
+        label="치지직 클린봇 사용"
+        checked={cleanBotTarget(settings.chzzkCleanBot) ?? readCleanBotState() ?? true}
+        onChange={(enabled) => update({ chzzkCleanBot: { enabled, disable: !enabled } })}
+      />
+      <p className="cm-sheet__note">
+        치지직 내장 클린봇을 켜거나 끕니다. 변경한 설정은 새로고침 후에도 적용됩니다.
+      </p>
+      <ChatSubtitleOptions settings={settings} update={update} />
       <h3>채팅 글자 크기</h3>
       <div className="cm-sheet__row">
         <span>사이드 채팅</span>
