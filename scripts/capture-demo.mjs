@@ -260,7 +260,7 @@ const SHOTS = [
     file: (p) => `demo-${p}-multiview.png`,
     caption: '멀티뷰 시청 화면 (4분할 · 화면 비율에 맞춰 배치)',
     multiView: true,
-    setup: async (page) => {
+    setup: async (page, expectedSlots = 4) => {
       const stage = page.locator('#cm-multiview-stage .cm-slot').first();
       try {
         await stage.waitFor({ state: 'attached', timeout: 60_000 });
@@ -330,7 +330,7 @@ const SHOTS = [
               !state.error &&
               state.width > 0 &&
               state.currentTime > (previousTimes.get(state.slot) ?? Infinity),
-          ).length >= 4
+          ).length >= expectedSlots
         ) {
           playingStreak += 1;
           if (playingStreak >= 3) return;
@@ -342,7 +342,7 @@ const SHOTS = [
         );
         await page.waitForTimeout(1000);
       }
-      throw new Error(`방송 4개가 재생되지 않았습니다: ${JSON.stringify(states)}`);
+      throw new Error(`방송 ${expectedSlots}개가 재생되지 않았습니다: ${JSON.stringify(states)}`);
     },
     /** 슬롯 껍데기만 있는 화면은 데모로 쓸 수 없다 — iframe 이 붙었는지까지 본다. */
     verify: async (page) => {
@@ -383,6 +383,38 @@ const SHOTS = [
 
 // 새 배치는 기존 4분할과 별도 파일로 남겨 두 배치를 모두 비교할 수 있게 한다.
 const gridShot = SHOTS.find((shot) => shot.key === 'multiview');
+// 명시적으로 선택한 경우에만 두 영상의 일반 → 최대화 → 일반 전환을 검증한다.
+SHOTS.push({
+  ...gridShot,
+  key: 'multiview-two',
+  split: 2,
+  explicitOnly: true,
+  file: (p) => `demo-${p}-multiview-two.png`,
+  caption: '멀티뷰 2분할 — 주소창 표시 상태에서도 상하 배치',
+  setup: (page) => gridShot.setup(page, 2),
+  verify: async (page) => {
+    await gridShot.verify(page);
+    const assertStacked = async () => {
+      await page.waitForFunction(
+        () => {
+          const slots = [...document.querySelectorAll('#cm-multiview-stage .cm-slot')];
+          if (slots.length !== 2) return false;
+          const [top, bottom] = slots.map((slot) => slot.getBoundingClientRect());
+          return Math.abs(top.x - bottom.x) < 1 && bottom.y >= top.bottom;
+        },
+        undefined,
+        { timeout: 10_000 },
+      );
+    };
+    await assertStacked();
+    await page.getByRole('button', { name: '전체 화면 전환 (주소창 숨김)', exact: true }).click();
+    await page.waitForFunction(() => document.fullscreenElement !== null);
+    await assertStacked();
+    await page.evaluate(() => document.exitFullscreen());
+    await page.waitForFunction(() => document.fullscreenElement === null);
+    await assertStacked();
+  },
+});
 SHOTS.push({
   ...gridShot,
   key: 'multiview-main-sidebar',
@@ -450,6 +482,7 @@ async function captureProfile(profile, channels) {
     for (const [shotIndex, shot] of SHOTS.entries()) {
       // 일부 샷만 다시 찍고 싶을 때: `DEMO_SHOTS=multiview node scripts/capture-demo.mjs`
       if (ONLY_SHOTS && !ONLY_SHOTS.includes(shot.key)) continue;
+      if (shot.explicitOnly && !ONLY_SHOTS) continue;
       if (shot.landscapeOnly && profile.viewport.height > profile.viewport.width) continue;
       let saved = false;
       let lastReason = '(원인 미기록)';
@@ -465,20 +498,21 @@ async function captureProfile(profile, channels) {
         const slots =
           shot.key === 'config-sheet'
             ? []
-            : Array.from({ length: 4 }, (_, i) => channels[(attempt + i) % channels.length]).map(
-                (c, i) => ({
-                  index: i + 1,
-                  channelId: c.channelId,
-                  channelName: c.channelName,
-                }),
-              );
+            : Array.from(
+                { length: shot.split ?? 4 },
+                (_, i) => channels[(attempt + i) % channels.length],
+              ).map((c, i) => ({
+                index: i + 1,
+                channelId: c.channelId,
+                channelName: c.channelName,
+              }));
 
         await seedSettings(context, {
           debug: false,
           multiView: {
             enabled: shot.multiView,
             restoreLastLayout: true,
-            defaultSplit: 4,
+            defaultSplit: shot.split ?? 4,
             layout: shot.layout ?? 'grid',
             activeSlot: 1,
             slots,
