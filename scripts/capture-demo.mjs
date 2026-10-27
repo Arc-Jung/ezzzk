@@ -428,6 +428,7 @@ const subtitleShot = {
       return {
         lines: Number(overlay.dataset.lines),
         pointerEvents: getComputedStyle(overlay).pointerEvents,
+        background: getComputedStyle(overlay).backgroundColor,
         fits:
           rect.left >= player.left &&
           rect.right <= player.right + 1 &&
@@ -435,7 +436,13 @@ const subtitleShot = {
           rect.bottom <= player.bottom + 1,
       };
     });
-    if (!result.fits || result.lines < 3 || result.lines > 6 || result.pointerEvents !== 'none') {
+    if (
+      !result.fits ||
+      result.lines < 3 ||
+      result.lines > 6 ||
+      result.pointerEvents !== 'none' ||
+      result.background !== 'rgba(0, 0, 0, 0.3)'
+    ) {
       throw new Error(`자막 표시 영역 오류: ${JSON.stringify(result)}`);
     }
   },
@@ -544,13 +551,17 @@ SHOTS.push({
                 visible: !!document.querySelector(
                   '#cm-chat-subtitle:not([hidden]) .cm-subtitle-message',
                 ),
+                background: document.getElementById('cm-chat-subtitle')?.style.backgroundColor,
               }))
               .catch(() => ({ messages: 0, visible: false })),
           ),
       );
       if (
         states.some((state) => state.visible) &&
-        states.every((state) => state.messages === 0 || state.visible)
+        states.every(
+          (state) =>
+            state.messages === 0 || (state.visible && state.background === 'rgba(0, 0, 0, 0.3)'),
+        )
       )
         return;
       await page.waitForTimeout(500);
