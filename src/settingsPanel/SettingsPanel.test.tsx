@@ -153,6 +153,7 @@ describe('탭 구성', () => {
     expect(sectionsForTab('multiView')).toEqual(['multiView']);
     expect(sectionsForTab('chat')).toEqual([
       'chatFont',
+      'chatSubtitle',
       'chatPresets',
       'chatPresetBehavior',
       'chatUserFilter',

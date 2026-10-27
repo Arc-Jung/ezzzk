@@ -8,6 +8,16 @@
 import { BG, BORDER, FG, OVERLAY, RADIUS, ACCENT } from '../ui/tokens';
 
 export const SETTINGS_PANEL_CSS = `
+.cm-subtitle-preview {
+  margin: 10px 0; padding: 24px 12px 12px;
+  border-radius: 6px; background: linear-gradient(135deg, #275979, #765c45);
+}
+.cm-subtitle-preview > div {
+  padding: 8px 10px; border-radius: 5px; line-height: 1.45;
+  overflow-wrap: anywhere; text-shadow: 0 1px 2px #000, 0 0 2px #000;
+}
+.cm-sp input[type='color'] { min-width: 44px; min-height: 44px; }
+.cm-sp input[type='range'] { max-width: 40vw; min-height: 44px; }
 .cm-sp { display: flex; gap: 14px; align-items: flex-start; }
 .cm-sp__rail {
   display: flex;

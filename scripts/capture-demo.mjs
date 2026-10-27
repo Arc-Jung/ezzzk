@@ -383,6 +383,158 @@ const SHOTS = [
 
 // 새 배치는 기존 4분할과 별도 파일로 남겨 두 배치를 모두 비교할 수 있게 한다.
 const gridShot = SHOTS.find((shot) => shot.key === 'multiview');
+const subtitleShot = {
+  key: 'chat-subtitle',
+  subtitle: true,
+  explicitOnly: true,
+  multiView: false,
+  caption: '자막형 채팅 — 영상 좌측 하단',
+  file: (p) => `demo-${p}-chat-subtitle.png`,
+  setup: async (page) => {
+    await page
+      .locator('#cm-chat-subtitle:not([hidden]) .cm-subtitle-message')
+      .last()
+      .waitFor({ state: 'visible', timeout: 20_000 });
+    // DOM 순서가 뒤집혀 있어도 화면의 최신 채팅을 따라가는지 확인한다.
+    await page.waitForFunction(
+      () => {
+        const overlay = document.getElementById('cm-chat-subtitle');
+        const nodes = [
+          ...document.querySelectorAll('#aside-chatting [class*="_chatting_message_"]'),
+        ]
+          .map((node) => ({ node, top: node.getBoundingClientRect().top }))
+          .sort((a, b) => a.top - b.top)
+          .slice(-3);
+        return nodes.some(({ node }) => {
+          const copy = node.cloneNode(true);
+          copy
+            .querySelectorAll('button, [class*="_nickname_"]')
+            .forEach((element) => element.remove());
+          copy
+            .querySelectorAll('img')
+            .forEach((image) => image.replaceWith(image.getAttribute('alt') ?? ''));
+          const text = copy.textContent.replace(/\s+/g, ' ').trim();
+          return text && overlay.textContent.includes(text);
+        });
+      },
+      undefined,
+      { timeout: 15_000 },
+    );
+  },
+  verify: async (page) => {
+    const result = await page.locator('#cm-chat-subtitle').evaluate((overlay) => {
+      const rect = overlay.getBoundingClientRect();
+      const player = overlay.parentElement.getBoundingClientRect();
+      return {
+        lines: Number(overlay.dataset.lines),
+        pointerEvents: getComputedStyle(overlay).pointerEvents,
+        fits:
+          rect.left >= player.left &&
+          rect.right <= player.right + 1 &&
+          rect.top >= player.top &&
+          rect.bottom <= player.bottom + 1,
+      };
+    });
+    if (!result.fits || result.lines < 3 || result.lines > 6 || result.pointerEvents !== 'none') {
+      throw new Error(`자막 표시 영역 오류: ${JSON.stringify(result)}`);
+    }
+  },
+};
+SHOTS.push(subtitleShot);
+SHOTS.push({
+  ...subtitleShot,
+  key: 'chat-subtitle-fullscreen',
+  caption: '전체화면 자막형 채팅',
+  file: (p) => `demo-${p}-chat-subtitle-fullscreen.png`,
+  setup: async (page) => {
+    await subtitleShot.setup(page);
+    await revealControls(page);
+    await page.locator('button.pzp-pc__fullscreen-button').first().click();
+    await page.waitForFunction(() =>
+      document.fullscreenElement?.contains(document.getElementById('cm-chat-subtitle')),
+    );
+    await page.waitForTimeout(600);
+  },
+});
+SHOTS.push({
+  ...subtitleShot,
+  key: 'chat-subtitle-settings',
+  caption: '자막형 채팅 설정 — 배경색·불투명도·글자 크기',
+  file: (p) => `demo-${p}-chat-subtitle-settings.png`,
+  setup: async (page) => {
+    await subtitleShot.setup(page);
+    const openChatSettings = async () => {
+      await clickOurButton(page, '#cm-settings-button');
+      await page.getByRole('tab', { name: '채팅 탭', exact: true }).click();
+    };
+    await openChatSettings();
+    await page.getByRole('button', { name: '자막형 채팅 글자 크기 늘리기', exact: true }).click();
+    await page.getByLabel('자막형 채팅 배경 불투명도', { exact: true }).focus();
+    await page.keyboard.press('ArrowRight');
+    // 실제 설정 UI에서 끄고 켠 뒤 새로고침에도 보존되는지 확인한다.
+    await page
+      .getByRole('switch', { name: '영상 좌측 하단에 채팅 표시 켜짐', exact: true })
+      .click();
+    await page.locator('#cm-chat-subtitle').waitFor({ state: 'detached' });
+    await page
+      .getByRole('switch', { name: '영상 좌측 하단에 채팅 표시 꺼짐', exact: true })
+      .click();
+    await page.waitForTimeout(800);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await subtitleShot.setup(page);
+    await page.waitForFunction(() => {
+      const overlay = document.getElementById('cm-chat-subtitle');
+      return overlay && overlay.style.backgroundColor === 'rgba(0, 0, 0, 0.7)';
+    });
+    await waitForAdToEnd(page, '자막 설정 새로고침');
+    await openChatSettings();
+    await page.getByLabel('자막형 채팅 배경 불투명도', { exact: true }).scrollIntoViewIfNeeded();
+  },
+  verify: async (page) => {
+    await requireOpenPanel(page, 'cm-settings-panel');
+    const font = await page
+      .getByLabel('자막형 채팅 글자 크기 현재 값', { exact: true })
+      .textContent();
+    if (font.trim() !== '17 px') throw new Error(`자막 글자 크기 저장 실패: ${font}`);
+  },
+});
+SHOTS.push({
+  ...gridShot,
+  key: 'chat-subtitle-multiview',
+  subtitle: true,
+  explicitOnly: true,
+  file: (p) => `demo-${p}-chat-subtitle-multiview.png`,
+  caption: '멀티뷰 슬롯별 자막형 채팅',
+  setup: async (page) => {
+    await gridShot.setup(page);
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      const states = await Promise.all(
+        page
+          .frames()
+          .filter((frame) => frame.url().includes('cmSlot='))
+          .map((frame) =>
+            frame
+              .evaluate(() => ({
+                messages: document.querySelectorAll('#aside-chatting [class*="_chatting_message_"]')
+                  .length,
+                visible: !!document.querySelector(
+                  '#cm-chat-subtitle:not([hidden]) .cm-subtitle-message',
+                ),
+              }))
+              .catch(() => ({ messages: 0, visible: false })),
+          ),
+      );
+      if (
+        states.some((state) => state.visible) &&
+        states.every((state) => state.messages === 0 || state.visible)
+      )
+        return;
+      await page.waitForTimeout(500);
+    }
+    throw new Error('멀티뷰 슬롯의 실제 채팅 자막을 확인하지 못했습니다');
+  },
+});
 SHOTS.push({
   ...gridShot,
   key: 'multiview-main-sidebar',
@@ -450,6 +602,7 @@ async function captureProfile(profile, channels) {
     for (const [shotIndex, shot] of SHOTS.entries()) {
       // 일부 샷만 다시 찍고 싶을 때: `DEMO_SHOTS=multiview node scripts/capture-demo.mjs`
       if (ONLY_SHOTS && !ONLY_SHOTS.includes(shot.key)) continue;
+      if (shot.explicitOnly && !ONLY_SHOTS) continue;
       if (shot.landscapeOnly && profile.viewport.height > profile.viewport.width) continue;
       let saved = false;
       let lastReason = '(원인 미기록)';
@@ -475,6 +628,15 @@ async function captureProfile(profile, channels) {
 
         await seedSettings(context, {
           debug: false,
+          chatSubtitle: {
+            enabled: shot.subtitle ?? false,
+            lines: 0,
+            fontPx: 16,
+            textColor: '#ffffff',
+            backgroundColor: '#000000',
+            backgroundOpacity: 65,
+            showNickname: true,
+          },
           multiView: {
             enabled: shot.multiView,
             restoreLastLayout: true,

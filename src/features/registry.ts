@@ -18,6 +18,7 @@ import { adSkipFeature } from './adSkip';
 import { autoFullscreenFeature } from './autoFullscreen';
 import { chatClutterHideFeature } from './chatClutterHide';
 import { chatFontFeature } from './chatFont';
+import { chatSubtitleFeature } from './chatSubtitle';
 import { chatPresetFeature } from './chatPreset';
 import { chatUserFilterFeature } from './chatUserFilter';
 import { chatWidthFeature } from './chatWidth';
@@ -42,6 +43,7 @@ export const FEATURES: Feature[] = [
   promoHideFeature, // FR-13
   chatClutterHideFeature, // FR-16
   chatFontFeature, // FR-15
+  chatSubtitleFeature,
   qualityFeature, // FR-01
   volumeFeature, // FR-02, FR-03
   playbackStallFeature, // 검은 화면 재생 실패 재시도

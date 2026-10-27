@@ -21,6 +21,8 @@
 
 ## 스크린샷
 
+[자막형 채팅 사용법·검증 화면](screenshots/chat-subtitle.md)
+
 [갤럭시 Z 폴드8·폴드8 울트라 화면별 검증과 스크린샷](screenshots/fold8.md)
 
 ### 노트북 13인치 (1440×900)

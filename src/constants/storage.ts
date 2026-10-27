@@ -87,6 +87,16 @@ export type Settings = {
   chatPresetBehavior: 'send' | 'fill';
   /** FR-15 — 사이드 11~24(기본 14 = 치지직 원본), 슬롯 10~16(기본 12) */
   chatFont: { sidePx: number; slotPx: number };
+  /** 영상 좌측 하단에 최근 채팅을 자막처럼 표시한다. 0줄은 화면에 맞춰 3~6줄. */
+  chatSubtitle: {
+    enabled: boolean;
+    lines: 0 | 3 | 4 | 5 | 6;
+    fontPx: number;
+    textColor: string;
+    backgroundColor: string;
+    backgroundOpacity: number;
+    showNickname: boolean;
+  };
   chatWidth: {
     enabled: boolean;
     /** 전체 폭 대비 비율(%) */
@@ -263,6 +273,15 @@ export const DEFAULT_SETTINGS: Settings = {
   chatPresets: [],
   chatPresetBehavior: 'send',
   chatFont: { sidePx: CHAT_FONT_RANGE.side.default, slotPx: CHAT_FONT_RANGE.slot.default },
+  chatSubtitle: {
+    enabled: false,
+    lines: 0,
+    fontPx: 16,
+    textColor: '#ffffff',
+    backgroundColor: '#000000',
+    backgroundOpacity: 65,
+    showNickname: true,
+  },
   chatWidth: {
     enabled: true,
     ratio: 30,

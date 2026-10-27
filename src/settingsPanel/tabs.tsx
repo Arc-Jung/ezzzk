@@ -75,7 +75,14 @@ export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
     case 'multiView':
       return ['multiView'];
     case 'chat':
-      return ['chatFont', 'chatPresets', 'chatPresetBehavior', 'chatUserFilter', 'chatClutter'];
+      return [
+        'chatFont',
+        'chatSubtitle',
+        'chatPresets',
+        'chatPresetBehavior',
+        'chatUserFilter',
+        'chatClutter',
+      ];
     case 'misc':
       return ['powerCollect', 'promoHide', 'adSkip', 'device', 'debug'];
     case 'preset':

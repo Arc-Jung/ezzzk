@@ -37,6 +37,7 @@ import {
 import { Stepper } from '../popup/Stepper';
 import { RevertButton, Toggle, placementTradeOff, type TabProps } from './tabs';
 import { CloseIcon } from '../ui/icons';
+import { ChatSubtitleOptions } from './ChatSubtitleOptions';
 
 const SPLITS: SplitCount[] = [2, 3, 4];
 
@@ -252,6 +253,7 @@ export function ChatTab({
 
   return (
     <>
+      <ChatSubtitleOptions settings={settings} update={update} />
       <h3>채팅 글자 크기</h3>
       <div className="cm-sheet__row">
         <span>사이드 채팅</span>
