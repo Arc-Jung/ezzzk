@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../constants/storage';
+import { decideDevice } from '../device';
 import { DEVICE_PROFILES } from '../constants/device';
-import { chzzkCleanBotFeature, ensureCleanBotDisabled, isCleanBotOn } from './chzzkCleanBot';
+import {
+  chzzkCleanBotFeature,
+  ensureCleanBotDisabled,
+  ensureCleanBotState,
+  cleanBotTarget,
+  readCleanBotState,
+  isCleanBotOn,
+} from './chzzkCleanBot';
 import type { FeatureContext } from './types';
 
 describe('isCleanBotOn — 드롭다운 항목 문구로만 판정한다', () => {
@@ -67,7 +75,6 @@ describe('ensureCleanBotDisabled — 이미 꺼져 있으면 절대 누르지 �
     if (!respondsToConfirm) return { renderMenuItem, setOn: (v: boolean) => (on = v) };
 
     menuItem.addEventListener('click', () => {
-      if (!on) return; // 실사이트도 꺼진 상태에서 누르면 같은 다이얼로그가 뜨지만 테스트 범위 밖.
       const dialog = document.createElement('div');
       dialog.setAttribute('role', 'alertdialog');
       dialog.className = '_container_jao35_20 _cleanbot_8lqsk_67';
@@ -131,6 +138,55 @@ describe('ensureCleanBotDisabled — 이미 꺼져 있으면 절대 누르지 �
     expect(moreClicks).toBe(2);
     expect(document.getElementById('toggle_cleanbot')).toBeNull();
     expect(menuItem.textContent).toBe('클린봇꺼짐');
+  });
+
+  it('꺼져 있으면 다시 켜고, 이미 켜져 있으면 반전시키지 않는다', async () => {
+    vi.useFakeTimers();
+    mountAside(false);
+    const enable = ensureCleanBotState(true);
+    await vi.runAllTimersAsync();
+    await expect(enable).resolves.toBe(true);
+    expect(menuItem.textContent).toBe('클린봇켜짐');
+    const alreadyOn = ensureCleanBotState(true);
+    await vi.runAllTimersAsync();
+    await expect(alreadyOn).resolves.toBe(true);
+    expect(menuItem.textContent).toBe('클린봇켜짐');
+    vi.useRealTimers();
+  });
+
+  it('중간 취소 시 확인하지 않고 다이얼로그를 정리한다', async () => {
+    vi.useFakeTimers();
+    mountAside(false);
+    let cancelled = false;
+    const operation = ensureCleanBotState(true, { isCancelled: () => cancelled });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(document.getElementById('toggle_cleanbot')).not.toBeNull();
+    cancelled = true;
+    await vi.runAllTimersAsync();
+    await expect(operation).resolves.toBeNull();
+    expect(menuItem.textContent).toBe('클린봇꺼짐');
+    expect(document.getElementById('toggle_cleanbot')).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('처리 중 반대 상태를 선택하면 이전 다이얼로그를 취소하고 마지막 선택을 적용한다', async () => {
+    vi.useFakeTimers();
+    mountAside(false);
+    const context = (enabled: boolean): FeatureContext => ({
+      page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+      device: decideDevice('auto'),
+      settings: { ...DEFAULT_SETTINGS, chzzkCleanBot: { enabled, disable: !enabled } },
+    });
+    const stopOld = chzzkCleanBotFeature.start(context(true));
+    await vi.advanceTimersByTimeAsync(600);
+    expect(document.getElementById('toggle_cleanbot')).not.toBeNull();
+    stopOld?.();
+    const stopNew = chzzkCleanBotFeature.start(context(false));
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(menuItem.textContent).toBe('클린봇꺼짐');
+    expect(document.getElementById('toggle_cleanbot')).toBeNull();
+    stopNew?.();
+    vi.useRealTimers();
   });
 
   it('더보기 메뉴 버튼이 없으면 null — 예외를 던지지 않는다', async () => {
@@ -241,6 +297,34 @@ describe('chzzkCleanBotFeature', () => {
   it('멀티뷰 슬롯 프레임은 지원하지 않는다', () => {
     const ctx: FeatureContext = { ...baseCtx, page: { ...baseCtx.page, isSlotFrame: true } };
     expect(chzzkCleanBotFeature.supports(ctx)).toBe(false);
+  });
+
+  it('명시적인 켜기·끄기 설정은 모두 지원하고 기존 disable 저장값과 호환된다', () => {
+    expect(cleanBotTarget({ disable: false })).toBeUndefined();
+    expect(cleanBotTarget({ disable: true })).toBe(false);
+    for (const enabled of [true, false]) {
+      const setting = { disable: !enabled, enabled };
+      expect(cleanBotTarget(setting)).toBe(enabled);
+      expect(
+        chzzkCleanBotFeature.supports({
+          ...baseCtx,
+          settings: { ...DEFAULT_SETTINGS, chzzkCleanBot: setting },
+        }),
+      ).toBe(true);
+    }
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    window.localStorage.setItem('cleanbot', 'false');
+    expect(readCleanBotState()).toBe(false);
+    window.localStorage.setItem('cleanbot', 'true');
+    expect(readCleanBotState()).toBe(true);
+    window.localStorage.removeItem('cleanbot');
+    vi.unstubAllGlobals();
+    expect(readCleanBotState()).toBeNull();
   });
 
   it('라이브 + 클린봇 끄기 설정이면 지원한다', () => {

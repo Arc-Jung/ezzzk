@@ -589,6 +589,41 @@ SHOTS.push({
   },
 });
 
+SHOTS.push({
+  key: 'cleanbot-settings',
+  explicitOnly: true,
+  multiView: false,
+  caption: '채팅 설정 — 치지직 클린봇 켜기·끄기',
+  file: (p) => `demo-${p}-cleanbot-settings.png`,
+  setup: async (page) => {
+    const open = async () => {
+      await revealControls(page);
+      await page.locator('#cm-settings-button').first().click({ timeout: 15_000 });
+      await page.getByRole('tab', { name: '채팅 탭', exact: true }).click();
+    };
+    await open();
+    const toggle = page.getByRole('switch', { name: /^치지직 클린봇 사용 / });
+    const initial = (await toggle.getAttribute('aria-checked')) === 'true';
+    for (const enabled of [!initial, initial]) {
+      await toggle.click();
+      await page.waitForFunction(
+        (enabled) => localStorage.getItem('cleanbot') === String(enabled),
+        enabled,
+        { timeout: 20_000 },
+      );
+    }
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(6000);
+    await waitForAdToEnd(page, '클린봇 설정 새로고침');
+    await open();
+    if ((await toggle.getAttribute('aria-checked')) !== String(initial)) {
+      throw new Error('클린봇 설정 새로고침 후 불일치');
+    }
+    await page.getByRole('switch', { name: /^치지직 클린봇 사용 / }).scrollIntoViewIfNeeded();
+  },
+  verify: (page) => requireOpenPanel(page, 'cm-settings-panel'),
+});
+
 /** 라이브 목록에서 성인 채널을 걸러 **무작위 순서**로 돌려준다. */
 async function fetchLiveChannels() {
   const res = await fetch(LIVES_URL, { headers: { 'User-Agent': UA } });

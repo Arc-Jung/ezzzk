@@ -1,30 +1,5 @@
-/**
- * 치지직 내장 클린봇(욕설 필터)을 기본으로 꺼 준다.
- *
- * 🔴 자체 필터를 새로 만드는 게 아니다 — 치지직 계정 설정의 클린봇 토글 자체를 끈다
- * (자체 필터를 만들었다가 되돌린 이력이 있다).
- *
- * 실측 근거 (2026-08-20, `etc/probe/chzzk-cleanbot.json`, 비로그인, 라이브 2채널)
- * - 진입 경로: 채팅 aside 헤더의 `더보기 메뉴`(⋮) 버튼 → 드롭다운의 `클린봇` 항목 → `클린봇 활성화`
- *   확인 다이얼로그 → 토글 스위치 + `확인` 버튼. 톱니(⚙) 아이콘이 아니다.
- * - 상태 판별: 드롭다운 `클린봇` 항목의 textContent 에 `켜짐`/`꺼짐` 이 그대로 붙어 나온다.
- *   확인 다이얼로그를 열면 `#toggle_cleanbot` 체크박스의 `checked` 로도 읽을 수 있다(해시 없는
- *   리터럴 id — 이 조사에서 찾은 가장 안정적인 식별자).
- * - 저장 위치: `localStorage['cleanbot']` = `'true' | 'false'` (문자열). 새로고침·채널 이동에도
- *   유지된다(실측 확인). 로그인 계정 동기화 여부는 미검증.
- *
- * 🔴 **`chatClutterHideFeature` 와의 충돌**: 그 기능은 기본값(`chatClutter.header=true`)으로
- * 채팅 헤더 전체(`더보기 메뉴` 버튼을 포함)를 `display: none` 으로 숨긴다. 좌표 기반 마우스
- * 클릭으로는 기본 설정에서 이 버튼을 절대 누를 수 없다. 실측(`chzzk-cleanbot.json`)에서
- * `HTMLElement.click()` 네이티브 메서드는 조상이 `display: none` 이어도 React `onClick` 을
- * 그대로 발화시키는 것을 확인했다 — 그래서 이 파일은 좌표 클릭이 아니라 전부 `.click()` 호출만
- * 쓴다.
- *
- * 🔴 **이미 꺼져 있으면 절대 누르지 않는다** — 누르면 오히려 켜진다. 드롭다운 항목 텍스트로
- * 먼저 상태를 읽고, `켜짐`일 때만 다이얼로그를 열어 끈다.
- * 🔴 재시도 상한(`MAX_ATTEMPTS`)을 넘기면 조용히 포기한다. 무한 재시도하지 않는다.
- */
-
+/** 치지직 내장 클린봇을 명시적으로 선택한 상태에 맞춘다. 기본 설정은 원본 상태 유지. */
+import type { Settings } from '../constants/storage';
 import { ID } from '../constants/class';
 import { hasSideChat } from '../pageType';
 import { qs, sleep, waitFor } from '../utils/dom';
@@ -81,13 +56,28 @@ function findConfirmButton(dialog: Element): HTMLElement | null {
   );
 }
 
-/**
- * 클린봇이 켜져 있으면 한 번 끈다. **이미 꺼져 있으면 아무것도 누르지 않는다.**
- *
- * @returns 실행 후 상태. `true` = 꺼짐(목표 달성), `false` = 끄기 실패, `null` = UI 를 찾지
- *   못했거나 상태 판정 불가(이 경우 아무것도 누르지 않는다).
- */
-export async function ensureCleanBotDisabled(
+/** undefined는 원본 상태 유지. 과거 '항상 끄기' 설정은 그대로 지원한다. */
+export function cleanBotTarget(settings: Settings['chzzkCleanBot']): boolean | undefined {
+  return typeof settings.enabled === 'boolean'
+    ? settings.enabled
+    : settings.disable
+      ? false
+      : undefined;
+}
+
+/** 치지직이 저장한 상태. 없거나 접근할 수 없으면 판정하지 않는다. */
+export function readCleanBotState(): boolean | null {
+  try {
+    const value = window.localStorage.getItem('cleanbot');
+    return value === 'true' ? true : value === 'false' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 목표 상태와 다를 때만 변경한다. true=성공, false=실패, null=판정/조작 불가. */
+export async function ensureCleanBotState(
+  enabled: boolean,
   options: { isCancelled?: () => boolean } = {},
 ): Promise<boolean | null> {
   const { isCancelled = () => false } = options;
@@ -95,9 +85,21 @@ export async function ensureCleanBotDisabled(
   const moreButton = findMoreMenuButton();
   if (!moreButton) return null;
 
+  if (isCancelled()) return null;
+  const cancel = () => {
+    const dialog = qs(CONFIRM_DIALOG);
+    if (dialog) {
+      Array.from(dialog.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.trim() === '취소')
+        ?.click();
+    } else {
+      moreButton.click();
+    }
+    return null;
+  };
   moreButton.click();
   await sleep(MENU_SETTLE_MS);
-  if (isCancelled()) return null;
+  if (isCancelled()) return cancel();
 
   const menuItem = findCleanBotMenuItem();
   if (!menuItem) {
@@ -112,67 +114,80 @@ export async function ensureCleanBotDisabled(
     moreButton.click();
     return null;
   }
-  if (!state) {
-    info('cleanbot already off, no toggle');
+  if (state === enabled) {
+    info('cleanbot already matches preference, no toggle');
     moreButton.click();
     return true;
   }
 
-  // 켜져 있다 — 다이얼로그를 열어 끈다.
+  // 원하는 상태와 다를 때만 확인 다이얼로그를 연다.
   menuItem.click();
   await sleep(DIALOG_SETTLE_MS);
-  if (isCancelled()) return null;
+  if (isCancelled()) return cancel();
 
   const dialog = qs(CONFIRM_DIALOG);
   const checkbox = document.getElementById(TOGGLE_CHECKBOX_ID) as HTMLInputElement | null;
   const label = qs<HTMLElement>(TOGGLE_LABEL);
   if (!dialog || !checkbox || !label) {
     warning('cleanbot confirm dialog not found as expected');
-    return null;
+    return cancel();
   }
 
-  label.click();
+  if (checkbox.checked !== enabled) label.click();
   await sleep(CONFIRM_SETTLE_MS);
-  if (isCancelled()) return null;
+  if (isCancelled()) return cancel();
 
   const confirmButton = findConfirmButton(dialog);
   if (!confirmButton) {
     warning('cleanbot confirm button not found');
-    return null;
+    return cancel();
   }
   confirmButton.click();
   await sleep(CONFIRM_SETTLE_MS);
 
-  return checkbox.checked === false;
+  return checkbox.checked === enabled;
 }
+
+/** 과거 호출부와 테스트에서 사용하는 끄기 전용 진입점. */
+export function ensureCleanBotDisabled(options: { isCancelled?: () => boolean } = {}) {
+  return ensureCleanBotState(false, options);
+}
+
+// 빠르게 켜고 꺼도 이전 실행이 연 메뉴/다이얼로그와 다음 실행이 충돌하지 않게 한다.
+let pendingRun: Promise<void> = Promise.resolve();
 
 export const chzzkCleanBotFeature: Feature = {
   id: 'chzzkCleanBot',
   watches: ['chzzkCleanBot'],
   supports: (ctx) =>
-    ctx.settings.chzzkCleanBot.disable && hasSideChat(ctx.page.type) && !ctx.page.isSlotFrame,
-  start: (_ctx) => {
+    cleanBotTarget(ctx.settings.chzzkCleanBot) !== undefined &&
+    hasSideChat(ctx.page.type) &&
+    !ctx.page.isSlotFrame,
+  start: (ctx) => {
+    const enabled = cleanBotTarget(ctx.settings.chzzkCleanBot);
+    if (enabled === undefined) return;
     let disposed = false;
 
     const run = async () => {
+      if (disposed) return;
       const aside = await waitFor<HTMLElement>(ID.asideChatting, { timeoutMs: 15_000 });
       if (!aside || disposed) return;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
         if (disposed) return;
-        const result = await ensureCleanBotDisabled({ isCancelled: () => disposed });
+        const result = await ensureCleanBotState(enabled, { isCancelled: () => disposed });
         if (disposed) return;
 
         if (result === true) {
-          info(`cleanbot disabled (attempt ${attempt})`);
+          info(`cleanbot ${enabled ? 'enabled' : 'disabled'} (attempt ${attempt})`);
           return;
         }
         if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS);
       }
-      warning(`cleanbot not disabled after ${MAX_ATTEMPTS} attempts`);
+      warning(`cleanbot preference not applied after ${MAX_ATTEMPTS} attempts`);
     };
 
-    void guardAsync('chzzkCleanBot.ensure', run);
+    pendingRun = pendingRun.then(() => guardAsync('chzzkCleanBot.ensure', run));
 
     return () => {
       disposed = true;

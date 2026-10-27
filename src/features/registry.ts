@@ -53,7 +53,7 @@ export const FEATURES: Feature[] = [
   chatWidthFeature, // FR-05
   chatPresetFeature, // FR-04
   chatUserFilterFeature, // FR-11
-  chzzkCleanBotFeature, // 치지직 내장 클린봇 기본 끄기
+  chzzkCleanBotFeature, // 치지직 내장 클린봇 켜기·끄기
   powerCollectFeature, // FR-06
   // 방송 재개 감시 — 종료 화면(플레이어 없음)에서만 도는 폴링이라 다른 기능과 순서가 무관하다.
   liveResumeFeature,

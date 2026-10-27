@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { act, type ReactElement } from 'react';
+import { act, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { CHAT_FONT_RANGE, DEFAULT_SETTINGS, LIMITS, STORAGE_KEY } from '../constants/storage';
 import { lineHeightForFont, visibleLines } from '../features/chatFont';
@@ -23,7 +23,7 @@ import {
   sectionsForTab,
   type TabId,
 } from './tabs';
-import { REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
+import { ChatTab, REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
 import { SETTINGS_PANEL_CSS } from './settingsPanelCss';
 import { SHEET_CSS } from '../ui/Sheet';
 import { SettingsPanel } from './SettingsPanel';
@@ -50,6 +50,43 @@ function mount(node: ReactElement) {
     root!.render(node);
   });
 }
+
+describe('채팅 설정의 치지직 클린봇', () => {
+  it('원본 꺼짐 상태를 표시하고 켜기·끄기 설정을 양방향으로 저장한다', () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    window.localStorage.setItem('cleanbot', 'false');
+    let latest = DEFAULT_SETTINGS;
+    function Harness() {
+      const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+      latest = settings;
+      return (
+        <ChatTab
+          settings={settings}
+          device={decideDevice('auto')}
+          scrollerHeightPx={761}
+          update={(patch) => setSettings((old) => ({ ...old, ...patch }))}
+        />
+      );
+    }
+    mount(<Harness />);
+    const toggle = host!.querySelector<HTMLButtonElement>(
+      'button[aria-label="치지직 클린봇 사용 꺼짐"]',
+    )!;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    act(() => toggle.click());
+    expect(latest.chzzkCleanBot).toEqual({ enabled: true, disable: false });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    act(() => toggle.click());
+    expect(latest.chzzkCleanBot).toEqual({ enabled: false, disable: true });
+    window.localStorage.removeItem('cleanbot');
+    vi.unstubAllGlobals();
+  });
+});
 
 describe('재생 시작 화면 선택', () => {
   it('기본·넓은 화면·전체화면을 하나의 설정으로 저장한다', () => {
@@ -154,6 +191,7 @@ describe('탭 구성', () => {
     expect(sectionsForTab('chat')).toEqual([
       'chatFont',
       'chatSubtitle',
+      'chzzkCleanBot',
       'chatPresets',
       'chatPresetBehavior',
       'chatUserFilter',

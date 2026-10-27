@@ -78,6 +78,7 @@ export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
       return [
         'chatFont',
         'chatSubtitle',
+        'chzzkCleanBot',
         'chatPresets',
         'chatPresetBehavior',
         'chatUserFilter',
