@@ -269,7 +269,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chatFont: { sidePx: CHAT_FONT_RANGE.side.default, slotPx: CHAT_FONT_RANGE.slot.default },
   chatSubtitle: {
     enabled: false,
-    position: 'right',
+    position: 'left',
     lines: 0,
     fontPx: 16,
     textColor: '#ffffff',

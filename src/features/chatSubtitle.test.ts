@@ -36,10 +36,10 @@ describe('자막형 채팅 저장값과 크기', () => {
     expect(subtitleSettings().enabled).toBe(false);
   });
 
-  it('저장값에 위치가 없으면 우측 하단을 적용하고 세 위치 모두 영상 안에 배치한다', () => {
-    expect(subtitleSettings().position).toBe('right');
-    expect(mergeSettings({ chatSubtitle: { enabled: true } }).chatSubtitle.position).toBe('right');
-    expect(subtitleSettings({ position: 'invalid' as 'right' }).position).toBe('right');
+  it('저장값에 위치가 없으면 좌측 하단을 적용하고 세 위치 모두 영상 안에 배치한다', () => {
+    expect(subtitleSettings().position).toBe('left');
+    expect(mergeSettings({ chatSubtitle: { enabled: true } }).chatSubtitle.position).toBe('left');
+    expect(subtitleSettings({ position: 'invalid' as 'right' }).position).toBe('left');
     for (const width of [320, 859, 1440]) {
       const left = subtitleGeometry(width, 480, subtitleSettings({ position: 'left' }));
       const center = subtitleGeometry(width, 480, subtitleSettings({ position: 'center' }));

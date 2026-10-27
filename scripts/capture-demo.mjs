@@ -388,7 +388,7 @@ const subtitleShot = {
   subtitle: true,
   explicitOnly: true,
   multiView: false,
-  caption: '자막형 채팅 — 영상 우측 하단',
+  caption: '자막형 채팅 — 영상 좌측 하단',
   file: (p) => `demo-${p}-chat-subtitle.png`,
   setup: async (page) => {
     await page
@@ -476,7 +476,7 @@ SHOTS.push({
       await page.getByRole('tab', { name: '채팅 탭', exact: true }).click();
     };
     await openChatSettings();
-    for (const position of ['left', 'center', 'right']) {
+    for (const position of ['right', 'center', 'left']) {
       await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).selectOption(position);
       await page.waitForFunction((position) => {
         const overlay = document.getElementById('cm-chat-subtitle');
@@ -520,9 +520,7 @@ SHOTS.push({
     const font = await page
       .getByLabel('자막형 채팅 글자 크기 현재 값', { exact: true })
       .textContent();
-    if (
-      (await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).inputValue()) !== 'right'
-    ) {
+    if ((await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).inputValue()) !== 'left') {
       throw new Error('자막 위치 저장 실패');
     }
     if (font.trim() !== '17 px') throw new Error(`자막 글자 크기 저장 실패: ${font}`);
@@ -787,7 +785,7 @@ async function captureProfile(profile, channels) {
           debug: false,
           chatSubtitle: {
             enabled: shot.subtitle ?? false,
-            position: 'right',
+            position: 'left',
             lines: 0,
             fontPx: 16,
             textColor: '#ffffff',

@@ -35,7 +35,7 @@ describe('자막형 채팅 설정', () => {
     });
     expect(latest.chatSubtitle.lines).toBe(6);
     const position = host.querySelector<HTMLSelectElement>('#cm-subtitle-position')!;
-    expect(position.value).toBe('right');
+    expect(position.value).toBe('left');
     for (const value of ['left', 'center', 'right']) {
       act(() => {
         position.value = value;
