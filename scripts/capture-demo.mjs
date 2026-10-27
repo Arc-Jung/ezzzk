@@ -388,7 +388,7 @@ const subtitleShot = {
   subtitle: true,
   explicitOnly: true,
   multiView: false,
-  caption: '자막형 채팅 — 영상 좌측 하단',
+  caption: '자막형 채팅 — 영상 우측 하단',
   file: (p) => `demo-${p}-chat-subtitle.png`,
   setup: async (page) => {
     await page
@@ -464,23 +464,41 @@ SHOTS.push({
   setup: async (page) => {
     await subtitleShot.setup(page);
     const openChatSettings = async () => {
-      await clickOurButton(page, '#cm-settings-button');
+      await revealControls(page);
+      await page.locator('#cm-settings-button').first().click({ timeout: 15_000 });
       await page.getByRole('tab', { name: '채팅 탭', exact: true }).click();
     };
     await openChatSettings();
+    for (const position of ['left', 'center', 'right']) {
+      await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).selectOption(position);
+      await page.waitForFunction((position) => {
+        const overlay = document.getElementById('cm-chat-subtitle');
+        if (!overlay || overlay.hidden) return false;
+        const rect = overlay.getBoundingClientRect();
+        const player = overlay.parentElement.getBoundingClientRect();
+        const delta = rect.left + rect.width / 2 - (player.left + player.width / 2);
+        return position === 'center'
+          ? Math.abs(delta) < 1
+          : position === 'left'
+            ? delta < -1
+            : delta > 1;
+      }, position);
+    }
     await page.getByRole('button', { name: '자막형 채팅 글자 크기 늘리기', exact: true }).click();
     await page.getByLabel('자막형 채팅 배경 불투명도', { exact: true }).focus();
     await page.keyboard.press('ArrowRight');
     // 실제 설정 UI에서 끄고 켠 뒤 새로고침에도 보존되는지 확인한다.
     await page
-      .getByRole('switch', { name: '영상 좌측 하단에 채팅 표시 켜짐', exact: true })
+      .getByRole('switch', { name: '영상 위에 자막형 채팅 표시 켜짐', exact: true })
       .click();
     await page.locator('#cm-chat-subtitle').waitFor({ state: 'detached' });
     await page
-      .getByRole('switch', { name: '영상 좌측 하단에 채팅 표시 꺼짐', exact: true })
+      .getByRole('switch', { name: '영상 위에 자막형 채팅 표시 꺼짐', exact: true })
       .click();
     await page.waitForTimeout(800);
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(6000);
+    await waitForAdToEnd(page, '자막 설정 새로고침');
     await subtitleShot.setup(page);
     await page.waitForFunction(() => {
       const overlay = document.getElementById('cm-chat-subtitle');
@@ -495,6 +513,11 @@ SHOTS.push({
     const font = await page
       .getByLabel('자막형 채팅 글자 크기 현재 값', { exact: true })
       .textContent();
+    if (
+      (await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).inputValue()) !== 'right'
+    ) {
+      throw new Error('자막 위치 저장 실패');
+    }
     if (font.trim() !== '17 px') throw new Error(`자막 글자 크기 저장 실패: ${font}`);
   },
 });
@@ -630,6 +653,7 @@ async function captureProfile(profile, channels) {
           debug: false,
           chatSubtitle: {
             enabled: shot.subtitle ?? false,
+            position: 'right',
             lines: 0,
             fontPx: 16,
             textColor: '#ffffff',

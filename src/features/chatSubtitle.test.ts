@@ -36,6 +36,21 @@ describe('자막형 채팅 저장값과 크기', () => {
     expect(subtitleSettings().enabled).toBe(false);
   });
 
+  it('저장값에 위치가 없으면 우측 하단을 적용하고 세 위치 모두 영상 안에 배치한다', () => {
+    expect(subtitleSettings().position).toBe('right');
+    expect(mergeSettings({ chatSubtitle: { enabled: true } }).chatSubtitle.position).toBe('right');
+    expect(subtitleSettings({ position: 'invalid' as 'right' }).position).toBe('right');
+    for (const width of [320, 859, 1440]) {
+      const left = subtitleGeometry(width, 480, subtitleSettings({ position: 'left' }));
+      const center = subtitleGeometry(width, 480, subtitleSettings({ position: 'center' }));
+      const right = subtitleGeometry(width, 480, subtitleSettings({ position: 'right' }));
+      expect(left.left).toBeLessThan(center.left);
+      expect(center.left).toBeLessThan(right.left);
+      expect(center.left + center.width / 2).toBe(width / 2);
+      expect(right.left + right.width).toBeCloseTo(width - left.left);
+    }
+  });
+
   it('불투명도는 글자색에 영향을 주지 않고 0~100%로 적용된다', () => {
     const settings = subtitleSettings({ backgroundColor: '#123456', backgroundOpacity: 25 });
     expect(subtitleBackground(settings)).toBe('rgba(18, 52, 86, 0.25)');

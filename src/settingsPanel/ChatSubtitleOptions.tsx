@@ -21,13 +21,28 @@ export function ChatSubtitleOptions({
     <section aria-label="자막형 채팅 설정">
       <h3>자막형 채팅</h3>
       <Toggle
-        label="영상 좌측 하단에 채팅 표시"
+        label="영상 위에 자막형 채팅 표시"
         checked={value.enabled}
         onChange={(enabled) => patch({ enabled })}
       />
       <p className="cm-sheet__note">
         최근 채팅을 영상 위에 자막처럼 표시합니다. 기존 채팅창은 그대로 사용할 수 있습니다.
       </p>
+      <div className="cm-sheet__row">
+        <label htmlFor="cm-subtitle-position">표시 위치</label>
+        <select
+          id="cm-subtitle-position"
+          aria-label="자막형 채팅 표시 위치"
+          value={value.position}
+          onChange={(event) =>
+            patch({ position: event.target.value as SubtitleSettings['position'] })
+          }
+        >
+          <option value="left">좌측 하단</option>
+          <option value="center">가운데 하단</option>
+          <option value="right">우측 하단</option>
+        </select>
+      </div>
       <div className="cm-sheet__row">
         <label htmlFor="cm-subtitle-count">표시 줄 수</label>
         <select
@@ -101,7 +116,11 @@ export function ChatSubtitleOptions({
         checked={value.showNickname}
         onChange={(showNickname) => patch({ showNickname })}
       />
-      <div className="cm-subtitle-preview" aria-label="자막형 채팅 미리보기">
+      <div
+        className="cm-subtitle-preview"
+        data-position={value.position}
+        aria-label="자막형 채팅 미리보기"
+      >
         <div
           style={{
             backgroundColor: subtitleBackground(value),
@@ -110,7 +129,8 @@ export function ChatSubtitleOptions({
           }}
         >
           <div>
-            {value.showNickname && <strong>시청자: </strong>}채팅이 영상 좌측 하단에 표시됩니다.
+            {value.showNickname && <strong>시청자: </strong>}채팅이 선택한 영상 하단 위치에
+            표시됩니다.
           </div>
           <div>
             {value.showNickname && <strong>이지직: </strong>}배경색과 불투명도를 조절해 보세요.

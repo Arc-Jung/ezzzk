@@ -23,6 +23,7 @@ export function subtitleSettings(value?: Partial<SubtitleSettings>): SubtitleSet
     typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : fallback;
   return {
     enabled: value?.enabled === true,
+    position: value?.position === 'left' || value?.position === 'center' ? value.position : 'right',
     lines: [0, 3, 4, 5, 6].includes(value?.lines ?? -1) ? value!.lines! : 0,
     fontPx: bounded(value?.fontPx, defaults.fontPx, 12, 28),
     textColor: color(value?.textColor, defaults.textColor),
@@ -71,12 +72,24 @@ export function subtitleGeometry(
   const lineHeight = Math.ceil(fontPx * 1.45);
   const available = Math.max(3, Math.min(6, Math.floor((height - bottom - 24) / lineHeight)));
   const automatic = Math.max(3, Math.min(6, Math.floor((height * 0.28) / lineHeight)));
+  const margin = Math.min(width / 2, Math.round(Math.min(16, Math.max(4, width * 0.025))));
+  const overlayWidth = Math.min(
+    720,
+    Math.floor(Math.max(0, width) * (width < 600 ? 0.92 : 0.62)),
+    Math.max(0, width - 2 * margin),
+  );
+  const left =
+    settings.position === 'left'
+      ? margin
+      : settings.position === 'center'
+        ? (width - overlayWidth) / 2
+        : width - overlayWidth - margin;
   return {
     fontPx,
     lineHeight,
     lines: Math.min(settings.lines || automatic, available),
-    width: Math.min(720, Math.floor(Math.max(0, width) * (width < 600 ? 0.92 : 0.62))),
-    left: Math.round(Math.min(16, Math.max(4, width * 0.025))),
+    width: overlayWidth,
+    left,
     bottom,
   };
 }

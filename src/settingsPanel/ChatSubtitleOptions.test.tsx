@@ -27,13 +27,23 @@ describe('자막형 채팅 설정', () => {
     const toggle = host.querySelector<HTMLButtonElement>('button[role="switch"]')!;
     act(() => toggle.click());
     expect(latest.chatSubtitle.enabled).toBe(true);
-    const select = host.querySelector<HTMLSelectElement>('select')!;
+    const select = host.querySelector<HTMLSelectElement>('#cm-subtitle-count')!;
     expect([...select.options].map((option) => option.value)).toEqual(['0', '3', '4', '5', '6']);
     act(() => {
       select.value = '6';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(latest.chatSubtitle.lines).toBe(6);
+    const position = host.querySelector<HTMLSelectElement>('#cm-subtitle-position')!;
+    expect(position.value).toBe('right');
+    for (const value of ['left', 'center', 'right']) {
+      act(() => {
+        position.value = value;
+        position.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(latest.chatSubtitle.position).toBe(value);
+      expect(host.querySelector('.cm-subtitle-preview')!.getAttribute('data-position')).toBe(value);
+    }
     const background = host.querySelector<HTMLInputElement>(
       'input[aria-label="자막형 채팅 배경색"]',
     )!;

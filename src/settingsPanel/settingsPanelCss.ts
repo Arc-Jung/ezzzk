@@ -9,10 +9,14 @@ import { BG, BORDER, FG, OVERLAY, RADIUS, ACCENT } from '../ui/tokens';
 
 export const SETTINGS_PANEL_CSS = `
 .cm-subtitle-preview {
+  display: flex; justify-content: flex-end;
   margin: 10px 0; padding: 24px 12px 12px;
   border-radius: 6px; background: linear-gradient(135deg, #275979, #765c45);
 }
+.cm-subtitle-preview[data-position='left'] { justify-content: flex-start; }
+.cm-subtitle-preview[data-position='center'] { justify-content: center; }
 .cm-subtitle-preview > div {
+  max-width: 85%;
   padding: 8px 10px; border-radius: 5px; line-height: 1.45;
   overflow-wrap: anywhere; text-shadow: 0 1px 2px #000, 0 0 2px #000;
 }
