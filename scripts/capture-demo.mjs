@@ -502,7 +502,7 @@ SHOTS.push({
     await subtitleShot.setup(page);
     await page.waitForFunction(() => {
       const overlay = document.getElementById('cm-chat-subtitle');
-      return overlay && overlay.style.backgroundColor === 'rgba(0, 0, 0, 0.7)';
+      return overlay && overlay.style.backgroundColor === 'rgba(0, 0, 0, 0.35)';
     });
     await waitForAdToEnd(page, '자막 설정 새로고침');
     await openChatSettings();
@@ -781,7 +781,7 @@ async function captureProfile(profile, channels) {
             fontPx: 16,
             textColor: '#ffffff',
             backgroundColor: '#000000',
-            backgroundOpacity: 65,
+            backgroundOpacity: 30,
             showNickname: true,
           },
           multiView: {
