@@ -388,7 +388,7 @@ const subtitleShot = {
   subtitle: true,
   explicitOnly: true,
   multiView: false,
-  caption: '자막형 채팅 — 영상 우측 하단',
+  caption: '자막형 채팅 — 영상 좌측 하단',
   file: (p) => `demo-${p}-chat-subtitle.png`,
   setup: async (page) => {
     await page
@@ -428,6 +428,7 @@ const subtitleShot = {
       return {
         lines: Number(overlay.dataset.lines),
         pointerEvents: getComputedStyle(overlay).pointerEvents,
+        background: getComputedStyle(overlay).backgroundColor,
         fits:
           rect.left >= player.left &&
           rect.right <= player.right + 1 &&
@@ -435,7 +436,13 @@ const subtitleShot = {
           rect.bottom <= player.bottom + 1,
       };
     });
-    if (!result.fits || result.lines < 3 || result.lines > 6 || result.pointerEvents !== 'none') {
+    if (
+      !result.fits ||
+      result.lines < 3 ||
+      result.lines > 6 ||
+      result.pointerEvents !== 'none' ||
+      result.background !== 'rgba(0, 0, 0, 0.3)'
+    ) {
       throw new Error(`자막 표시 영역 오류: ${JSON.stringify(result)}`);
     }
   },
@@ -469,7 +476,7 @@ SHOTS.push({
       await page.getByRole('tab', { name: '채팅 탭', exact: true }).click();
     };
     await openChatSettings();
-    for (const position of ['left', 'center', 'right']) {
+    for (const position of ['right', 'center', 'left']) {
       await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).selectOption(position);
       await page.waitForFunction((position) => {
         const overlay = document.getElementById('cm-chat-subtitle');
@@ -502,7 +509,7 @@ SHOTS.push({
     await subtitleShot.setup(page);
     await page.waitForFunction(() => {
       const overlay = document.getElementById('cm-chat-subtitle');
-      return overlay && overlay.style.backgroundColor === 'rgba(0, 0, 0, 0.7)';
+      return overlay && overlay.style.backgroundColor === 'rgba(0, 0, 0, 0.35)';
     });
     await waitForAdToEnd(page, '자막 설정 새로고침');
     await openChatSettings();
@@ -513,9 +520,7 @@ SHOTS.push({
     const font = await page
       .getByLabel('자막형 채팅 글자 크기 현재 값', { exact: true })
       .textContent();
-    if (
-      (await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).inputValue()) !== 'right'
-    ) {
+    if ((await page.getByLabel('자막형 채팅 표시 위치', { exact: true }).inputValue()) !== 'left') {
       throw new Error('자막 위치 저장 실패');
     }
     if (font.trim() !== '17 px') throw new Error(`자막 글자 크기 저장 실패: ${font}`);
@@ -544,13 +549,17 @@ SHOTS.push({
                 visible: !!document.querySelector(
                   '#cm-chat-subtitle:not([hidden]) .cm-subtitle-message',
                 ),
+                background: document.getElementById('cm-chat-subtitle')?.style.backgroundColor,
               }))
               .catch(() => ({ messages: 0, visible: false })),
           ),
       );
       if (
         states.some((state) => state.visible) &&
-        states.every((state) => state.messages === 0 || state.visible)
+        states.every(
+          (state) =>
+            state.messages === 0 || (state.visible && state.background === 'rgba(0, 0, 0, 0.3)'),
+        )
       )
         return;
       await page.waitForTimeout(500);
@@ -776,12 +785,12 @@ async function captureProfile(profile, channels) {
           debug: false,
           chatSubtitle: {
             enabled: shot.subtitle ?? false,
-            position: 'right',
+            position: 'left',
             lines: 0,
             fontPx: 16,
             textColor: '#ffffff',
             backgroundColor: '#000000',
-            backgroundOpacity: 65,
+            backgroundOpacity: 30,
             showNickname: true,
           },
           multiView: {

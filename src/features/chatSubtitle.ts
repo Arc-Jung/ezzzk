@@ -23,7 +23,10 @@ export function subtitleSettings(value?: Partial<SubtitleSettings>): SubtitleSet
     typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : fallback;
   return {
     enabled: value?.enabled === true,
-    position: value?.position === 'left' || value?.position === 'center' ? value.position : 'right',
+    position:
+      value?.position === 'right' || value?.position === 'center'
+        ? value.position
+        : defaults.position,
     lines: [0, 3, 4, 5, 6].includes(value?.lines ?? -1) ? value!.lines! : 0,
     fontPx: bounded(value?.fontPx, defaults.fontPx, 12, 28),
     textColor: color(value?.textColor, defaults.textColor),
