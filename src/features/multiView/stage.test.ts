@@ -196,6 +196,22 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     { index: 2 as const, channelId: '0dad8baf12a436f722faa8e5001c5011', channelName: '따효니' },
   ];
 
+  it('접고 펼칠 때 기존 iframe을 재생성하지 않고 프로필만 갱신한다', () => {
+    const stage = new MultiViewStage(DEFAULT_SETTINGS, decideDevice('tablet-10'), {
+      onRequestConfig: vi.fn(),
+      onExit: vi.fn(),
+      onActiveSlotChange: vi.fn(),
+      onChatWidthChange: vi.fn(),
+    });
+    stage.open(SLOTS);
+    const frames = [...document.querySelectorAll('iframe')];
+    stage.updateDevice(decideDevice('mobile'));
+    stage.updateDevice(decideDevice('tablet-10'));
+    expect([...document.querySelectorAll('iframe')]).toEqual(frames);
+    frames.forEach((frame) => expect(frame.isConnected).toBe(true));
+    stage.close();
+  });
+
   function openStage({
     deviceClass,
     chatMode,

@@ -720,6 +720,170 @@ SHOTS.push({
   verify: (page) => requireOpenPanel(page, 'cm-settings-panel'),
 });
 
+SHOTS.push({
+  key: 'fold-transition',
+  explicitOnly: true,
+  multiView: false,
+  caption: '폴드 펼침 → 접힘 → 다시 펼침',
+  file: () => 'demo-fold-transition-reopened.png',
+  verify: async (page) => {
+    const device = await page.locator('html').getAttribute('data-cm-device');
+    if (device !== 'tablet-10') throw new Error('다시 펼친 화면 프로필이 맞지 않습니다');
+  },
+  setup: async (page) => {
+    const states = [];
+    const video = await page.locator('#live_player_layout video').first().elementHandle();
+    for (const [name, width, height] of [
+      ['opened', 859, 798],
+      ['cover', 411, 812],
+      ['reopened', 859, 798],
+    ]) {
+      const started = Date.now();
+      await page.setViewportSize({ width, height });
+      await page.waitForFunction(
+        ({ width, height }) => {
+          const player = document.querySelector('#live_player_layout')?.getBoundingClientRect();
+          const aside = document.getElementById('aside-chatting')?.getBoundingClientRect();
+          return (
+            player &&
+            aside &&
+            Math.abs(aside.width - width) < 3 &&
+            Math.abs(aside.y - player.bottom) < 5 &&
+            Math.abs(aside.bottom - height) < 6 &&
+            document.documentElement.dataset.cmDevice === (width < 480 ? 'mobile' : 'tablet-10')
+          );
+        },
+        { width, height },
+        { timeout: 3000 },
+      );
+      const settledMs = Date.now() - started;
+      await page.waitForTimeout(300);
+      const result = await page.evaluate(() => {
+        const rect = (selector) => {
+          const el = document.querySelector(selector);
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return {
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+            bottom: r.bottom,
+            display: getComputedStyle(el).display,
+          };
+        };
+        return {
+          device: document.documentElement.dataset.cmDevice,
+          viewport: { width: innerWidth, height: innerHeight },
+          player: rect('#live_player_layout'),
+          aside: rect('#aside-chatting'),
+          scroller: rect('#aside-chatting [class*="_wrapper_8lqsk"]'),
+          input: rect('#aside-chatting textarea'),
+          css: document.getElementById('cm-layout-style')?.textContent,
+          scroll: { x: scrollX, y: scrollY, height: document.documentElement.scrollHeight },
+        };
+      });
+      const sameVideo = await page.evaluate(
+        (video) => video === document.querySelector('#live_player_layout video'),
+        video,
+      );
+      if (!sameVideo) throw new Error('접힘·펼침에서 원본 video가 교체됐습니다');
+      if (!result.input || result.input.bottom > height + 2)
+        throw new Error('접힘·펼침에서 채팅 입력창이 화면 밖으로 밀렸습니다');
+      states.push({ name, settledMs, sameVideo, ...result });
+      await page.screenshot({ path: resolve(OUT_DIR, `demo-fold-transition-${name}.png`) });
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/fold-transition-report.json'),
+      JSON.stringify(states, null, 2),
+    );
+    console.info(
+      '[fold] ' +
+        JSON.stringify(
+          states.map(({ name, settledMs, device, aside, input, sameVideo }) => ({
+            name,
+            settledMs,
+            device,
+            aside,
+            input,
+            sameVideo,
+          })),
+        ),
+    );
+    await revealControls(page);
+    await page.locator('#cm-settings-button').first().click({ timeout: 15_000 });
+    await page.getByRole('tab', { name: '채팅 탭', exact: true }).click();
+    await page.setViewportSize({ width: 411, height: 812 });
+    await page.waitForTimeout(1000);
+    await requireOpenPanel(page, 'cm-settings-panel');
+    if (
+      (await page
+        .getByRole('tab', { name: '채팅 탭', exact: true })
+        .getAttribute('aria-selected')) !== 'true'
+    )
+      throw new Error('접힘 뒤 설정 탭 상태가 초기화됐습니다');
+    await page.setViewportSize({ width: 859, height: 798 });
+    await page.waitForTimeout(1000);
+    await requireOpenPanel(page, 'cm-settings-panel');
+    await page
+      .locator(
+        '#cm-settings-panel button[aria-label="설정 닫기"], #cm-settings-panel button[aria-label="닫기"]',
+      )
+      .first()
+      .click();
+  },
+});
+
+SHOTS.push({
+  key: 'fold-multiview-transition',
+  explicitOnly: true,
+  multiView: true,
+  split: 2,
+  caption: '폴드 멀티뷰 — 접힘·펼침 중 iframe 유지',
+  file: () => 'demo-fold-multiview-transition-reopened.png',
+  verify: (page) => gridShot.verify(page),
+  setup: async (page) => {
+    await gridShot.setup(page, 2);
+    const stage = await page.locator('#cm-multiview-stage').elementHandle();
+    const frames = await page.locator('#cm-multiview-stage .cm-slot iframe').elementHandles();
+    const urls = await Promise.all(frames.map((frame) => frame.getAttribute('src')));
+    for (const [name, width, height] of [
+      ['opened', 859, 798],
+      ['cover', 411, 812],
+      ['reopened', 859, 798],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.waitForTimeout(650);
+      const sameStage = await page.evaluate(
+        (stage) => stage === document.getElementById('cm-multiview-stage'),
+        stage,
+      );
+      if (!sameStage) throw new Error('폴드 전환 중 멀티뷰 무대가 재생성됐습니다');
+      for (let index = 0; index < frames.length; index++) {
+        const unchanged = await page.evaluate(
+          ({ frame, url }) => frame.isConnected && frame.getAttribute('src') === url,
+          { frame: frames[index], url: urls[index] },
+        );
+        if (!unchanged) throw new Error('폴드 전환 중 슬롯 iframe이 재생성됐습니다');
+      }
+      const slots = await page.locator('#cm-multiview-stage .cm-slot').evaluateAll((slots) =>
+        slots.map((slot) => {
+          const r = slot.getBoundingClientRect();
+          return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+        }),
+      );
+      if (
+        slots.length !== 2 ||
+        slots.some((r) => r.left < 0 || r.top < 0 || r.right > width + 1 || r.bottom > height + 1)
+      )
+        throw new Error('폴드 전환 중 멀티뷰 슬롯이 화면 밖으로 벗어났습니다');
+      await page.screenshot({
+        path: resolve(OUT_DIR, `demo-fold-multiview-transition-${name}.png`),
+      });
+    }
+  },
+});
+
 /** 라이브 목록에서 성인 채널을 걸러 **무작위 순서**로 돌려준다. */
 async function fetchLiveChannels() {
   const res = await fetch(LIVES_URL, { headers: { 'User-Agent': UA } });

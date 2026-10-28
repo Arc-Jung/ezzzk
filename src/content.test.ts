@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, WINDOW_LOCAL_SECTIONS, type Settings } from './constants/storage';
-import { changedSections, shouldRestartFeature } from './content';
+import { changedSections, shouldRestartFeature, shouldRestartForDevice } from './content';
 import { FEATURES } from './features/registry';
 
 function withPatch(patch: Partial<Settings>): Settings {
@@ -212,5 +212,16 @@ describe('shouldRestartFeature — 다른 창이 쓴 변경 (FR-05 창별 레이
   it('watches 를 생략한 기능도 다른 창의 창 로컬 변경만으로는 재시작하지 않는다', () => {
     expect(shouldRestartFeature({}, ['chatWidth'], null, true)).toBe(false);
     expect(shouldRestartFeature({}, ['chatWidth', 'quality'], null, true)).toBe(true);
+  });
+});
+
+describe('폴드 기기 전환 정책', () => {
+  it('설정창과 멀티뷰의 열린 상태를 보존하고 다른 기능은 새 프로필을 적용한다', () => {
+    expect(
+      FEATURES.filter((feature) => !shouldRestartForDevice(feature))
+        .map((feature) => feature.id)
+        .sort(),
+    ).toEqual(['multiView', 'settingsPanel']);
+    expect(shouldRestartForDevice({})).toBe(true);
   });
 });

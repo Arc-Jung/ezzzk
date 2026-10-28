@@ -686,6 +686,16 @@ export class MultiViewStage {
     for (const runtime of this.runtimes.values()) this.applyQuality(runtime.slot);
   }
 
+  /** 접힘·펼침 때 iframe과 재생 상태를 유지한 채 프로필·배치만 갱신한다. */
+  updateDevice(next: DeviceDecision): void {
+    this.device = next;
+    upsertStyle(
+      STAGE_STYLE_ID,
+      buildStageCss(next.profile.touchTargetPx, !next.profile.allowHover),
+    );
+    this.layout();
+  }
+
   /**
    * 무대 크기. **화면 전체를 쓴다.**
    * 멀티뷰 중에는 기존 우측 채팅을 비활성화하므로(2026-08-12 결정) 폭을 뺄 이유가 없다.

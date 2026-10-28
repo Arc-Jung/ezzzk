@@ -5,6 +5,7 @@
  * 슬롯 프레임(`?cmSlot=N`)에서는 UI 를 만들지 않고 슬롯 컨트롤러만 돈다.
  */
 
+import { decideDevice } from '../../device';
 import { OURS } from '../../constants/class';
 import type { Settings, SlotIndex } from '../../constants/storage';
 import { supportsMultiView } from '../../pageType';
@@ -37,9 +38,11 @@ export const multiViewFeature: Feature = {
   id: 'multiView',
   // 멀티뷰는 스테이지·시트 상태를 직접 들고 있다. 재시작하면 오디오 슬롯을 바꿀 때마다 **iframe 4개가 다시 로드된다.**
   watches: [],
+  preserveOnDeviceChange: true,
   // 슬롯 프레임에서도 동작해야 한다 — 그때는 컨트롤러만 돈다.
   supports: (ctx) => supportsMultiView(ctx.page.type),
   start: (ctx) => {
+    let device = ctx.device;
     // 슬롯으로 로드된 프레임: UI 없이 제어만 담당한다.
     if (ctx.page.isSlotFrame) {
       const slot = readSlotFromUrl();
@@ -62,7 +65,7 @@ export const multiViewFeature: Feature = {
      * 폭 조정자를 붙잡아 둔다. FR-05·FR-10 이 꺼져 있어도 멀티뷰가 폭을 주장하려면
      * 옵저버가 살아 있어야 한다 (참조 카운트라 중복 호출은 안전하다).
      */
-    const stopArbiter = ensureLayoutArbiter({ relaxed: ctx.device.profile.relaxObservers });
+    const stopArbiter = ensureLayoutArbiter({ relaxed: device.profile.relaxObservers });
 
     const stageSize = () => {
       const { width, height } = readViewport();
@@ -76,7 +79,7 @@ export const multiViewFeature: Feature = {
       sheet.render(
         createElement(ConfigSheet, {
           settings: live,
-          device: ctx.device,
+          device,
           currentChannel: ctx.page.channelId
             ? { channelId: ctx.page.channelId, channelName: document.title || ctx.page.channelId }
             : null,
@@ -100,9 +103,9 @@ export const multiViewFeature: Feature = {
       resumeHost?.();
       resumeHost = suspendHostPlayer({
         isSlotFrame: ctx.page.isSlotFrame,
-        relaxed: ctx.device.profile.relaxObservers,
+        relaxed: device.profile.relaxObservers,
       });
-      stage = new MultiViewStage({ ...live, multiView: config }, ctx.device, {
+      stage = new MultiViewStage({ ...live, multiView: config }, device, {
         onRequestConfig: openSheet,
         onExit: (channelId) => exitStage(channelId),
         onActiveSlotChange: (slot) => void updateSection('multiView', { activeSlot: slot }),
@@ -119,13 +122,8 @@ export const multiViewFeature: Feature = {
               : 'multiview active — side chat disabled',
           ),
       });
-      /**
-       * 🔴 기기 상한을 **런타임에도** 적용한다.
-       * UI 에서 선택을 막는 것만으로는 부족하다: 노트북에서 4분할로 보다가 창을 1200px 미만으로
-       * 좁히면 `deviceClass` 가 `tablet-10`(상한 2)으로 바뀌고 전체 재시작이 일어나는데,
-       * 저장된 `defaultSplit: 4` 를 그대로 쓰면 태블릿 화면에 4분할이 다시 열린다.
-       */
-      const split = clampSplit(config.defaultSplit, ctx.device.deviceClass);
+      // 저장된 구성도 현재 기기 정책에 맞춰 연다. 접힘·펼침 중에는 기존 무대를 유지한다.
+      const split = clampSplit(config.defaultSplit, device.deviceClass);
       stage.open(config.slots.filter((slot) => slot.index <= split));
     };
 
@@ -160,7 +158,7 @@ export const multiViewFeature: Feature = {
       }
       const saved = live.multiView;
       const usable = saved.slots.filter(
-        (slot) => slot.index <= clampSplit(saved.defaultSplit, ctx.device.deviceClass),
+        (slot) => slot.index <= clampSplit(saved.defaultSplit, device.deviceClass),
       );
       if (usable.length >= 2) {
         info(`resuming saved multiview layout (${usable.length} slot(s))`);
@@ -177,12 +175,12 @@ export const multiViewFeature: Feature = {
       content: '멀티',
       // 멀티뷰는 아직 불안정하다 — 진입점에서 미리 알린다 (2026-08-16).
       betaBadge: true,
-      minTargetPx: ctx.device.profile.touchTargetPx,
+      minTargetPx: device.profile.touchTargetPx,
       onClick: openEntry,
     });
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (ctx.device.profile.shortcuts === 'off') return;
+      if (device.profile.shortcuts === 'off') return;
       // Alt+M — 네이티브 space/k/m/f 와 충돌하지 않는다 (m 단독이 네이티브 음소거다).
       if (!event.altKey || event.shiftKey || event.ctrlKey || event.metaKey) return;
       if (event.code !== 'KeyM') return;
@@ -197,9 +195,17 @@ export const multiViewFeature: Feature = {
       ({ keyboardLikely }) => {
         // IME 로 높이만 줄어든 경우는 슬롯 배치를 유지한다.
         if (keyboardLikely) return;
-        stage?.layout();
+        device = decideDevice(live.device.override);
+        const button = document.getElementById(OURS.multiViewButtonId);
+        if (button) {
+          const size = `${Math.max(36, device.profile.touchTargetPx)}px`;
+          button.style.width = size;
+          button.style.height = size;
+        }
+        stage?.updateDevice(device);
+        if (sheet.isOpen()) openSheet();
       },
-      { relaxed: ctx.device.profile.relaxObservers },
+      { relaxed: device.profile.relaxObservers },
     );
 
     // 마지막 구성 복원

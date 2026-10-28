@@ -59,3 +59,5 @@ yarn demo:shots watch,config-sheet fold8-ultra-cover,fold8-cover,fold8-ultra-ope
 ```sh
 yarn demo:shots multiview-two fold8-ultra-browser,fold8-ultra-open
 ```
+
+[접힘·펼침 중 설정창·재생 상태 유지와 전환 스크린샷](fold-transition.md)
