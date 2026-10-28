@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../utils/chatSource', () => ({
+  watchLatestChat: () => ({ read: () => null, refresh() {}, dispose() {} }),
+}));
+
 import { DEFAULT_SETTINGS } from '../constants/storage';
 import { mergeSettings } from '../storage';
 import { decideDevice } from '../device';

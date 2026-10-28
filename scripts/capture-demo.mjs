@@ -1123,6 +1123,235 @@ SHOTS.push({
   },
 });
 
+SHOTS.push({
+  key: 'multiview-alignment',
+  explicitOnly: true,
+  multiView: true,
+  split: 2,
+  file: () => 'demo-multiview-alignment-reopened.png',
+  caption: '멀티뷰 슬롯 내부 영상 정렬',
+  verify: (page) => gridShot.verify(page),
+  setup: async (page) => {
+    await gridShot.setup(page, 2);
+    const handles = await page.locator('#cm-multiview-stage .cm-slot iframe').elementHandles();
+    const frames = await Promise.all(handles.map((handle) => handle.contentFrame()));
+    const videos = await Promise.all(
+      frames.map((frame) => frame.locator('#live_player_layout video').elementHandle()),
+    );
+    const reports = [];
+    for (const [name, width, height] of [
+      ['opened', 859, 798],
+      ['native-narrow', 859, 798],
+      ['cover', 411, 812],
+      ['reopened', 859, 798],
+      ['native-wide', 859, 798],
+      ['fullscreen', 859, 798],
+      ['restored', 859, 798],
+    ]) {
+      await page.setViewportSize({ width, height });
+      if (name === 'fullscreen' || name === 'restored') {
+        await page
+          .locator('#cm-multiview-stage button[aria-label="전체 화면 전환 (주소창 숨김)"]')
+          .click();
+        await page.waitForFunction(
+          (expected) => !!document.fullscreenElement === expected,
+          name === 'fullscreen',
+        );
+      }
+      if (name.startsWith('native-')) {
+        for (const frame of frames)
+          await frame.evaluate((wide) => {
+            const button = document.querySelector('.pzp-viewmode-button');
+            const active = button?.getAttribute('aria-label')?.includes('좁은 화면');
+            if (button && active !== wide) button.click();
+          }, name === 'native-wide');
+      }
+      await page.waitForTimeout(650);
+      for (const [index, frame] of frames.entries()) {
+        const data = await frame.evaluate(() => {
+          const rect = (e) => {
+            const r = e.getBoundingClientRect();
+            return { x: r.x, y: r.y, width: r.width, height: r.height };
+          };
+          const player = document.querySelector('#live_player_layout'),
+            video = player.querySelector('video');
+          return {
+            viewport: { width: innerWidth, height: innerHeight },
+            player: rect(player),
+            root: rect(player.querySelector('.pzp-pc')),
+            video: rect(video),
+            objectPosition: getComputedStyle(video).objectPosition,
+            objectFit: getComputedStyle(video).objectFit,
+          };
+        });
+        const sameVideo = await frame.evaluate(
+          (video) => video === document.querySelector('#live_player_layout video'),
+          videos[index],
+        );
+        for (const rect of [data.player, data.root, data.video]) {
+          if (
+            Math.abs(rect.x) > 1 ||
+            Math.abs(rect.y) > 1 ||
+            Math.abs(rect.width - data.viewport.width) > 1 ||
+            Math.abs(rect.height - data.viewport.height) > 1
+          )
+            throw new Error(
+              `${name} 슬롯 ${index} 영상이 밀리거나 잘렸습니다: ${JSON.stringify(data)}`,
+            );
+        }
+        if (!sameVideo || data.objectFit !== 'contain' || data.objectPosition !== '50% 50%')
+          throw new Error('슬롯의 재생 요소 또는 영상 중앙 정렬이 유지되지 않았습니다');
+        reports.push({ name, index, sameVideo, ...data });
+      }
+      if (['native-narrow', 'cover', 'fullscreen', 'restored'].includes(name))
+        await page.screenshot({
+          path: resolve(
+            OUT_DIR,
+            `demo-multiview-alignment-${name === 'restored' ? 'reopened' : name}.png`,
+          ),
+        });
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/slot-alignment-report.json'),
+      JSON.stringify(reports, null, 2),
+    );
+    console.info('[slot-alignment] 두 슬롯 × 7개 상태: 원점·전체 영역·중앙 정렬·동일 video 통과');
+  },
+});
+
+/** 페이지 실행 환경에서 공개 채팅의 표시용 필드만 검사한다. */
+function subtitleLiveSample() {
+  const nodes = [...document.querySelectorAll('#aside-chatting [class*="_chatting_message_"]')];
+  let client;
+  for (const anchor of [nodes[0], nodes.at(-1)]) {
+    let fiber = anchor?.[Object.keys(anchor ?? {}).find((key) => key.startsWith('__reactFiber$'))];
+    for (let depth = 0; fiber && depth < 15; depth++, fiber = fiber.return) {
+      if (fiber.memoizedProps)
+        client ??= Object.values(fiber.memoizedProps).find(
+          (value) =>
+            value &&
+            typeof value === 'object' &&
+            Array.isArray(value.messageList) &&
+            typeof value.messageLimitCount === 'number',
+        );
+    }
+  }
+  const clean = (value) => (value ?? '').replace(/\s+/g, ' ').trim();
+  const history = (client?.messageList ?? [])
+    .filter((message) => typeof message.content === 'string')
+    .map((message) => ({
+      time: message.time ?? 0,
+      text: `${message.profile?.nickname ? message.profile.nickname + ': ' : ''}${clean(message.content).slice(0, 1000)}`,
+    }));
+  const rows = [...document.querySelectorAll('#cm-chat-subtitle .cm-subtitle-message')].map(
+    (row) => row.textContent,
+  );
+  const scroller = document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]');
+  return {
+    history: history.slice(-50),
+    latestTime: Math.max(0, ...history.map((message) => message.time)),
+    rows,
+    scrollTop: scroller?.scrollTop ?? 0,
+    bridge: window.__ezzzkChatSourceInstalled === true,
+  };
+}
+
+async function verifySubtitleFreshness(page, target, label) {
+  await target.waitForFunction(
+    () =>
+      window.__ezzzkChatSourceInstalled === true &&
+      document.querySelector('#cm-chat-subtitle .cm-subtitle-message'),
+    null,
+    { timeout: 10000 },
+  );
+  await target.waitForFunction(
+    () => {
+      const e = document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]');
+      return e && e.scrollHeight > e.clientHeight + 10;
+    },
+    null,
+    { timeout: 15000 },
+  );
+  await target.evaluate(() => {
+    const e = document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]');
+    e.scrollTop = -150;
+    e.dispatchEvent(new Event('scroll'));
+  });
+  const samples = [];
+  let previous = await target.evaluate(subtitleLiveSample);
+  for (let round = 0; round < 3; round++) {
+    let found;
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(500);
+      const next = await target.evaluate(subtitleLiveSample);
+      if (
+        next.bridge &&
+        next.scrollTop < -2 &&
+        JSON.stringify(next.rows) !== JSON.stringify(previous.rows) &&
+        next.history.some(
+          (message) => message.time > previous.latestTime && message.text === next.rows.at(-1),
+        )
+      ) {
+        found = next;
+        break;
+      }
+    }
+    if (!found)
+      throw new Error(
+        `${label}: 원본 채팅을 과거 위치에 둔 상태에서 새 자막이 갱신되지 않았습니다`,
+      );
+    samples.push({ latestTime: found.latestTime, scrollTop: found.scrollTop, rows: found.rows });
+    previous = found;
+  }
+  console.info(`[subtitle-live] ${label}: 원본 스크롤 유지·새 메시지 3회 갱신 통과`);
+  return samples;
+}
+
+SHOTS.push({
+  key: 'chat-subtitle-freshness',
+  explicitOnly: true,
+  multiView: false,
+  subtitle: true,
+  file: () => 'demo-chat-subtitle-freshness.png',
+  caption: '원본 채팅을 읽는 동안 최신 자막 갱신',
+  verify: async (page) => {
+    if (!(await page.locator('#cm-chat-subtitle').count())) throw new Error('자막 없음');
+  },
+  setup: async (page) => {
+    const samples = await verifySubtitleFreshness(page, page, '일반 시청');
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/subtitle-freshness-report.json'),
+      JSON.stringify(samples, null, 2),
+    );
+  },
+});
+SHOTS.push({
+  key: 'chat-subtitle-freshness-multiview',
+  explicitOnly: true,
+  multiView: true,
+  subtitle: true,
+  split: 2,
+  file: () => 'demo-chat-subtitle-freshness-multiview.png',
+  caption: '각 멀티뷰 슬롯의 최신 자막 갱신',
+  verify: (page) => gridShot.verify(page),
+  setup: async (page) => {
+    await gridShot.setup(page, 2);
+    const samples = [];
+    for (const [index, handle] of (
+      await page.locator('#cm-multiview-stage .cm-slot iframe').elementHandles()
+    ).entries()) {
+      samples.push(
+        await verifySubtitleFreshness(page, await handle.contentFrame(), `슬롯 ${index + 1}`),
+      );
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/subtitle-freshness-multiview-report.json'),
+      JSON.stringify(samples, null, 2),
+    );
+  },
+});
+
 /** 라이브 목록에서 성인 채널을 걸러 **무작위 순서**로 돌려준다. */
 async function fetchLiveChannels() {
   const res = await fetch(LIVES_URL, { headers: { 'User-Agent': UA } });

@@ -83,3 +83,5 @@ yarn demo:shots fold-responsive fold8-mobile-browser
 ```sh
 yarn demo:shots fold-responsive,fold-manual-height,fold-transition,fold-multiview-transition fold8-mobile-browser
 ```
+
+추가 보고된 [슬롯 영상 쏠림과 과거 채팅 고정의 재현·수정](live-overlay-debug.md)도 같은 PR에 포함했다.

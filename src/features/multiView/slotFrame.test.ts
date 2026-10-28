@@ -88,9 +88,19 @@ describe('buildSlotModeCss — 되살리기 범위', () => {
     expect(css).toContain('#live_player_layout { visibility: visible !important; }');
   });
 
+  it('fixed 좌표를 바꾸는 플레이어 조상만 선택하고 영상·메뉴 자손은 제외한다', () => {
+    document.body.innerHTML = `<div id="root"><section><main><div id="live_player_layout"><video></video><button></button></div></main></section><aside></aside></div>`;
+    const ancestors = [...document.querySelectorAll('#root :has(#live_player_layout)')];
+    expect(ancestors.map((el) => el.tagName)).toEqual(['SECTION', 'MAIN']);
+    expect(css).toContain('#root :has(#live_player_layout)');
+    expect(css).toContain('transform: none !important');
+  });
+
   it('슬롯 모드의 나머지 계약을 유지한다', () => {
     // 영상은 잘리지 않게 contain, body 직계 오버레이(치트키 배너 등)는 숨김.
-    expect(css).toContain('#live_player_layout video { object-fit: contain !important; }');
+    expect(css).toContain(
+      '#live_player_layout video { object-fit: contain !important; object-position: 50% 50% !important; }',
+    );
     expect(css).toMatch(/body > div:not\(#root\):not\([^)]+\) \{ display: none !important; \}/);
   });
 });
