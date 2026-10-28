@@ -1223,7 +1223,11 @@ SHOTS.push({
 function subtitleLiveSample() {
   const nodes = [...document.querySelectorAll('#aside-chatting [class*="_chatting_message_"]')];
   let client;
-  for (const anchor of [nodes[0], nodes.at(-1)]) {
+  for (const anchor of [
+    document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]'),
+    nodes[0],
+    nodes.at(-1),
+  ]) {
     let fiber = anchor?.[Object.keys(anchor ?? {}).find((key) => key.startsWith('__reactFiber$'))];
     for (let depth = 0; fiber && depth < 15; depth++, fiber = fiber.return) {
       if (fiber.memoizedProps)
@@ -1352,6 +1356,161 @@ SHOTS.push({
   },
 });
 
+const recoverySessions = new WeakMap();
+SHOTS.push({
+  key: 'chat-source-recovery',
+  explicitOnly: true,
+  multiView: false,
+  subtitle: true,
+  file: () => 'demo-chat-source-recovery.png',
+  caption: '채팅 소스 로드 실패 후 자동 복구',
+  beforeNavigate: async (page) => {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Network.enable');
+    await session.send('Network.setBlockedURLs', { urls: ['*chatSourceMain*'] });
+    recoverySessions.set(page, session);
+  },
+  setup: async (page) => {
+    const failed = await page.locator('#cm-chat-source-main').getAttribute('src');
+    const retryAt = await page.locator('#cm-chat-source-main').getAttribute('data-retry-at');
+    if (!retryAt || (await page.evaluate(() => window.__ezzzkChatSourceInstalled === true)))
+      throw new Error('실제 모듈 로드 실패 조건을 재현하지 못했습니다');
+    await recoverySessions.get(page).send('Network.setBlockedURLs', { urls: [] });
+    await page.waitForFunction(() => window.__ezzzkChatSourceInstalled === true, null, {
+      timeout: 15000,
+    });
+    const recovered = await page.locator('#cm-chat-source-main').getAttribute('src');
+    if (failed === recovered) throw new Error('실패한 모듈 URL을 재사용했습니다');
+    const samples = await verifySubtitleFreshness(page, page, '실제 소스 로드 실패 복구 후');
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/chat-source-recovery-report.json'),
+      JSON.stringify({ failed, recovered, samples }, null, 2),
+    );
+    console.info(
+      '[chat-source-recovery] 실제 모듈 차단·해제 후 자동 재시도 및 최신 채팅 갱신 통과',
+    );
+  },
+  verify: async (page) => {
+    if ((await page.locator('#cm-chat-source-main').count()) !== 1)
+      throw new Error('소스 모듈 중복');
+  },
+});
+
+// 개별 기능이 통과해도 접기·숨기기·설정 변경을 섞으면 구독이 끊길 수 있다.
+SHOTS.push({
+  key: 'fold-overlay-integration',
+  explicitOnly: true,
+  multiView: false,
+  subtitle: true,
+  file: () => 'demo-fold-overlay-integration-reopened.png',
+  caption: '접힘·채팅 숨김·자막 재설정 후 실시간 갱신',
+  verify: async (page) => {
+    if ((await page.locator('#cm-chat-subtitle').count()) !== 1)
+      throw new Error('자막이 중복되거나 사라졌습니다');
+  },
+  setup: async (page) => {
+    const video = await page.locator('#live_player_layout video').first().elementHandle();
+    const initial = await video.evaluate((v) => ({ src: v.currentSrc, time: v.currentTime }));
+    const states = [];
+    for (const [name, width, height, position] of [
+      ['opened', 859, 798, 'left'],
+      ['cover', 411, 812, 'right'],
+      ['open-portrait', 859, 954, 'center'],
+      ['reopened', 859, 798, 'left'],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.waitForTimeout(500);
+      await revealControls(page);
+      await page.locator('#cm-chat-subtitle-button').click();
+      await page.waitForFunction(() => !document.getElementById('cm-chat-subtitle'));
+      await revealControls(page);
+      await page.locator('#cm-chat-subtitle-button').click();
+      await page.waitForSelector('#cm-chat-subtitle .cm-subtitle-message');
+      await seedSettings(page.context(), {
+        chatSubtitle: { position, backgroundOpacity: 30, lines: 0 },
+      });
+      await page.waitForTimeout(400);
+      await revealControls(page);
+      await page.locator('#cm-chat-width-control button[aria-label="채팅 접기"]').click();
+      await page.waitForTimeout(500);
+      // 채팅을 숨겨도 자막의 소스와 같은 영상이 살아 있어야 한다.
+      const hidden = await page.evaluate(() => ({
+        rows: document.querySelectorAll('#cm-chat-subtitle .cm-subtitle-message').length,
+        width: document.getElementById('aside-chatting').getBoundingClientRect().width,
+        height: document.getElementById('aside-chatting').getBoundingClientRect().height,
+      }));
+      if (!hidden.rows) throw new Error(`${name}: 채팅 숨김 후 자막 소실`);
+      const beforeHiddenUpdate = await page.evaluate(subtitleLiveSample);
+      let hiddenUpdated = false;
+      for (let tick = 0; tick < 30; tick++) {
+        await page.waitForTimeout(500);
+        const next = await page.evaluate(subtitleLiveSample);
+        if (
+          next.history.some(
+            (m) => m.time > beforeHiddenUpdate.latestTime && m.text === next.rows.at(-1),
+          )
+        ) {
+          hiddenUpdated = true;
+          break;
+        }
+      }
+      if (!hiddenUpdated) throw new Error(`${name}: 채팅 숨김 중 최신 자막 갱신 실패`);
+      await revealControls(page);
+      await page.locator('#cm-chat-width-control button[aria-label="채팅 펼치기"]').click();
+      await page.waitForTimeout(500);
+      const sameVideo = await video.evaluate(
+        (v) => v.isConnected && v === document.querySelector('#live_player_layout video'),
+      );
+      const state = await video.evaluate((v) => ({
+        src: v.currentSrc,
+        paused: v.paused,
+        time: v.currentTime,
+      }));
+      if (!sameVideo || state.src !== initial.src || state.paused || state.time <= initial.time)
+        throw new Error(`${name}: 조합 전환 중 재생 연속성 손실`);
+      const overlay = await page.locator('#cm-chat-subtitle').evaluate((e) => {
+        const r = e.getBoundingClientRect();
+        const p = e.parentElement.getBoundingClientRect();
+        return {
+          left: r.left - p.left,
+          right: p.right - r.right,
+          lines: Number(e.dataset.lines),
+          background: getComputedStyle(e).backgroundColor,
+          count: document.querySelectorAll('#cm-chat-subtitle').length,
+        };
+      });
+      if (
+        overlay.count !== 1 ||
+        overlay.lines < 3 ||
+        overlay.lines > 6 ||
+        overlay.left < -1 ||
+        overlay.right < -1 ||
+        overlay.background !== 'rgba(0, 0, 0, 0.3)'
+      )
+        throw new Error(`${name}: 자막 설정/위치가 손실됐습니다: ${JSON.stringify(overlay)}`);
+      if (
+        (position === 'center' && Math.abs(overlay.left - overlay.right) > 2) ||
+        (position === 'left' && overlay.left > overlay.right) ||
+        (position === 'right' && overlay.right > overlay.left)
+      )
+        throw new Error(`${name}: 선택한 자막 위치가 적용되지 않았습니다`);
+      states.push({ name, width, height, position, sameVideo, hidden, hiddenUpdated, overlay });
+      if (name === 'cover')
+        await page.screenshot({
+          path: resolve(OUT_DIR, 'demo-fold-overlay-integration-cover.png'),
+        });
+    }
+    const samples = await verifySubtitleFreshness(page, page, '반복 전환·자막 재설정 후');
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/fold-overlay-integration-report.json'),
+      JSON.stringify({ states, samples }, null, 2),
+    );
+    console.info(
+      '[fold-overlay-integration] 4회 전환·자막 토글·3개 위치·채팅 숨김/복원·재생 및 최신 갱신 통과',
+    );
+  },
+});
+
 /** 라이브 목록에서 성인 채널을 걸러 **무작위 순서**로 돌려준다. */
 async function fetchLiveChannels() {
   const res = await fetch(LIVES_URL, { headers: { 'User-Agent': UA } });
@@ -1415,6 +1574,7 @@ async function captureProfile(profile, channels) {
 
         await seedSettings(context, {
           debug: false,
+          chatWidth: { collapsed: false },
           chatSubtitle: {
             enabled: shot.subtitle ?? false,
             position: 'left',
@@ -1444,6 +1604,7 @@ async function captureProfile(profile, channels) {
 
         const page = await context.newPage();
         try {
+          await shot.beforeNavigate?.(page);
           await page.goto(`https://chzzk.naver.com/live/${main.channelId}`, {
             waitUntil: 'domcontentloaded',
             timeout: 60_000,
@@ -1589,6 +1750,7 @@ async function main() {
   console.info('[demo] ⚠️ 남의 방송 화면이다 — 커밋 전에 프레임 내용을 확인한다.');
   if (failed.length > 0) {
     for (const f of failed) console.info(`  - ${f.profile}/${f.shot}: ${f.reason}`);
+    process.exitCode = 1;
   }
 }
 

@@ -32,7 +32,11 @@ export function readSubtitleSnapshot(root: ParentNode = document): {
 } {
   const nodes = [...root.querySelectorAll(CHZZK.chatMessage)];
   const anchor = nodes.at(-1);
-  const history = anchor ? findChatClient(anchor)?.messageList : undefined;
+  // 접힌 채팅은 가상 목록의 행을 모두 지운다. 스크롤러는 남아 있고
+  // 같은 상위 클라이언트를 참조하므로 행 존재 여부에 구독을 묶지 않는다.
+  const scroller = root.querySelector(CHZZK.chatScroller);
+  const client = (scroller && findChatClient(scroller)) || (anchor && findChatClient(anchor));
+  const history = client?.messageList;
   if (history !== undefined) {
     const messages = [...history]
       .sort((a, b) => (a.time ?? 0) - (b.time ?? 0))

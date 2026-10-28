@@ -36,6 +36,25 @@ describe('격리 환경의 최신 채팅 소스', () => {
     expect(readSubtitleSnapshot()).toEqual({ live: true, messages: [] });
   });
 
+  it('채팅을 접어 메시지 DOM이 비어도 남아 있는 스크롤러에서 최신 목록을 읽는다', () => {
+    document.body.innerHTML =
+      '<aside id="aside-chatting"><div class="_wrapper_8lqsk_test"></div></aside>';
+    Object.assign(document.querySelector('aside > div')!, {
+      __reactFiber$test: {
+        memoizedProps: {
+          client: {
+            messageLimitCount: 200,
+            messageList: [{ time: 2, content: '접힌 뒤 새 채팅', profile: { nickname: '현재' } }],
+          },
+        },
+      },
+    });
+    expect(readSubtitleSnapshot()).toEqual({
+      live: true,
+      messages: [{ nickname: '현재', text: '접힌 뒤 새 채팅' }],
+    });
+  });
+
   it('최신 이모티콘 메시지도 과거 문자열 채팅으로 되돌리지 않고 표시한다', () => {
     document.body.innerHTML =
       '<aside id="aside-chatting"><div class="_chatting_message_test">예전 채팅</div></aside>';
@@ -95,6 +114,41 @@ describe('격리 환경의 최신 채팅 소스', () => {
     receive({ ...reply, messages: [] });
     expect(source.read()).toBeNull();
     expect(changed).toHaveBeenCalledTimes(1);
+  });
+
+  it('소스 모듈 로드가 실패하면 다음 갱신에서 재시도한다', () => {
+    vi.stubGlobal('chrome', {
+      runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
+    });
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const source = watchLatestChat(vi.fn());
+    stop = source.dispose;
+    const failed = document.getElementById('cm-chat-source-main')!;
+    failed.dispatchEvent(new Event('error'));
+    source.refresh();
+    expect(document.getElementById('cm-chat-source-main')).toBe(failed);
+    clock.mockReturnValue(7000);
+    source.refresh();
+    const retry = document.getElementById('cm-chat-source-main');
+    expect(retry).not.toBe(failed);
+    expect(retry).not.toBeNull();
+    expect((retry as HTMLScriptElement).src).not.toBe((failed as HTMLScriptElement).src);
+  });
+
+  it('시스템 시각이 뒤로 변경돼도 최신 채팅 요청을 계속 보낸다', () => {
+    vi.stubGlobal('chrome', {
+      runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
+    });
+    const send = vi.spyOn(window, 'postMessage').mockImplementation(() => {});
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const wall = vi.spyOn(Date, 'now').mockReturnValue(10000);
+    const source = watchLatestChat(vi.fn());
+    stop = source.dispose;
+    source.refresh();
+    clock.mockReturnValue(2000);
+    wall.mockReturnValue(100);
+    source.refresh();
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
   it('오버레이로 넘기는 데이터는 제한된 닉네임·본문만 포함한다', () => {
