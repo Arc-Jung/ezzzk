@@ -339,6 +339,7 @@ function domFor(page: PageType): QualityDom {
 
 export const qualityFeature: Feature = {
   id: 'quality',
+  preserveOnDeviceChange: true,
   watches: ['quality'],
   supports: (ctx) => {
     if (!ctx.settings.quality.enabled) return false;

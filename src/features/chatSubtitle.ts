@@ -150,6 +150,7 @@ export const CHAT_SUBTITLE_CSS = `
 
 export const chatSubtitleFeature: Feature = {
   id: 'chatSubtitle',
+  preserveOnDeviceChange: true,
   watches: ['chatSubtitle'],
   supports: (ctx) =>
     ctx.page.type === 'live' && subtitleSettings(ctx.settings.chatSubtitle).enabled,

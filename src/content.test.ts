@@ -216,12 +216,22 @@ describe('shouldRestartFeature — 다른 창이 쓴 변경 (FR-05 창별 레이
 });
 
 describe('폴드 기기 전환 정책', () => {
-  it('설정창과 멀티뷰의 열린 상태를 보존하고 다른 기능은 새 프로필을 적용한다', () => {
+  it('접힘·펼침에서 재생·음량·채팅·열린 화면을 보존한다', () => {
     expect(
       FEATURES.filter((feature) => !shouldRestartForDevice(feature))
         .map((feature) => feature.id)
         .sort(),
-    ).toEqual(['multiView', 'settingsPanel']);
+    ).toEqual([
+      'autoFullscreen',
+      'chatSubtitle',
+      'chatWidth',
+      'multiView',
+      'playbackStall',
+      'quality',
+      'settingsPanel',
+      'volume',
+      'wideScreen',
+    ]);
     expect(shouldRestartForDevice({})).toBe(true);
   });
 });

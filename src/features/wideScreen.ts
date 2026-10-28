@@ -165,6 +165,7 @@ async function runEnsureWideScreen({
 
 export const wideScreenFeature: Feature = {
   id: 'wideScreen',
+  preserveOnDeviceChange: true,
   watches: ['wideScreen'],
   supports: (ctx) =>
     playbackScreenMode(ctx.settings.wideScreen) !== 'fullscreen' &&

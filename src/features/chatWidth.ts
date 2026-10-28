@@ -12,6 +12,7 @@
  * - **데스크톱 라이브 페이지 전용.** VOD·모바일 웹에는 `#aside-chatting` 이 없다.
  */
 
+import { decideDevice } from '../device';
 import { CHZZK, ID, OURS, PLAYER } from '../constants/class';
 import { createIconElement, type IconName } from '../ui/icons';
 import { hasSideChat } from '../pageType';
@@ -531,10 +532,12 @@ function withScrollPreserved(mutate: () => void): void {
 
 export const chatWidthFeature: Feature = {
   id: 'chatWidth',
+  preserveOnDeviceChange: true,
   watches: ['chatWidth'],
   supports: (ctx) =>
     ctx.settings.chatWidth.enabled && hasSideChat(ctx.page.type) && !ctx.page.isSlotFrame,
   start: (ctx) => {
+    let device = ctx.device;
     const { step, min, max } = ctx.settings.chatWidth;
     /**
      * 🔴 여기서 **클램프하지 않는다.** 하단 배치의 유효 상한은 배치가 정해진 뒤에야 알 수 있다
@@ -546,7 +549,7 @@ export const chatWidthFeature: Feature = {
     let ratio = ctx.settings.chatWidth.ratio;
     let collapsed = ctx.settings.chatWidth.collapsed;
 
-    const stopArbiter = ensureLayoutArbiter({ relaxed: ctx.device.profile.relaxObservers });
+    const stopArbiter = ensureLayoutArbiter({ relaxed: device.profile.relaxObservers });
 
     /**
      * 사용자가 이 **폭**을 직접 정했는가. 참이면 FR-10 계산값을 이긴다
@@ -573,7 +576,7 @@ export const chatWidthFeature: Feature = {
       const viewport = readViewport();
       const initialPlacement =
         ctx.settings.chatWidth.placementSource === 'manual' ||
-        !prefersBottomChat(viewport, ctx.device.profile)
+        !prefersBottomChat(viewport, device.profile)
           ? ctx.settings.chatWidth.placement
           : 'bottom';
       savedRatios[initialPlacement] = ratio;
@@ -630,7 +633,7 @@ export const chatWidthFeature: Feature = {
         ratioSource: 'auto' as const,
         placement: storedPlacement,
       };
-      const automatic = effectiveChatLayout(settings, ctx.device.profile, viewport, min, max, {
+      const automatic = effectiveChatLayout(settings, device.profile, viewport, min, max, {
         placementOverride,
       });
       const savedRatio = savedRatios[automatic.placement];
@@ -888,7 +891,7 @@ export const chatWidthFeature: Feature = {
       if (!controlEl?.isConnected || controlEl.dataset['anchor'] !== 'player-right-center') return;
       const playerHeight = qs<HTMLElement>(PLAYER.rootPc)?.getBoundingClientRect().height;
       if (!playerHeight) return; // 못 재면 기존 1열을 유지한다 — 잘못된 접힘보다 안전하다.
-      const size = Math.max(28, Math.round(ctx.device.profile.touchTargetPx));
+      const size = Math.max(28, Math.round(device.profile.touchTargetPx));
       const compact = playerRightColumnHeightPx(size) / playerHeight > PLAYER_RIGHT_COMPACT_RATIO;
       controlEl.dataset['compact'] = compact ? 'true' : 'false';
     };
@@ -939,7 +942,7 @@ export const chatWidthFeature: Feature = {
               ? container.getBoundingClientRect().width + CONTROL_GAP_PX
               : 0)
           : null;
-        anchor = resolveControlAnchor(free, ctx.device.profile.touchTargetPx);
+        anchor = resolveControlAnchor(free, device.profile.touchTargetPx);
         parent = anchor === 'floating' || !slot ? document.body : slot.parent;
         before = anchor === 'floating' || !slot ? null : slot.before;
       }
@@ -970,7 +973,7 @@ export const chatWidthFeature: Feature = {
     };
 
     const mountControl = (): void => {
-      upsertStyle(CONTROL_STYLE_ID, controlCss(ctx.device.profile.touchTargetPx));
+      upsertStyle(CONTROL_STYLE_ID, controlCss(device.profile.touchTargetPx));
       // 플레이어 우측 가운데 자리에서 컨트롤바와 같은 자동 숨김 신호를 쓴다 (여러 기능이 불러도 안전).
       ensureControlBarAutoHideCss();
 
@@ -1050,7 +1053,7 @@ export const chatWidthFeature: Feature = {
     };
 
     const stopPlacementWatch: Disposer = observe(document.body, replaceControl, {
-      debounceMs: ctx.device.profile.relaxObservers ? 400 : 200,
+      debounceMs: device.profile.relaxObservers ? 400 : 200,
     });
 
     /**
@@ -1068,7 +1071,7 @@ export const chatWidthFeature: Feature = {
       document.body,
       () => document.getElementById(CONTROL_ID) !== null,
       mountControl,
-      { debounceMs: ctx.device.profile.relaxObservers ? 600 : 300 },
+      { debounceMs: device.profile.relaxObservers ? 600 : 300 },
     );
 
     /**
@@ -1081,6 +1084,8 @@ export const chatWidthFeature: Feature = {
           withScrollPreserved(() => {});
           return;
         }
+        device = decideDevice(ctx.settings.device.override);
+        upsertStyle(CONTROL_STYLE_ID, controlCss(device.profile.touchTargetPx));
         // 회전·분할 화면으로 **자세가 바뀌면 배치까지** 다시 정한다 (세로 → 하단 배치).
         withScrollPreserved(() => {
           syncAutoLayout();
@@ -1089,7 +1094,7 @@ export const chatWidthFeature: Feature = {
           if (controlEl?.isConnected) placeControl(controlEl);
         });
       },
-      { relaxed: ctx.device.profile.relaxObservers },
+      { relaxed: device.profile.relaxObservers },
     );
 
     // 각 단계를 독립 실행한다 — 앞 단계가 던져도 `stopArbiter()` 가 반드시 돌아야 한다

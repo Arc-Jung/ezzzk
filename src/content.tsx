@@ -74,7 +74,7 @@ function restartAll(settings: Settings): void {
   info(`initialized ${running.size} feature(s) for ${ctx.page.type} / ${ctx.device.deviceClass}`);
 }
 
-/** 상태를 유지하는 화면을 제외하고 필요한 기능만 기기 프로필에 맞춰 다시 시작한다. */
+/** 재생·입력·열린 화면의 상태를 유지하며 나머지 기능만 새 기기 프로필을 적용한다. */
 export function shouldRestartForDevice(feature: Pick<Feature, 'preserveOnDeviceChange'>): boolean {
   return feature.preserveOnDeviceChange !== true;
 }

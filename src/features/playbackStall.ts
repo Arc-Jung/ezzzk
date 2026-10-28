@@ -49,6 +49,7 @@ export function isPlaybackStalled(video: StallableVideo): boolean {
 
 export const playbackStallFeature: Feature = {
   id: 'playbackStall',
+  preserveOnDeviceChange: true,
   watches: [],
   supports: (ctx) => hasPlayer(ctx.page.type),
   start: () => {

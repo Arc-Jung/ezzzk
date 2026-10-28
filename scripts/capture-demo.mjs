@@ -724,6 +724,7 @@ SHOTS.push({
   key: 'fold-responsive',
   explicitOnly: true,
   multiView: false,
+  subtitle: true,
   caption: '접힘·펼침·회전마다 화면에 맞춘 자동 배치',
   file: () => 'demo-fold-responsive-reopened.png',
   verify: async (page) => {
@@ -743,6 +744,20 @@ SHOTS.push({
     });
     await page.waitForTimeout(500);
     const video = await page.locator('#live_player_layout video').first().elementHandle();
+    const controls = await Promise.all(
+      ['#cm-volume-control', '#cm-chat-width-control', '#cm-chat-subtitle'].map((selector) =>
+        page.locator(selector).first().elementHandle(),
+      ),
+    );
+    if (controls.some((control) => !control)) throw new Error('연속성 검증 컨트롤이 없습니다');
+    // 사용자 조작과 같은 trusted 클릭으로 음량·음소거를 바꾼다.
+    // JS로 muted를 대입하면 자동 음소거 복구가 플레이어 변경으로 판단하는 별개 조건이다.
+    await revealControls(page);
+    await page.locator('#cm-volume-control button[aria-label="볼륨 높이기"]').click();
+    const expectedVolume = await video.evaluate((video) => video.volume);
+    await page.locator('.pzp-pc__volume-button').first().click();
+    await page.waitForTimeout(200);
+    const initialSource = await video.evaluate((video) => video.currentSrc);
     const states = [];
     for (const [name, width, height] of [
       ['opened', 859, 798],
@@ -779,6 +794,32 @@ SHOTS.push({
         video,
       );
       if (!sameVideo) throw new Error('자동 배치 전환 중 video가 교체됐습니다');
+      for (const [index, selector] of [
+        '#cm-volume-control',
+        '#cm-chat-width-control',
+        '#cm-chat-subtitle',
+      ].entries()) {
+        const sameControl = await page.evaluate(
+          ({ control, selector }) =>
+            control.isConnected && control === document.querySelector(selector),
+          { control: controls[index], selector },
+        );
+        if (!sameControl) throw new Error(`전환 중 컨트롤이 재생성됐습니다: ${selector}`);
+      }
+      const media = await video.evaluate((video) => ({
+        volume: video.volume,
+        muted: video.muted,
+        paused: video.paused,
+        readyState: video.readyState,
+        source: video.currentSrc,
+      }));
+      if (
+        Math.abs(media.volume - expectedVolume) > 0.001 ||
+        !media.muted ||
+        media.paused ||
+        media.source !== initialSource
+      )
+        throw new Error(`${name} 전환 중 재생·음량 상태가 변경됐습니다: ${JSON.stringify(media)}`);
       const state = await page.evaluate(() => {
         const rect = (selector) => {
           const r = document.querySelector(selector).getBoundingClientRect();
@@ -790,16 +831,45 @@ SHOTS.push({
           input: rect('#aside-chatting textarea'),
         };
       });
-      states.push({ name, width, height, sameVideo, ...state });
+      states.push({
+        name,
+        width,
+        height,
+        sameVideo,
+        sameControls: true,
+        media: {
+          volume: media.volume,
+          muted: media.muted,
+          paused: media.paused,
+          readyState: media.readyState,
+        },
+        ...state,
+      });
       if (['cover', 'open-portrait', 'open-landscape', 'reopened'].includes(name))
         await page.screenshot({ path: resolve(OUT_DIR, `demo-fold-responsive-${name}.png`) });
     }
+    // 사용자가 멈춘 재생도 전환 때문에 다시 켜지면 안 된다.
+    await revealControls(page);
+    await page.locator('.pzp-pc__playback-switch').first().click();
+    await page.waitForFunction(() => document.querySelector('#live_player_layout video')?.paused);
+    for (const viewport of [
+      { width: 411, height: 812 },
+      { width: 859, height: 798 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.waitForTimeout(500);
+      if (!(await video.evaluate((video) => video.paused)))
+        throw new Error('사용자가 일시정지한 재생이 접힘·펼침으로 다시 켜졌습니다');
+    }
+    await revealControls(page);
+    await page.locator('.pzp-pc__playback-switch').first().click();
+    await page.waitForFunction(() => !document.querySelector('#live_player_layout video')?.paused);
     writeFileSync(
       resolve(ROOT, 'etc/tmp/fold-responsive-report.json'),
       JSON.stringify(states, null, 2),
     );
     console.info(
-      '[fold-responsive] 접힘·펼침·회전·주소창 7개 상태: 16:9 영상·나머지 채팅·입력창·동일 video 통과',
+      '[fold-responsive] 7개 상태: 자동 배치·동일 video/컨트롤/자막·음량/음소거·사용자 일시정지 유지 통과',
     );
   },
 });

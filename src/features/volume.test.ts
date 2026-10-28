@@ -461,6 +461,48 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     document.body.innerHTML = '';
   });
 
+  it('접힘·펼침에서는 같은 컨트롤과 음량을 유지하고 터치 크기·노출만 바꾼다', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('navigator', { maxTouchPoints: 5 });
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query === '(pointer: coarse)',
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const root = mountPlayer();
+    const video = addVideo(root);
+    const dispose = volumeFeature.start({
+      ...ctx,
+      settings: { ...DEFAULT_SETTINGS, volume: { ...DEFAULT_SETTINGS.volume, autoUnmute: false } },
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    const original = control();
+    video.volume = 0.37;
+    video.dispatchEvent(new Event('volumechange'));
+    video.muted = true;
+    for (const [width, height, visibility] of [
+      [411, 812, 'hidden'],
+      [859, 798, 'visible'],
+    ] as const) {
+      vi.stubGlobal('innerWidth', width);
+      vi.stubGlobal('innerHeight', height);
+      window.dispatchEvent(new Event('resize'));
+      await vi.advanceTimersByTimeAsync(32);
+      expect(control()).toBe(original);
+      expect(video.volume).toBeCloseTo(0.37);
+      expect(video.muted).toBe(true);
+      expect(original?.style.visibility).toBe(visibility);
+      expect(original?.querySelector('button')?.style.minHeight).toBe('44px');
+    }
+    dispose?.();
+    window.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(400);
+    expect(control()).toBeNull();
+  });
+
   it('시작할 때 video 가 없어도 나중에 나타나면 결국 붙는다', async () => {
     vi.useFakeTimers();
 

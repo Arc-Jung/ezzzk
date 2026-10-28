@@ -4,12 +4,13 @@ import { info, warning } from '../utils/log';
 import type { Feature } from './types';
 
 type PlaybackSession = { key: string; attempted: boolean; pending: boolean; completed: boolean };
-// 전체화면으로 인한 뷰포트 변경은 기능을 재시작한다. 같은 페이지의 완료 상태를 보존해
+// 뷰포트 변경은 세션을 유지한다. 설정 변경 등으로 재시작해도 완료 상태를 보존해
 // Esc 로 나온 사용자를 다시 전체화면으로 밀어 넣지 않는다.
 let session: PlaybackSession | undefined;
 
 export const autoFullscreenFeature: Feature = {
   id: 'autoFullscreen',
+  preserveOnDeviceChange: true,
   watches: ['wideScreen'],
   supports: (ctx) => !ctx.page.isSlotFrame && ctx.page.type !== 'unsupported',
   start: (ctx) => {
