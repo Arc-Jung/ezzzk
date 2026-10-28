@@ -99,8 +99,8 @@ export const CHZZK = {
   layoutSection: 'section[class*="_container_wj4te"]',
   /** 실측 `div._wrapper_wj4te_16` — display:flex row. 폭 배분의 핵심 컨테이너. min-width: auto ⚠️ */
   layoutWrapper: 'div[class*="_wrapper_wj4te"]',
-  /** 실측 `main._container_1tswz_2 _show_chat_1tswz_17` — flex: 1 1 0% */
-  mainContainer: 'main[class*="_container_1tswz"]',
+  /** 플레이어를 포함하는 main. 2026-10-28 해시가 _1tswz → _4mxy2로 바뀌어 ID로 찾는다. */
+  mainContainer: 'main:has(#live_player_layout, #player_layout)',
 
   /** 채팅 스크롤 컨테이너. 실측 `div._wrapper_8lqsk_25` — overflow-y: auto, h=761 */
   chatScroller: '#aside-chatting [class*="_wrapper_8lqsk"]',

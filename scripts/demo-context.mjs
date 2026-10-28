@@ -4,10 +4,10 @@
  * 확장을 로드한 브라우저 컨텍스트를 띄우고, 설정을 심고, 우리 UI(`cm-*`)를 측정한다.
  * 캡처 스크립트가 "무엇을 찍을지"만 다루도록 브라우저 셋업을 여기로 몰아 둔다.
  *
- * ⚠️ 프로필 설정은 `isMobile: false` + `hasTouch: true` + 데스크톱 UA 조합을 쓴다.
+ * 기본 프로필 설정은 `isMobile: false` + `hasTouch: true` + 데스크톱 UA 조합을 쓴다.
  * 이것이 "모바일에서 데스크톱 사이트 요청" 상태이며 이 저장소 실측의 기준이다.
  * `isMobile: true` 로 두면 뷰포트 메타가 없는 문서에서 크롬이 980px 기본 레이아웃 뷰포트를
- * 적용해 기기 판정이 뒤집힌다.
+ * 적용할 수 있다. 모바일 모드는 `isMobile: true` 프로필로 별도 검증한다.
  */
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
@@ -79,6 +79,16 @@ export const PROFILES = [
     hasTouch: false,
     expectDeviceClass: 'laptop',
     minTargetPx: 32,
+  },
+  {
+    key: 'fold8-mobile-browser',
+    label: '폴드 모바일 브라우저 859×798 (모바일 뷰포트)',
+    viewport: { width: 859, height: 798 },
+    deviceScaleFactor: 2.625,
+    hasTouch: true,
+    isMobile: true,
+    expectDeviceClass: 'tablet-10',
+    minTargetPx: 44,
   },
   // 삼성 공개 패널 해상도 / 기준 DPR 2.625를 반올림한 CSS 뷰포트.
   // 실기기 측정값이 아니며 주소창·화면 배율에 따라 실제 뷰포트는 달라진다.
@@ -184,7 +194,7 @@ export async function openLiveContext(
     ],
     viewport: profile.viewport,
     deviceScaleFactor: profile.deviceScaleFactor,
-    isMobile: false,
+    isMobile: profile.isMobile ?? false,
     hasTouch: profile.hasTouch,
     userAgent: DESKTOP_UA,
     locale: 'ko-KR',

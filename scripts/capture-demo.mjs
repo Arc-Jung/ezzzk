@@ -721,6 +721,91 @@ SHOTS.push({
 });
 
 SHOTS.push({
+  key: 'fold-manual-height',
+  explicitOnly: true,
+  multiView: false,
+  caption: '수동 채팅 높이를 저장한 폴드 접힘·펼침',
+  file: () => 'demo-fold-manual-reopened.png',
+  verify: async (page) => {
+    const aside = await page.locator('#aside-chatting').boundingBox();
+    if (!aside || Math.abs(aside.y + aside.height - 798) > 3)
+      throw new Error('채팅 하단에 빈 공간이 남았습니다');
+  },
+  setup: async (page) => {
+    const states = [];
+    const video = await page.locator('#live_player_layout video').first().elementHandle();
+    // 새 기본값만 시험하면 기존 사용자의 저장된 작은 높이에서 생기는 공백을 놓친다.
+    for (const bottomRatio of [20, 40, 80, null]) {
+      await seedSettings(page.context(), {
+        chatWidth: {
+          ratio: bottomRatio ?? 30,
+          ratioSource: bottomRatio === null ? 'auto' : 'manual',
+          bottomRatio,
+          rightRatio: null,
+          collapsed: false,
+          placement: 'bottom',
+          placementSource: 'auto',
+        },
+      });
+      await page.waitForTimeout(500);
+      for (const [name, width, height] of [
+        ['opened', 859, 798],
+        ['cover', 411, 812],
+        ['reopened', 859, 798],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await page.waitForTimeout(500);
+        const state = await page.evaluate(() => {
+          const rect = (selector) => {
+            const r = document.querySelector(selector)?.getBoundingClientRect();
+            return r ? { top: r.top, bottom: r.bottom, width: r.width, height: r.height } : null;
+          };
+          return {
+            viewport: { width: innerWidth, height: innerHeight, scale: visualViewport?.scale },
+            player: rect('#live_player_layout'),
+            aside: rect('#aside-chatting'),
+            scroller: rect('#aside-chatting [class*="_wrapper_8lqsk"]'),
+            input: rect('#aside-chatting textarea'),
+          };
+        });
+        const sameVideo = await page.evaluate(
+          (video) => video === document.querySelector('#live_player_layout video'),
+          video,
+        );
+        if (
+          !sameVideo ||
+          !state.aside ||
+          Math.abs(state.aside.bottom - height) > 3 ||
+          Math.abs(state.aside.width - width) > 3 ||
+          !state.input ||
+          state.input.bottom > height + 2 ||
+          (name === 'cover' && Math.abs(state.aside.top - state.player.bottom) > 3)
+        )
+          throw new Error(`수동 높이 ${bottomRatio}, ${name}: ${JSON.stringify(state)}`);
+        states.push({ bottomRatio, name, sameVideo, ...state });
+        if (bottomRatio === 20)
+          await page.screenshot({ path: resolve(OUT_DIR, `demo-fold-manual-${name}.png`) });
+      }
+      const [worker] = page.context().serviceWorkers();
+      const stored = await worker.evaluate(
+        async () =>
+          (await chrome.storage.local.get('ezzzk.settings'))['ezzzk.settings'].chatWidth
+            .bottomRatio,
+      );
+      if (stored !== bottomRatio) throw new Error('전환 중 저장된 수동 높이가 변경됐습니다');
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/fold-manual-report.json'),
+      JSON.stringify(states, null, 2),
+    );
+    // 대표 스크린샷과 최종 캡처 모두 수동 20% 조건으로 맞춘다.
+    await seedSettings(page.context(), { chatWidth: { bottomRatio: 20, ratioSource: 'manual' } });
+    await page.waitForTimeout(500);
+    console.info('[fold-manual] 4개 높이 × 펼침·접힘·재펼침: 공백·입력창·video·저장값 검증 통과');
+  },
+});
+
+SHOTS.push({
   key: 'fold-transition',
   explicitOnly: true,
   multiView: false,

@@ -183,7 +183,9 @@ export function buildLayoutCss(claim: WidthClaim | null): string {
 
   /**
    * 하단 배치 — 래퍼를 세로 흐름으로 바꾸고 aside 는 폭 100%, 높이를 claim 값으로 쓴다.
-   * 영상은 남는 높이를 먹는다. 세로로 긴 창에서 오른쪽 배치보다 영상이 커진다.
+   * 영상은 요청된 채팅 높이를 제외한 공간을 쓰되 16:9 그림 높이를 넘기지 않는다.
+   * aside는 나머지 공간을 채우고, 큰 수동 높이도 화면 안으로 축소할 수 있게 한다.
+   * 저장된 수동 비율은 그대로 두고 펼쳤을 때 다시 사용한다.
    */
   if (claim.mode === 'bottom' && !collapsed) {
     return [
@@ -192,11 +194,17 @@ export function buildLayoutCss(claim: WidthClaim | null): string {
       `${ID.asideChatting} {
   width: 100% !important;
   height: ${width}px !important;
-  flex: 0 0 ${width}px !important;
+  flex: 1 1 ${width}px !important;
   min-width: 0 !important;
   min-height: 0 !important;
 }`,
-      `${CHZZK.mainContainer} { min-width: 0 !important; min-height: 0 !important; flex: 1 1 auto !important; }`,
+      `${CHZZK.mainContainer} {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: calc(100% - ${width}px) !important;
+  max-height: calc(100vw * 9 / 16) !important;
+  flex: 0 1 auto !important;
+}`,
     ].join('\n');
   }
 

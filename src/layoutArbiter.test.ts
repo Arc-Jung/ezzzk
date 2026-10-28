@@ -162,8 +162,8 @@ describe('buildLayoutCss — 실험으로 검증된 CSS 를 그대로 만든다'
 
   it('main 컨테이너에 min-width:0 / flex: 1 1 auto 를 준다', () => {
     const css = buildLayoutCss(claim('chatWidth', 420));
-    expect(css).toContain('main[class*="_container_1tswz"] {');
-    expect(css).toMatch(/main\[class\*="_container_1tswz"\] \{[^}]*flex: 1 1 auto !important/);
+    expect(css).toContain('main:has(#live_player_layout, #player_layout) {');
+    expect(css).toContain('flex: 1 1 auto !important');
   });
 
   it('초광폭에서만 wrapper 에 width: 100% 를 넣는다', () => {
@@ -538,16 +538,18 @@ describe('하단 배치 모드 (2026-08-12 요청 — 채팅 위치 전환 버�
     expect(buildLayoutCss(bottom(300))).toContain('flex-direction: column !important');
   });
 
-  it('aside 는 폭 100% · 높이는 claim 값을 쓴다 (쌓는 축이 세로다)', () => {
+  it('aside는 요청 높이를 기준으로 영상이 못 쓰는 세로 여백까지 채운다', () => {
     const css = buildLayoutCss(bottom(300));
     expect(css).toContain('width: 100% !important');
     expect(css).toContain('height: 300px !important');
-    expect(css).toContain('flex: 0 0 300px !important');
+    expect(css).toContain('flex: 1 1 300px !important');
   });
 
-  it('영상이 남는 높이를 먹는다', () => {
+  it('영상은 채팅을 제외한 높이를 쓰되 16:9를 넘지 않는다', () => {
     const css = buildLayoutCss(bottom(300));
-    expect(css).toContain('flex: 1 1 auto !important');
+    expect(css).toContain('height: calc(100% - 300px) !important');
+    expect(css).toContain('max-height: calc(100vw * 9 / 16) !important');
+    expect(css).toContain('flex: 0 1 auto !important');
     expect(css).toContain('min-height: 0 !important');
   });
 
