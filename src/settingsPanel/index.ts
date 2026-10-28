@@ -7,6 +7,9 @@
  * - m.chzzk(`mobile-web`)은 컨트롤바 구조가 달라 삽입 지점이 없다 → 대상에서 제외한다.
  */
 
+import { decideDevice } from '../device';
+import { getCachedSettings } from '../storage';
+import { onViewportChange } from '../utils/viewport';
 import { createElement } from 'react';
 import { OURS } from '../constants/class';
 import { mountSheet } from '../ui/mountSheet';
@@ -23,8 +26,10 @@ export const settingsPanelFeature: Feature = {
   id: 'settingsPanel',
   // 설정 패널은 useSettings 로 스스로 최신 값을 읽는다. 재시작하면 **사용자가 값을 바꾸는 순간 닫힌다.**
   watches: [],
+  preserveOnDeviceChange: true,
   supports: (ctx) => (ctx.page.type === 'live' || ctx.page.type === 'vod') && !ctx.page.isSlotFrame,
   start: (ctx) => {
+    let device = ctx.device;
     upsertStyle(STYLE_ID, SETTINGS_PANEL_CSS);
     const sheet = mountSheet(OURS.settingsPanelId);
 
@@ -33,7 +38,7 @@ export const settingsPanelFeature: Feature = {
     const open = () => {
       sheet.render(
         createElement(SettingsPanel, {
-          device: ctx.device,
+          device,
           onClose: close,
         }),
       );
@@ -49,19 +54,31 @@ export const settingsPanelFeature: Feature = {
       ariaLabel: '이지직 설정',
       icon: 'gear',
       badge: true,
-      minTargetPx: ctx.device.profile.touchTargetPx,
+      minTargetPx: device.profile.touchTargetPx,
       onClick: toggle,
     });
 
-    const shortcutsEnabled = ctx.device.profile.shortcuts !== 'off';
+    const shortcutsEnabled = device.profile.shortcuts !== 'off';
     const onKeyDown = (event: KeyboardEvent) => {
+      if (device.profile.shortcuts === 'off') return;
       // Alt+, — 쉼표 단독은 치지직이 쓰지 않고, space/k/m/f 와도 겹치지 않는다.
       if (!event.altKey || event.shiftKey || event.ctrlKey || event.metaKey) return;
       if (event.code !== 'Comma') return;
       event.preventDefault();
       toggle();
     };
-    if (shortcutsEnabled) window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown);
+    const stopViewport = onViewportChange(({ keyboardLikely }) => {
+      if (keyboardLikely) return;
+      device = decideDevice(getCachedSettings().device.override);
+      const button = document.getElementById(OURS.settingsButtonId);
+      if (button) {
+        const size = `${Math.max(36, device.profile.touchTargetPx)}px`;
+        button.style.width = size;
+        button.style.height = size;
+      }
+      if (sheet.isOpen()) open();
+    });
 
     /**
      * 팝업의 `세부 설정 열기` 버튼이 background 를 거쳐 보내는 요청을 받는다.
@@ -84,7 +101,8 @@ export const settingsPanelFeature: Feature = {
     info(`settings panel ready (shortcut ${shortcutsEnabled ? 'Alt+Comma' : 'disabled'})`);
 
     return () => {
-      if (shortcutsEnabled) window.removeEventListener('keydown', onKeyDown);
+      stopViewport();
+      window.removeEventListener('keydown', onKeyDown);
       chrome.runtime.onMessage.removeListener(onRuntimeMessage);
       window.removeEventListener(OURS.openSettingsEventName, onOpenSettingsEvent);
       stopButton();

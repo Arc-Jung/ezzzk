@@ -31,6 +31,8 @@ export type Feature = {
    * 라우팅·기기 유형 변경은 이 값과 무관하게 전 기능을 재시작한다.
    */
   watches?: readonly (keyof Settings)[];
+  /** 기기 분류가 바뀌어도 상태를 유지하며 자체 뷰포트 구독에서 프로필을 갱신한다. */
+  preserveOnDeviceChange?: boolean;
   /**
    * 이 페이지·기기·설정에서 동작 대상인가.
    * false 면 옵저버를 아예 걸지 않는다 (NFR-02b · NFR-04).

@@ -108,18 +108,44 @@ export function onViewportChange(
 ): Disposer {
   let previous = readViewport();
 
-  const run = debounce(
-    () => {
-      const size = readViewport();
-      const keyboardLikely = looksLikeKeyboard(previous, size);
-      const change: ViewportChange = { size, previous, keyboardLikely };
-      previous = size;
-      callback(change);
-    },
-    relaxed ? RESIZE.debounceMsRelaxed : RESIZE.debounceMs,
-  );
-
-  const handler = () => run();
+  let force = false;
+  let fastFrame: number | undefined;
+  const usesAnimationFrame = typeof window.requestAnimationFrame === 'function';
+  const deliver = () => {
+    const size = readViewport();
+    if (!force && size.width === previous.width && size.height === previous.height) return;
+    force = false;
+    const active = document.activeElement;
+    const editing =
+      active instanceof HTMLElement &&
+      (active.matches(
+        'textarea, input:not([type="checkbox"]):not([type="range"]):not([type="button"])',
+      ) ||
+        active.isContentEditable === true);
+    const keyboardLikely = editing && looksLikeKeyboard(previous, size);
+    const change: ViewportChange = { size, previous, keyboardLikely };
+    previous = size;
+    callback(change);
+  };
+  const run = debounce(deliver, relaxed ? RESIZE.debounceMsRelaxed : RESIZE.debounceMs);
+  const handler = () => {
+    // 접힘·펼침의 폭 변경은 다음 프레임에 처리한다. 연속 scroll 신호가 300ms 타이머를
+    // 계속 밀어도 이전 채팅 높이·기기 프로필에 머물지 않는다.
+    if (Math.abs(readViewport().width - previous.width) > 2 && fastFrame === undefined) {
+      const flush = () => {
+        fastFrame = undefined;
+        deliver();
+      };
+      fastFrame = usesAnimationFrame
+        ? window.requestAnimationFrame(flush)
+        : window.setTimeout(flush, 16);
+    }
+    run();
+  };
+  const containerHandler = () => {
+    force = true;
+    run();
+  };
 
   const vv = window.visualViewport;
   vv?.addEventListener('resize', handler);
@@ -133,12 +159,16 @@ export function onViewportChange(
 
   const resizeObserver =
     observeElements.length > 0 && typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(handler)
+      ? new ResizeObserver(containerHandler)
       : undefined;
   observeElements.forEach((el) => resizeObserver?.observe(el));
 
   return () => {
     run.cancel();
+    if (fastFrame !== undefined) {
+      if (usesAnimationFrame) window.cancelAnimationFrame(fastFrame);
+      else window.clearTimeout(fastFrame);
+    }
     vv?.removeEventListener('resize', handler);
     vv?.removeEventListener('scroll', handler);
     window.removeEventListener('resize', handler);

@@ -11,11 +11,12 @@
  * - 멀티뷰가 오디오 슬롯을 바꿀 때마다 iframe 4개를 다시 로드한다
  * - 볼륨을 올리면 재시작이 기본값을 다시 적용해 되돌아간다
  * → 변경된 설정 섹션과 관련된 기능만 재시작한다 (`Feature.watches`).
- * 전체 재시작은 **라우팅·기기 유형 변경** 때만 한다.
+ * 전체 재시작은 라우팅·수동 기기 설정 변경 때만 한다. 접힘·펼침에서는 상태 유지 기능을 보존한다.
  */
 
 import { FEATURES } from './features/registry';
 import type { Disposer, Feature, FeatureContext } from './features/types';
+import { batchLayoutUpdates } from './layoutArbiter';
 import { decideDevice, applyDeviceAttributes } from './device';
 import { detectPageType, refineWithDom } from './pageType';
 import { loadSettings, onSettingsChanged, getCachedSettings } from './storage';
@@ -57,7 +58,7 @@ function startFeature(feature: Feature, ctx: FeatureContext): void {
   running.set(feature.id, typeof dispose === 'function' ? dispose : null);
 }
 
-/** 전 기능을 다시 시작한다. 라우팅·기기 유형 변경 전용이다. */
+/** 전 기능을 다시 시작한다. 라우팅·수동 기기 설정 변경 전용이다. */
 function restartAll(settings: Settings): void {
   stopAllFeatures();
 
@@ -71,6 +72,22 @@ function restartAll(settings: Settings): void {
   for (const feature of FEATURES) startFeature(feature, ctx);
 
   info(`initialized ${running.size} feature(s) for ${ctx.page.type} / ${ctx.device.deviceClass}`);
+}
+
+/** 상태를 유지하는 화면을 제외하고 필요한 기능만 기기 프로필에 맞춰 다시 시작한다. */
+export function shouldRestartForDevice(feature: Pick<Feature, 'preserveOnDeviceChange'>): boolean {
+  return feature.preserveOnDeviceChange !== true;
+}
+
+function refreshDevice(settings: Settings): void {
+  const ctx = buildContext(settings);
+  if (ctx.page.type === 'unsupported') return;
+  batchLayoutUpdates(() => {
+    applyDeviceAttributes(ctx.device);
+    for (const feature of FEATURES) {
+      if (shouldRestartForDevice(feature)) startFeature(feature, ctx);
+    }
+  });
 }
 
 /** 두 설정에서 값이 달라진 최상위 섹션 키. */
@@ -189,7 +206,7 @@ async function bootstrap(): Promise<void> {
       if (current === lastDeviceClass) return;
       info(`deviceClass changed ${lastDeviceClass} → ${current}, reinitializing`);
       lastDeviceClass = current;
-      restartAll(getCachedSettings());
+      refreshDevice(getCachedSettings());
     },
     { relaxed: decideDevice(settings.device.override).profile.relaxObservers },
   );

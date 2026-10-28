@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
+  onViewportChange,
   computeChatRatio,
   computeChatWidthPx,
   looksLikeKeyboard,
@@ -150,5 +151,68 @@ describe('looksLikeKeyboard — IME 추정', () => {
     const prev = { width: 412, height: 500, ratio: 412 / 500 };
     const next = { width: 412, height: 915, ratio: 412 / 915 };
     expect(looksLikeKeyboard(prev, next)).toBe(false);
+  });
+});
+
+describe('폴드 전환 뷰포트 구독', () => {
+  let stop: (() => void) | undefined;
+  afterEach(() => {
+    stop?.();
+    stop = undefined;
+    document.body.replaceChildren();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const viewport = (width: number, height: number) => {
+    vi.stubGlobal('innerWidth', width);
+    vi.stubGlobal('innerHeight', height);
+  };
+  it('연속 resize 신호가 있어도 폭 변경은 300ms를 기다리지 않고 반영한다', async () => {
+    vi.useFakeTimers();
+    viewport(859, 798);
+    const callback = vi.fn();
+    stop = onViewportChange(callback, { relaxed: true });
+    viewport(411, 812);
+    window.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(32);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback.mock.calls[0]![0]).toMatchObject({
+      size: { width: 411, height: 812 },
+      keyboardLikely: false,
+    });
+    for (let i = 0; i < 5; i++) {
+      window.dispatchEvent(new Event('resize'));
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+  it('입력 중이 아닌 창 높이 축소를 키보드로 오판하지 않는다', async () => {
+    vi.useFakeTimers();
+    viewport(411, 812);
+    const callback = vi.fn();
+    stop = onViewportChange(callback);
+    viewport(411, 540);
+    window.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(350);
+    expect(callback.mock.calls[0]![0].keyboardLikely).toBe(false);
+  });
+  it('실제 입력 중 키보드 추정은 유지하고, 구독 해제 후 예약된 갱신은 취소한다', async () => {
+    vi.useFakeTimers();
+    viewport(411, 812);
+    const input = document.createElement('textarea');
+    document.body.appendChild(input);
+    input.focus();
+    const callback = vi.fn();
+    stop = onViewportChange(callback);
+    viewport(411, 540);
+    window.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(350);
+    expect(callback.mock.calls[0]![0].keyboardLikely).toBe(true);
+    viewport(859, 798);
+    window.dispatchEvent(new Event('resize'));
+    stop();
+    stop = undefined;
+    await vi.advanceTimersByTimeAsync(400);
+    expect(callback).toHaveBeenCalledTimes(1);
   });
 });

@@ -308,8 +308,29 @@ export function onActiveWidthChange(listener: (claim: WidthClaim | null) => void
   };
 }
 
+let layoutBatchDepth = 0;
+let layoutBatchPending = false;
+
+/** 기기 전환 중 주장 해제·재등록의 중간 CSS를 노출하지 않는다. */
+export function batchLayoutUpdates(update: () => void): void {
+  layoutBatchDepth += 1;
+  try {
+    update();
+  } finally {
+    layoutBatchDepth -= 1;
+    if (layoutBatchDepth === 0 && layoutBatchPending) {
+      layoutBatchPending = false;
+      applyClaims();
+    }
+  }
+}
+
 /** 현재 주장들로 스타일을 갱신한다. 같은 결과면 아무것도 하지 않는다. */
 export function applyClaims(): void {
+  if (layoutBatchDepth > 0) {
+    layoutBatchPending = true;
+    return;
+  }
   const winner = activeClaim();
   const css = buildLayoutCss(winner);
 
@@ -362,8 +383,12 @@ export function ensureLayoutArbiter({ relaxed = false } = {}): Disposer {
     stopObserve?.();
     stopObserve = undefined;
     claims.clear();
-    lastAppliedCss = null;
-    removeStyle(OURS.layoutStyleId);
+    if (layoutBatchDepth > 0) {
+      layoutBatchPending = true;
+    } else {
+      lastAppliedCss = null;
+      removeStyle(OURS.layoutStyleId);
+    }
   };
 }
 

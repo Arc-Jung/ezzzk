@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import {
   WIDTH_PRIORITY,
+  batchLayoutUpdates,
   activeClaim,
   buildLayoutCss,
   claimWidth,
@@ -281,6 +282,35 @@ describe('레지스트리 — 스타일 노드는 하나만 유지된다', () =>
 
   afterEach(() => {
     resetLayoutArbiterForTest();
+  });
+
+  it('접힘 전환 중 주장을 해제·재등록해도 중간 스타일을 노출하지 않는다', () => {
+    claimWidth('chatWidth', 314, 'unfolded', 'bottom');
+    const original = document.getElementById(OURS.layoutStyleId)!;
+    const callback = vi.fn();
+    const stop = onActiveWidthChange(callback);
+    batchLayoutUpdates(() => {
+      releaseWidth('chatWidth');
+      expect(original.isConnected).toBe(true);
+      expect(original.textContent).toContain('height: 314px');
+      claimWidth('chatWidth', 581, 'folded', 'bottom');
+      expect(callback).not.toHaveBeenCalled();
+    });
+    expect(document.getElementById(OURS.layoutStyleId)).toBe(original);
+    expect(original.textContent).toContain('height: 581px');
+    expect(callback).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it('전환 작업이 실패해도 배치를 잠근 상태로 남기지 않는다', () => {
+    expect(() =>
+      batchLayoutUpdates(() => {
+        claimWidth('chatWidth', 250, 'pending');
+        throw new Error('failed');
+      }),
+    ).toThrow('failed');
+    claimWidth('chatWidth', 300, 'recovered');
+    expect(document.getElementById(OURS.layoutStyleId)?.textContent).toContain('width: 300px');
   });
 
   it('claim 하면 style 태그 하나가 생긴다', () => {
