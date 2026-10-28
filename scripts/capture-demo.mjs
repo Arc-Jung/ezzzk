@@ -721,6 +721,90 @@ SHOTS.push({
 });
 
 SHOTS.push({
+  key: 'fold-responsive',
+  explicitOnly: true,
+  multiView: false,
+  caption: '접힘·펼침·회전마다 화면에 맞춘 자동 배치',
+  file: () => 'demo-fold-responsive-reopened.png',
+  verify: async (page) => {
+    const aside = await page.locator('#aside-chatting').boundingBox();
+    if (!aside || Math.abs(aside.y + aside.height - 798) > 3)
+      throw new Error('자동 배치 채팅이 화면을 채우지 못했습니다');
+  },
+  setup: async (page) => {
+    await seedSettings(page.context(), {
+      chatWidth: {
+        ratioSource: 'auto',
+        rightRatio: null,
+        bottomRatio: null,
+        placementSource: 'auto',
+        collapsed: false,
+      },
+    });
+    await page.waitForTimeout(500);
+    const video = await page.locator('#live_player_layout video').first().elementHandle();
+    const states = [];
+    for (const [name, width, height] of [
+      ['opened', 859, 798],
+      ['cover', 411, 812],
+      ['open-portrait', 859, 954],
+      ['open-landscape', 954, 859],
+      ['cover-toolbar-hidden', 411, 960],
+      ['cover-again', 411, 812],
+      ['reopened', 859, 798],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.waitForFunction(
+        ({ width, height }) => {
+          const player = document.querySelector('#live_player_layout')?.getBoundingClientRect();
+          const aside = document.querySelector('#aside-chatting')?.getBoundingClientRect();
+          const expectedVideoHeight = (width * 9) / 16;
+          const input = document.querySelector('#aside-chatting textarea')?.getBoundingClientRect();
+          return (
+            player &&
+            aside &&
+            input &&
+            Math.abs(player.height - expectedVideoHeight) < 3 &&
+            Math.abs(aside.top - player.bottom) < 3 &&
+            Math.abs(aside.bottom - height) < 3 &&
+            Math.abs(aside.width - width) < 3 &&
+            input.bottom < height
+          );
+        },
+        { width, height },
+        { timeout: 3000 },
+      );
+      const sameVideo = await page.evaluate(
+        (video) => video === document.querySelector('#live_player_layout video'),
+        video,
+      );
+      if (!sameVideo) throw new Error('자동 배치 전환 중 video가 교체됐습니다');
+      const state = await page.evaluate(() => {
+        const rect = (selector) => {
+          const r = document.querySelector(selector).getBoundingClientRect();
+          return { width: r.width, height: r.height, top: r.top, bottom: r.bottom };
+        };
+        return {
+          player: rect('#live_player_layout'),
+          aside: rect('#aside-chatting'),
+          input: rect('#aside-chatting textarea'),
+        };
+      });
+      states.push({ name, width, height, sameVideo, ...state });
+      if (['cover', 'open-portrait', 'open-landscape', 'reopened'].includes(name))
+        await page.screenshot({ path: resolve(OUT_DIR, `demo-fold-responsive-${name}.png`) });
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/fold-responsive-report.json'),
+      JSON.stringify(states, null, 2),
+    );
+    console.info(
+      '[fold-responsive] 접힘·펼침·회전·주소창 7개 상태: 16:9 영상·나머지 채팅·입력창·동일 video 통과',
+    );
+  },
+});
+
+SHOTS.push({
   key: 'fold-manual-height',
   explicitOnly: true,
   multiView: false,
