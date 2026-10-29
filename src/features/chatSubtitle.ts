@@ -1,14 +1,16 @@
 /** 영상 안에 표시하는 읽기 전용 채팅 자막. 원본 채팅·입력·재생 조작은 유지한다. */
-import { CHZZK, ID, PLAYER } from '../constants/class';
+import { ID, PLAYER } from '../constants/class';
 import { DEFAULT_SETTINGS, type Settings } from '../constants/storage';
-import { normalizeText, removeStyle, upsertStyle } from '../utils/dom';
-import { findChatClient, readChatMessage } from '../utils/reactFiber';
+import { removeStyle, upsertStyle } from '../utils/dom';
+import { readSubtitleMessages } from '../utils/chatMessages';
+import { watchLatestChat } from '../utils/chatSource';
+export { readSubtitleMessages } from '../utils/chatMessages';
+export type { SubtitleMessage } from '../utils/chatMessages';
 import type { Feature } from './types';
 
 export const CHAT_SUBTITLE_ID = 'cm-chat-subtitle';
 const STYLE_ID = `${CHAT_SUBTITLE_ID}-style`;
 export type SubtitleSettings = Settings['chatSubtitle'];
-export type SubtitleMessage = { nickname: string; text: string };
 
 function bounded(value: unknown, fallback: number, min: number, max: number): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -97,44 +99,6 @@ export function subtitleGeometry(
   };
 }
 
-/** React 데이터가 보이지 않는 확장 격리 환경에서도 본문과 닉네임을 분리한다. */
-export function readSubtitleMessages(root: ParentNode = document): SubtitleMessage[] {
-  const nodes = [...root.querySelectorAll(CHZZK.chatMessage)];
-  const anchor = nodes.at(-1);
-  const history = anchor ? findChatClient(anchor)?.messageList : undefined;
-  if (history?.length) {
-    return [...history]
-      .sort((a, b) => (a.time ?? 0) - (b.time ?? 0))
-      .slice(-6)
-      .flatMap((message) => {
-        const text = typeof message.content === 'string' ? normalizeText(message.content) : '';
-        return text
-          ? [{ nickname: message.profile?.nickname ?? '', text: text.slice(0, 1000) }]
-          : [];
-      });
-  }
-  // 가상 목록은 DOM 순서와 표시 순서가 다를 수 있다. 화면 아래쪽의 최신 메시지를 읽는다.
-  const ordered = nodes
-    .map((node) => ({ node, top: node.getBoundingClientRect().top }))
-    .sort((a, b) => a.top - b.top);
-  return ordered.slice(-6).flatMap(({ node }) => {
-    const message = readChatMessage(node);
-    if (typeof message?.content === 'string') {
-      const text = normalizeText(message.content);
-      return text ? [{ nickname: message.profile?.nickname ?? '', text: text.slice(0, 1000) }] : [];
-    }
-    const nickname = normalizeText(node.querySelector('[class*="_nickname_"]')?.textContent);
-    const copy = node.cloneNode(true) as Element;
-    // _text_ 는 닉네임에도 쓰인다. 첫 번째 span을 본문으로 선택하지 않는다.
-    copy.querySelectorAll('button, [class*="_nickname_"]').forEach((element) => element.remove());
-    copy
-      .querySelectorAll('img')
-      .forEach((image) => image.replaceWith(image.getAttribute('alt') ?? ''));
-    const text = normalizeText(copy.textContent);
-    return text ? [{ nickname, text: text.slice(0, 1000) }] : [];
-  });
-}
-
 export const CHAT_SUBTITLE_CSS = `
 #${CHAT_SUBTITLE_ID} {
   position: absolute; z-index: 25; box-sizing: border-box;
@@ -150,6 +114,7 @@ export const CHAT_SUBTITLE_CSS = `
 
 export const chatSubtitleFeature: Feature = {
   id: 'chatSubtitle',
+  preserveOnDeviceChange: true,
   watches: ['chatSubtitle'],
   supports: (ctx) =>
     ctx.page.type === 'live' && subtitleSettings(ctx.settings.chatSubtitle).enabled,
@@ -171,6 +136,7 @@ export const chatSubtitleFeature: Feature = {
     let observedAside: Element | null = null;
     let previous = '';
     let resize: ResizeObserver | undefined;
+    const source = watchLatestChat(() => sync());
     const sync = () => {
       const player = document.querySelector<HTMLElement>(`${ID.livePlayerLayout} ${PLAYER.rootPc}`);
       if (!player) {
@@ -199,7 +165,8 @@ export const chatSubtitleFeature: Feature = {
         observedAside = aside;
         if (aside) mutation.observe(aside, { childList: true, subtree: true, characterData: true });
       }
-      const messages = readSubtitleMessages();
+      source.refresh();
+      const messages = source.read() ?? readSubtitleMessages();
       const rect = player.getBoundingClientRect();
       const video = player.querySelector('video');
       const aspect =
@@ -259,6 +226,7 @@ export const chatSubtitleFeature: Feature = {
     document.addEventListener('fullscreenchange', sync);
     sync();
     return () => {
+      source.dispose();
       clearInterval(timer);
       if (pending !== undefined) clearTimeout(pending);
       mutation.disconnect();

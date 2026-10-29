@@ -69,6 +69,12 @@ html, body {
   overflow: hidden !important;
   background: #000 !important;
 }
+/* transform이 있는 조상은 fixed 플레이어의 기준 좌표를 바꾼다.
+ * 넓은 화면을 끈 치지직 section은 사이드바·헤더만큼 이동하므로 슬롯에서만 해제한다.
+ * 해시 대신 플레이어를 포함하는 실제 조상만 선택해 DOM을 이동하지 않는다. */
+html, body, ${ID.root}, ${ID.root} :has(${ID.livePlayerLayout}) {
+  transform: none !important;
+}
 ${ID.root} { visibility: hidden !important; }
 ${ID.livePlayerLayout} { visibility: visible !important; }
 ${ID.livePlayerLayout} {
@@ -81,7 +87,7 @@ ${ID.livePlayerLayout} {
   z-index: ${OURS.topZIndex - 1} !important;
 }
 /* 영상은 잘리지 않게 contain 으로 맞춘다. 슬롯 비율이 16:9 면 여백이 0 이 된다. */
-${ID.livePlayerLayout} video { object-fit: contain !important; }
+${ID.livePlayerLayout} video { object-fit: contain !important; object-position: 50% 50% !important; }
 /* 치트키 배너 등 body 직계 오버레이는 슬롯에서 항상 숨긴다. */
 body > div:not(${ID.root}):not(${ID.portal}) { display: none !important; }
 `.trim();

@@ -186,6 +186,22 @@ describe('폴드 전환 뷰포트 구독', () => {
     }
     expect(callback).toHaveBeenCalledTimes(1);
   });
+  it('주소창 높이가 연속으로 변해도 마지막 이벤트를 기다리지 않고 프레임마다 반영한다', async () => {
+    vi.useFakeTimers();
+    viewport(411, 812);
+    const callback = vi.fn();
+    stop = onViewportChange(callback, { relaxed: true });
+    for (const height of [830, 860, 900, 960]) {
+      viewport(411, height);
+      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event('resize'));
+      await vi.advanceTimersByTimeAsync(32);
+    }
+    expect(callback).toHaveBeenCalledTimes(4);
+    expect(callback.mock.lastCall![0].size.height).toBe(960);
+    await vi.advanceTimersByTimeAsync(350);
+    expect(callback).toHaveBeenCalledTimes(4);
+  });
   it('입력 중이 아닌 창 높이 축소를 키보드로 오판하지 않는다', async () => {
     vi.useFakeTimers();
     viewport(411, 812);

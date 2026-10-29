@@ -80,6 +80,7 @@ describe('셀렉터 규칙 — 접미 해시 하드코딩 금지 (NFR-03)', () =
 
   it('C계층 접두어 부분 일치는 [class*="..."] 형태로만 쓴다', () => {
     for (const [key, value] of Object.entries(CHZZK)) {
+      if (!value.includes('[class')) continue;
       // 접두어는 `_container_wj4te` 처럼 해시 앞부분까지 포함할 수 있어 숫자를 허용한다.
       expect(value, `CHZZK.${key}`).toMatch(/\[class\*="_[a-z0-9_]+"\]/);
     }
@@ -101,6 +102,13 @@ describe('셀렉터 규칙 — 접미 해시 하드코딩 금지 (NFR-03)', () =
 });
 
 describe('실측으로 정정된 셀렉터 (회귀 고정)', () => {
+  it('플레이어 main은 CSS 모듈 해시가 바뀌어도 라이브·VOD ID로 찾는다', () => {
+    const host = document.createElement('div');
+    host.innerHTML = `<main class="_container_4mxy2_2"><div id="live_player_layout"></div></main>
+      <main class="another-build"><div id="player_layout"></div></main><main></main>`;
+    expect(host.querySelectorAll(CHZZK.mainContainer)).toHaveLength(2);
+  });
+
   it('설정 버튼은 aria-label 로 특정한다 — .pzp-pc__setting-button 단독 사용 금지', () => {
     // 실측: 3개 매칭되고 querySelector 가 잡는 첫 번째는 0×0 / display:none 인 상점 버튼이다.
     expect(PLAYER.settingButton).toContain('aria-label="설정"');

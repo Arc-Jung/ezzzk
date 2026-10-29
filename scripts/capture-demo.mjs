@@ -721,6 +721,245 @@ SHOTS.push({
 });
 
 SHOTS.push({
+  key: 'fold-responsive',
+  explicitOnly: true,
+  multiView: false,
+  subtitle: true,
+  caption: '접힘·펼침·회전마다 화면에 맞춘 자동 배치',
+  file: () => 'demo-fold-responsive-reopened.png',
+  verify: async (page) => {
+    const aside = await page.locator('#aside-chatting').boundingBox();
+    if (!aside || Math.abs(aside.y + aside.height - 798) > 3)
+      throw new Error('자동 배치 채팅이 화면을 채우지 못했습니다');
+  },
+  setup: async (page) => {
+    await seedSettings(page.context(), {
+      chatWidth: {
+        ratioSource: 'auto',
+        rightRatio: null,
+        bottomRatio: null,
+        placementSource: 'auto',
+        collapsed: false,
+      },
+    });
+    await page.waitForTimeout(500);
+    const video = await page.locator('#live_player_layout video').first().elementHandle();
+    const controls = await Promise.all(
+      ['#cm-volume-control', '#cm-chat-width-control', '#cm-chat-subtitle'].map((selector) =>
+        page.locator(selector).first().elementHandle(),
+      ),
+    );
+    if (controls.some((control) => !control)) throw new Error('연속성 검증 컨트롤이 없습니다');
+    // 사용자 조작과 같은 trusted 클릭으로 음량·음소거를 바꾼다.
+    // JS로 muted를 대입하면 자동 음소거 복구가 플레이어 변경으로 판단하는 별개 조건이다.
+    await revealControls(page);
+    await page.locator('#cm-volume-control button[aria-label="볼륨 높이기"]').click();
+    const expectedVolume = await video.evaluate((video) => video.volume);
+    await page.locator('.pzp-pc__volume-button').first().click();
+    await page.waitForTimeout(200);
+    const initialSource = await video.evaluate((video) => video.currentSrc);
+    const states = [];
+    for (const [name, width, height] of [
+      ['opened', 859, 798],
+      ['cover', 411, 812],
+      ['open-portrait', 859, 954],
+      ['open-landscape', 954, 859],
+      ['cover-toolbar-hidden', 411, 960],
+      ['cover-again', 411, 812],
+      ['reopened', 859, 798],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.waitForFunction(
+        ({ width, height }) => {
+          const player = document.querySelector('#live_player_layout')?.getBoundingClientRect();
+          const aside = document.querySelector('#aside-chatting')?.getBoundingClientRect();
+          const expectedVideoHeight = (width * 9) / 16;
+          const input = document.querySelector('#aside-chatting textarea')?.getBoundingClientRect();
+          return (
+            player &&
+            aside &&
+            input &&
+            Math.abs(player.height - expectedVideoHeight) < 3 &&
+            Math.abs(aside.top - player.bottom) < 3 &&
+            Math.abs(aside.bottom - height) < 3 &&
+            Math.abs(aside.width - width) < 3 &&
+            input.bottom < height
+          );
+        },
+        { width, height },
+        { timeout: 3000 },
+      );
+      const sameVideo = await page.evaluate(
+        (video) => video === document.querySelector('#live_player_layout video'),
+        video,
+      );
+      if (!sameVideo) throw new Error('자동 배치 전환 중 video가 교체됐습니다');
+      for (const [index, selector] of [
+        '#cm-volume-control',
+        '#cm-chat-width-control',
+        '#cm-chat-subtitle',
+      ].entries()) {
+        const sameControl = await page.evaluate(
+          ({ control, selector }) =>
+            control.isConnected && control === document.querySelector(selector),
+          { control: controls[index], selector },
+        );
+        if (!sameControl) throw new Error(`전환 중 컨트롤이 재생성됐습니다: ${selector}`);
+      }
+      const media = await video.evaluate((video) => ({
+        volume: video.volume,
+        muted: video.muted,
+        paused: video.paused,
+        readyState: video.readyState,
+        source: video.currentSrc,
+      }));
+      if (
+        Math.abs(media.volume - expectedVolume) > 0.001 ||
+        !media.muted ||
+        media.paused ||
+        media.source !== initialSource
+      )
+        throw new Error(`${name} 전환 중 재생·음량 상태가 변경됐습니다: ${JSON.stringify(media)}`);
+      const state = await page.evaluate(() => {
+        const rect = (selector) => {
+          const r = document.querySelector(selector).getBoundingClientRect();
+          return { width: r.width, height: r.height, top: r.top, bottom: r.bottom };
+        };
+        return {
+          player: rect('#live_player_layout'),
+          aside: rect('#aside-chatting'),
+          input: rect('#aside-chatting textarea'),
+        };
+      });
+      states.push({
+        name,
+        width,
+        height,
+        sameVideo,
+        sameControls: true,
+        media: {
+          volume: media.volume,
+          muted: media.muted,
+          paused: media.paused,
+          readyState: media.readyState,
+        },
+        ...state,
+      });
+      if (['cover', 'open-portrait', 'open-landscape', 'reopened'].includes(name))
+        await page.screenshot({ path: resolve(OUT_DIR, `demo-fold-responsive-${name}.png`) });
+    }
+    // 사용자가 멈춘 재생도 전환 때문에 다시 켜지면 안 된다.
+    await revealControls(page);
+    await page.locator('.pzp-pc__playback-switch').first().click();
+    await page.waitForFunction(() => document.querySelector('#live_player_layout video')?.paused);
+    for (const viewport of [
+      { width: 411, height: 812 },
+      { width: 859, height: 798 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.waitForTimeout(500);
+      if (!(await video.evaluate((video) => video.paused)))
+        throw new Error('사용자가 일시정지한 재생이 접힘·펼침으로 다시 켜졌습니다');
+    }
+    await revealControls(page);
+    await page.locator('.pzp-pc__playback-switch').first().click();
+    await page.waitForFunction(() => !document.querySelector('#live_player_layout video')?.paused);
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/fold-responsive-report.json'),
+      JSON.stringify(states, null, 2),
+    );
+    console.info(
+      '[fold-responsive] 7개 상태: 자동 배치·동일 video/컨트롤/자막·음량/음소거·사용자 일시정지 유지 통과',
+    );
+  },
+});
+
+SHOTS.push({
+  key: 'fold-manual-height',
+  explicitOnly: true,
+  multiView: false,
+  caption: '수동 채팅 높이를 저장한 폴드 접힘·펼침',
+  file: () => 'demo-fold-manual-reopened.png',
+  verify: async (page) => {
+    const aside = await page.locator('#aside-chatting').boundingBox();
+    if (!aside || Math.abs(aside.y + aside.height - 798) > 3)
+      throw new Error('채팅 하단에 빈 공간이 남았습니다');
+  },
+  setup: async (page) => {
+    const states = [];
+    const video = await page.locator('#live_player_layout video').first().elementHandle();
+    // 새 기본값만 시험하면 기존 사용자의 저장된 작은 높이에서 생기는 공백을 놓친다.
+    for (const bottomRatio of [20, 40, 80, null]) {
+      await seedSettings(page.context(), {
+        chatWidth: {
+          ratio: bottomRatio ?? 30,
+          ratioSource: bottomRatio === null ? 'auto' : 'manual',
+          bottomRatio,
+          rightRatio: null,
+          collapsed: false,
+          placement: 'bottom',
+          placementSource: 'auto',
+        },
+      });
+      await page.waitForTimeout(500);
+      for (const [name, width, height] of [
+        ['opened', 859, 798],
+        ['cover', 411, 812],
+        ['reopened', 859, 798],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await page.waitForTimeout(500);
+        const state = await page.evaluate(() => {
+          const rect = (selector) => {
+            const r = document.querySelector(selector)?.getBoundingClientRect();
+            return r ? { top: r.top, bottom: r.bottom, width: r.width, height: r.height } : null;
+          };
+          return {
+            viewport: { width: innerWidth, height: innerHeight, scale: visualViewport?.scale },
+            player: rect('#live_player_layout'),
+            aside: rect('#aside-chatting'),
+            scroller: rect('#aside-chatting [class*="_wrapper_8lqsk"]'),
+            input: rect('#aside-chatting textarea'),
+          };
+        });
+        const sameVideo = await page.evaluate(
+          (video) => video === document.querySelector('#live_player_layout video'),
+          video,
+        );
+        if (
+          !sameVideo ||
+          !state.aside ||
+          Math.abs(state.aside.bottom - height) > 3 ||
+          Math.abs(state.aside.width - width) > 3 ||
+          !state.input ||
+          state.input.bottom > height + 2 ||
+          (name === 'cover' && Math.abs(state.aside.top - state.player.bottom) > 3)
+        )
+          throw new Error(`수동 높이 ${bottomRatio}, ${name}: ${JSON.stringify(state)}`);
+        states.push({ bottomRatio, name, sameVideo, ...state });
+        if (bottomRatio === 20)
+          await page.screenshot({ path: resolve(OUT_DIR, `demo-fold-manual-${name}.png`) });
+      }
+      const [worker] = page.context().serviceWorkers();
+      const stored = await worker.evaluate(
+        async () =>
+          (await chrome.storage.local.get('ezzzk.settings'))['ezzzk.settings'].chatWidth
+            .bottomRatio,
+      );
+      if (stored !== bottomRatio) throw new Error('전환 중 저장된 수동 높이가 변경됐습니다');
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/fold-manual-report.json'),
+      JSON.stringify(states, null, 2),
+    );
+    // 대표 스크린샷과 최종 캡처 모두 수동 20% 조건으로 맞춘다.
+    await seedSettings(page.context(), { chatWidth: { bottomRatio: 20, ratioSource: 'manual' } });
+    await page.waitForTimeout(500);
+    console.info('[fold-manual] 4개 높이 × 펼침·접힘·재펼침: 공백·입력창·video·저장값 검증 통과');
+  },
+});
+
+SHOTS.push({
   key: 'fold-transition',
   explicitOnly: true,
   multiView: false,
@@ -884,6 +1123,394 @@ SHOTS.push({
   },
 });
 
+SHOTS.push({
+  key: 'multiview-alignment',
+  explicitOnly: true,
+  multiView: true,
+  split: 2,
+  file: () => 'demo-multiview-alignment-reopened.png',
+  caption: '멀티뷰 슬롯 내부 영상 정렬',
+  verify: (page) => gridShot.verify(page),
+  setup: async (page) => {
+    await gridShot.setup(page, 2);
+    const handles = await page.locator('#cm-multiview-stage .cm-slot iframe').elementHandles();
+    const frames = await Promise.all(handles.map((handle) => handle.contentFrame()));
+    const videos = await Promise.all(
+      frames.map((frame) => frame.locator('#live_player_layout video').elementHandle()),
+    );
+    const reports = [];
+    for (const [name, width, height] of [
+      ['opened', 859, 798],
+      ['native-narrow', 859, 798],
+      ['cover', 411, 812],
+      ['reopened', 859, 798],
+      ['native-wide', 859, 798],
+      ['fullscreen', 859, 798],
+      ['restored', 859, 798],
+    ]) {
+      await page.setViewportSize({ width, height });
+      if (name === 'fullscreen' || name === 'restored') {
+        await page
+          .locator('#cm-multiview-stage button[aria-label="전체 화면 전환 (주소창 숨김)"]')
+          .click();
+        await page.waitForFunction(
+          (expected) => !!document.fullscreenElement === expected,
+          name === 'fullscreen',
+        );
+      }
+      if (name.startsWith('native-')) {
+        for (const frame of frames)
+          await frame.evaluate((wide) => {
+            const button = document.querySelector('.pzp-viewmode-button');
+            const active = button?.getAttribute('aria-label')?.includes('좁은 화면');
+            if (button && active !== wide) button.click();
+          }, name === 'native-wide');
+      }
+      await page.waitForTimeout(650);
+      for (const [index, frame] of frames.entries()) {
+        const data = await frame.evaluate(() => {
+          const rect = (e) => {
+            const r = e.getBoundingClientRect();
+            return { x: r.x, y: r.y, width: r.width, height: r.height };
+          };
+          const player = document.querySelector('#live_player_layout'),
+            video = player.querySelector('video');
+          return {
+            viewport: { width: innerWidth, height: innerHeight },
+            player: rect(player),
+            root: rect(player.querySelector('.pzp-pc')),
+            video: rect(video),
+            objectPosition: getComputedStyle(video).objectPosition,
+            objectFit: getComputedStyle(video).objectFit,
+          };
+        });
+        const sameVideo = await frame.evaluate(
+          (video) => video === document.querySelector('#live_player_layout video'),
+          videos[index],
+        );
+        for (const rect of [data.player, data.root, data.video]) {
+          if (
+            Math.abs(rect.x) > 1 ||
+            Math.abs(rect.y) > 1 ||
+            Math.abs(rect.width - data.viewport.width) > 1 ||
+            Math.abs(rect.height - data.viewport.height) > 1
+          )
+            throw new Error(
+              `${name} 슬롯 ${index} 영상이 밀리거나 잘렸습니다: ${JSON.stringify(data)}`,
+            );
+        }
+        if (!sameVideo || data.objectFit !== 'contain' || data.objectPosition !== '50% 50%')
+          throw new Error('슬롯의 재생 요소 또는 영상 중앙 정렬이 유지되지 않았습니다');
+        reports.push({ name, index, sameVideo, ...data });
+      }
+      if (['native-narrow', 'cover', 'fullscreen', 'restored'].includes(name))
+        await page.screenshot({
+          path: resolve(
+            OUT_DIR,
+            `demo-multiview-alignment-${name === 'restored' ? 'reopened' : name}.png`,
+          ),
+        });
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/slot-alignment-report.json'),
+      JSON.stringify(reports, null, 2),
+    );
+    console.info('[slot-alignment] 두 슬롯 × 7개 상태: 원점·전체 영역·중앙 정렬·동일 video 통과');
+  },
+});
+
+/** 페이지 실행 환경에서 공개 채팅의 표시용 필드만 검사한다. */
+function subtitleLiveSample() {
+  const nodes = [...document.querySelectorAll('#aside-chatting [class*="_chatting_message_"]')];
+  let client;
+  for (const anchor of [
+    document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]'),
+    nodes[0],
+    nodes.at(-1),
+  ]) {
+    let fiber = anchor?.[Object.keys(anchor ?? {}).find((key) => key.startsWith('__reactFiber$'))];
+    for (let depth = 0; fiber && depth < 15; depth++, fiber = fiber.return) {
+      if (fiber.memoizedProps)
+        client ??= Object.values(fiber.memoizedProps).find(
+          (value) =>
+            value &&
+            typeof value === 'object' &&
+            Array.isArray(value.messageList) &&
+            typeof value.messageLimitCount === 'number',
+        );
+    }
+  }
+  const clean = (value) => (value ?? '').replace(/\s+/g, ' ').trim();
+  const history = (client?.messageList ?? [])
+    .filter((message) => typeof message.content === 'string')
+    .map((message) => ({
+      time: message.time ?? 0,
+      text: `${message.profile?.nickname ? message.profile.nickname + ': ' : ''}${clean(message.content).slice(0, 1000)}`,
+    }));
+  const rows = [...document.querySelectorAll('#cm-chat-subtitle .cm-subtitle-message')].map(
+    (row) => row.textContent,
+  );
+  const scroller = document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]');
+  return {
+    history: history.slice(-50),
+    latestTime: Math.max(0, ...history.map((message) => message.time)),
+    rows,
+    scrollTop: scroller?.scrollTop ?? 0,
+    bridge: window.__ezzzkChatSourceInstalled === true,
+  };
+}
+
+async function verifySubtitleFreshness(page, target, label) {
+  await target.waitForFunction(
+    () =>
+      window.__ezzzkChatSourceInstalled === true &&
+      document.querySelector('#cm-chat-subtitle .cm-subtitle-message'),
+    null,
+    { timeout: 10000 },
+  );
+  await target.waitForFunction(
+    () => {
+      const e = document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]');
+      return e && e.scrollHeight > e.clientHeight + 10;
+    },
+    null,
+    { timeout: 15000 },
+  );
+  await target.evaluate(() => {
+    const e = document.querySelector('#aside-chatting [class*="_wrapper_8lqsk"]');
+    e.scrollTop = -150;
+    e.dispatchEvent(new Event('scroll'));
+  });
+  const samples = [];
+  let previous = await target.evaluate(subtitleLiveSample);
+  for (let round = 0; round < 3; round++) {
+    let found;
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(500);
+      const next = await target.evaluate(subtitleLiveSample);
+      if (
+        next.bridge &&
+        next.scrollTop < -2 &&
+        JSON.stringify(next.rows) !== JSON.stringify(previous.rows) &&
+        next.history.some(
+          (message) => message.time > previous.latestTime && message.text === next.rows.at(-1),
+        )
+      ) {
+        found = next;
+        break;
+      }
+    }
+    if (!found)
+      throw new Error(
+        `${label}: 원본 채팅을 과거 위치에 둔 상태에서 새 자막이 갱신되지 않았습니다`,
+      );
+    samples.push({ latestTime: found.latestTime, scrollTop: found.scrollTop, rows: found.rows });
+    previous = found;
+  }
+  console.info(`[subtitle-live] ${label}: 원본 스크롤 유지·새 메시지 3회 갱신 통과`);
+  return samples;
+}
+
+SHOTS.push({
+  key: 'chat-subtitle-freshness',
+  explicitOnly: true,
+  multiView: false,
+  subtitle: true,
+  file: () => 'demo-chat-subtitle-freshness.png',
+  caption: '원본 채팅을 읽는 동안 최신 자막 갱신',
+  verify: async (page) => {
+    if (!(await page.locator('#cm-chat-subtitle').count())) throw new Error('자막 없음');
+  },
+  setup: async (page) => {
+    const samples = await verifySubtitleFreshness(page, page, '일반 시청');
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/subtitle-freshness-report.json'),
+      JSON.stringify(samples, null, 2),
+    );
+  },
+});
+SHOTS.push({
+  key: 'chat-subtitle-freshness-multiview',
+  explicitOnly: true,
+  multiView: true,
+  subtitle: true,
+  split: 2,
+  file: () => 'demo-chat-subtitle-freshness-multiview.png',
+  caption: '각 멀티뷰 슬롯의 최신 자막 갱신',
+  verify: (page) => gridShot.verify(page),
+  setup: async (page) => {
+    await gridShot.setup(page, 2);
+    const samples = [];
+    for (const [index, handle] of (
+      await page.locator('#cm-multiview-stage .cm-slot iframe').elementHandles()
+    ).entries()) {
+      samples.push(
+        await verifySubtitleFreshness(page, await handle.contentFrame(), `슬롯 ${index + 1}`),
+      );
+    }
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/subtitle-freshness-multiview-report.json'),
+      JSON.stringify(samples, null, 2),
+    );
+  },
+});
+
+const recoverySessions = new WeakMap();
+SHOTS.push({
+  key: 'chat-source-recovery',
+  explicitOnly: true,
+  multiView: false,
+  subtitle: true,
+  file: () => 'demo-chat-source-recovery.png',
+  caption: '채팅 소스 로드 실패 후 자동 복구',
+  beforeNavigate: async (page) => {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Network.enable');
+    await session.send('Network.setBlockedURLs', { urls: ['*chatSourceMain*'] });
+    recoverySessions.set(page, session);
+  },
+  setup: async (page) => {
+    const failed = await page.locator('#cm-chat-source-main').getAttribute('src');
+    const retryAt = await page.locator('#cm-chat-source-main').getAttribute('data-retry-at');
+    if (!retryAt || (await page.evaluate(() => window.__ezzzkChatSourceInstalled === true)))
+      throw new Error('실제 모듈 로드 실패 조건을 재현하지 못했습니다');
+    await recoverySessions.get(page).send('Network.setBlockedURLs', { urls: [] });
+    await page.waitForFunction(() => window.__ezzzkChatSourceInstalled === true, null, {
+      timeout: 15000,
+    });
+    const recovered = await page.locator('#cm-chat-source-main').getAttribute('src');
+    if (failed === recovered) throw new Error('실패한 모듈 URL을 재사용했습니다');
+    const samples = await verifySubtitleFreshness(page, page, '실제 소스 로드 실패 복구 후');
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/chat-source-recovery-report.json'),
+      JSON.stringify({ failed, recovered, samples }, null, 2),
+    );
+    console.info(
+      '[chat-source-recovery] 실제 모듈 차단·해제 후 자동 재시도 및 최신 채팅 갱신 통과',
+    );
+  },
+  verify: async (page) => {
+    if ((await page.locator('#cm-chat-source-main').count()) !== 1)
+      throw new Error('소스 모듈 중복');
+  },
+});
+
+// 개별 기능이 통과해도 접기·숨기기·설정 변경을 섞으면 구독이 끊길 수 있다.
+SHOTS.push({
+  key: 'fold-overlay-integration',
+  explicitOnly: true,
+  multiView: false,
+  subtitle: true,
+  file: () => 'demo-fold-overlay-integration-reopened.png',
+  caption: '접힘·채팅 숨김·자막 재설정 후 실시간 갱신',
+  verify: async (page) => {
+    if ((await page.locator('#cm-chat-subtitle').count()) !== 1)
+      throw new Error('자막이 중복되거나 사라졌습니다');
+  },
+  setup: async (page) => {
+    const video = await page.locator('#live_player_layout video').first().elementHandle();
+    const initial = await video.evaluate((v) => ({ src: v.currentSrc, time: v.currentTime }));
+    const states = [];
+    for (const [name, width, height, position] of [
+      ['opened', 859, 798, 'left'],
+      ['cover', 411, 812, 'right'],
+      ['open-portrait', 859, 954, 'center'],
+      ['reopened', 859, 798, 'left'],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.waitForTimeout(500);
+      await revealControls(page);
+      await page.locator('#cm-chat-subtitle-button').click();
+      await page.waitForFunction(() => !document.getElementById('cm-chat-subtitle'));
+      await revealControls(page);
+      await page.locator('#cm-chat-subtitle-button').click();
+      await page.waitForSelector('#cm-chat-subtitle .cm-subtitle-message');
+      await seedSettings(page.context(), {
+        chatSubtitle: { position, backgroundOpacity: 30, lines: 0 },
+      });
+      await page.waitForTimeout(400);
+      await revealControls(page);
+      await page.locator('#cm-chat-width-control button[aria-label="채팅 접기"]').click();
+      await page.waitForTimeout(500);
+      // 채팅을 숨겨도 자막의 소스와 같은 영상이 살아 있어야 한다.
+      const hidden = await page.evaluate(() => ({
+        rows: document.querySelectorAll('#cm-chat-subtitle .cm-subtitle-message').length,
+        width: document.getElementById('aside-chatting').getBoundingClientRect().width,
+        height: document.getElementById('aside-chatting').getBoundingClientRect().height,
+      }));
+      if (!hidden.rows) throw new Error(`${name}: 채팅 숨김 후 자막 소실`);
+      const beforeHiddenUpdate = await page.evaluate(subtitleLiveSample);
+      let hiddenUpdated = false;
+      for (let tick = 0; tick < 30; tick++) {
+        await page.waitForTimeout(500);
+        const next = await page.evaluate(subtitleLiveSample);
+        if (
+          next.history.some(
+            (m) => m.time > beforeHiddenUpdate.latestTime && m.text === next.rows.at(-1),
+          )
+        ) {
+          hiddenUpdated = true;
+          break;
+        }
+      }
+      if (!hiddenUpdated) throw new Error(`${name}: 채팅 숨김 중 최신 자막 갱신 실패`);
+      await revealControls(page);
+      await page.locator('#cm-chat-width-control button[aria-label="채팅 펼치기"]').click();
+      await page.waitForTimeout(500);
+      const sameVideo = await video.evaluate(
+        (v) => v.isConnected && v === document.querySelector('#live_player_layout video'),
+      );
+      const state = await video.evaluate((v) => ({
+        src: v.currentSrc,
+        paused: v.paused,
+        time: v.currentTime,
+      }));
+      if (!sameVideo || state.src !== initial.src || state.paused || state.time <= initial.time)
+        throw new Error(`${name}: 조합 전환 중 재생 연속성 손실`);
+      const overlay = await page.locator('#cm-chat-subtitle').evaluate((e) => {
+        const r = e.getBoundingClientRect();
+        const p = e.parentElement.getBoundingClientRect();
+        return {
+          left: r.left - p.left,
+          right: p.right - r.right,
+          lines: Number(e.dataset.lines),
+          background: getComputedStyle(e).backgroundColor,
+          count: document.querySelectorAll('#cm-chat-subtitle').length,
+        };
+      });
+      if (
+        overlay.count !== 1 ||
+        overlay.lines < 3 ||
+        overlay.lines > 6 ||
+        overlay.left < -1 ||
+        overlay.right < -1 ||
+        overlay.background !== 'rgba(0, 0, 0, 0.3)'
+      )
+        throw new Error(`${name}: 자막 설정/위치가 손실됐습니다: ${JSON.stringify(overlay)}`);
+      if (
+        (position === 'center' && Math.abs(overlay.left - overlay.right) > 2) ||
+        (position === 'left' && overlay.left > overlay.right) ||
+        (position === 'right' && overlay.right > overlay.left)
+      )
+        throw new Error(`${name}: 선택한 자막 위치가 적용되지 않았습니다`);
+      states.push({ name, width, height, position, sameVideo, hidden, hiddenUpdated, overlay });
+      if (name === 'cover')
+        await page.screenshot({
+          path: resolve(OUT_DIR, 'demo-fold-overlay-integration-cover.png'),
+        });
+    }
+    const samples = await verifySubtitleFreshness(page, page, '반복 전환·자막 재설정 후');
+    writeFileSync(
+      resolve(ROOT, 'etc/tmp/fold-overlay-integration-report.json'),
+      JSON.stringify({ states, samples }, null, 2),
+    );
+    console.info(
+      '[fold-overlay-integration] 4회 전환·자막 토글·3개 위치·채팅 숨김/복원·재생 및 최신 갱신 통과',
+    );
+  },
+});
+
 /** 라이브 목록에서 성인 채널을 걸러 **무작위 순서**로 돌려준다. */
 async function fetchLiveChannels() {
   const res = await fetch(LIVES_URL, { headers: { 'User-Agent': UA } });
@@ -947,6 +1574,7 @@ async function captureProfile(profile, channels) {
 
         await seedSettings(context, {
           debug: false,
+          chatWidth: { collapsed: false },
           chatSubtitle: {
             enabled: shot.subtitle ?? false,
             position: 'left',
@@ -976,6 +1604,7 @@ async function captureProfile(profile, channels) {
 
         const page = await context.newPage();
         try {
+          await shot.beforeNavigate?.(page);
           await page.goto(`https://chzzk.naver.com/live/${main.channelId}`, {
             waitUntil: 'domcontentloaded',
             timeout: 60_000,
@@ -1121,6 +1750,7 @@ async function main() {
   console.info('[demo] ⚠️ 남의 방송 화면이다 — 커밋 전에 프레임 내용을 확인한다.');
   if (failed.length > 0) {
     for (const f of failed) console.info(`  - ${f.profile}/${f.shot}: ${f.reason}`);
+    process.exitCode = 1;
   }
 }
 

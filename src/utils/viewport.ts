@@ -129,9 +129,13 @@ export function onViewportChange(
   };
   const run = debounce(deliver, relaxed ? RESIZE.debounceMsRelaxed : RESIZE.debounceMs);
   const handler = () => {
-    // 접힘·펼침의 폭 변경은 다음 프레임에 처리한다. 연속 scroll 신호가 300ms 타이머를
+    // 접힘·펼침과 주소창 높이 변경은 다음 프레임에 처리한다. 연속 scroll 신호가 타이머를
     // 계속 밀어도 이전 채팅 높이·기기 프로필에 머물지 않는다.
-    if (Math.abs(readViewport().width - previous.width) > 2 && fastFrame === undefined) {
+    const next = readViewport();
+    if (
+      (Math.abs(next.width - previous.width) > 2 || Math.abs(next.height - previous.height) > 2) &&
+      fastFrame === undefined
+    ) {
       const flush = () => {
         fastFrame = undefined;
         deliver();

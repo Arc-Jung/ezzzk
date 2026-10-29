@@ -31,6 +31,8 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { decideDevice } from '../device';
+import { onViewportChange } from '../utils/viewport';
 import { ID, OURS, PLAYER } from '../constants/class';
 import { MOBILE_PLAYER } from '../constants/classMobile';
 import { hasPlayer, type PageType } from '../pageType';
@@ -420,9 +422,11 @@ function isTextEntry(target: EventTarget | null): boolean {
 
 export const volumeFeature: Feature = {
   id: 'volume',
+  preserveOnDeviceChange: true,
   watches: ['volume'],
   supports: (ctx) => hasPlayer(ctx.page.type),
   start: (ctx) => {
+    let device = ctx.device;
     const dom = domFor(ctx.page.type);
     const step = normalizeStep(ctx.settings.volume.step);
     /**
@@ -518,7 +522,7 @@ export const volumeFeature: Feature = {
     }, 400);
 
     // ── FR-03 오버레이 컨트롤 ────────────────────────────────────────────────
-    const touchSize = ctx.device.profile.touchTargetPx;
+    let touchSize = device.profile.touchTargetPx;
     let node: HTMLElement | null = null;
     let valueEl: HTMLElement | null = null;
     let tapVisible = false;
@@ -801,7 +805,7 @@ export const volumeFeature: Feature = {
      */
     const syncTapVisibility = () => {
       if (!node) return;
-      const tapHidden = !ctx.device.profile.volumeAlwaysVisible && !tapVisible;
+      const tapHidden = !device.profile.volumeAlwaysVisible && !tapVisible;
       node.style.display = 'inline-flex';
       node.style.visibility = tapHidden ? 'hidden' : 'visible';
     };
@@ -918,7 +922,7 @@ export const volumeFeature: Feature = {
      */
     let tapRoot: HTMLElement | null = null;
     const ensureTapListener = () => {
-      if (ctx.device.profile.volumeAlwaysVisible) return;
+      if (device.profile.volumeAlwaysVisible) return;
       const root = qs<HTMLElement>(dom.root);
       if (!root || root === tapRoot) return;
       tapRoot?.removeEventListener('pointerdown', showOnTap, true);
@@ -937,9 +941,10 @@ export const volumeFeature: Feature = {
     disposers.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange));
 
     // ── FR-03 키보드 단축키 ──────────────────────────────────────────────────
-    // 네이티브 `space` `k` `m` `f` 는 건드리지 않는다. `off` 프로필에서는 아예 걸지 않는다.
-    if (ctx.device.profile.shortcuts !== 'off') {
+    // 네이티브 `space` `k` `m` `f` 는 건드리지 않는다. 현재 프로필이 `off`이면 실행하지 않는다.
+    {
       const onKeyDown = (e: KeyboardEvent) => {
+        if (device.profile.shortcuts === 'off') return;
         if (!e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
         if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
         if (isTextEntry(e.target)) return;
@@ -1375,10 +1380,24 @@ export const volumeFeature: Feature = {
       stopGuard?.();
       guardTarget = next;
       stopGuard = observe(next, () => guard('volume:ensure', ensureAttached), {
-        debounceMs: ctx.device.profile.relaxObservers ? 400 : 200,
+        debounceMs: device.profile.relaxObservers ? 400 : 200,
       });
     }
 
+    disposers.push(
+      onViewportChange(({ keyboardLikely }) => {
+        if (keyboardLikely) return;
+        device = decideDevice(ctx.settings.device.override);
+        touchSize = device.profile.touchTargetPx;
+        node?.querySelectorAll<HTMLElement>('.cm-volume-button').forEach((button) => {
+          button.style.minWidth = `${touchSize}px`;
+          button.style.minHeight = `${touchSize}px`;
+        });
+        ensureTapListener();
+        syncTapVisibility();
+        syncRowClearance();
+      }),
+    );
     ensureAttached();
     if (!video && !gaveUp) {
       // 여기서 끝내지 않는다 — 콘텐츠 스크립트는 플레이어보다 먼저 뜬다. 상한 안에서 기다린다.
