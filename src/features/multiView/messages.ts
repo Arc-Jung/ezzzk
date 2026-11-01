@@ -78,6 +78,8 @@ export type SlotToParent =
       volumePercent: number;
       quality: string | null;
       online: boolean;
+      /** 광고는 별도 플레이어이므로 online과 독립적으로 보고한다. 이전 프레임은 생략 가능. */
+      advertising?: boolean;
       viewerCount: number | null;
     }
   | {

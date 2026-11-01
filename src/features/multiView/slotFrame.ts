@@ -26,6 +26,7 @@ import { info, warning } from '../../utils/log';
 import { findChatClient, readChatMessage } from '../../utils/reactFiber';
 import { MV_CHANNEL, parseMvMessage, slotFromAudioShortcut, type SlotToParent } from './messages';
 import { isUserInitiatedStrict } from './userIntent';
+import { isPlayerAdActive } from '../adSkip';
 import {
   activateQualityItem,
   matchesTarget,
@@ -186,6 +187,7 @@ function readState(slot: SlotIndex): SlotToParent {
     quality: checked ? normalizeText(checked.textContent) : null,
     // `pzp-pc--onlive` 는 실측으로 확인된 라이브 여부 modifier 다.
     online: playerRoot?.classList.contains('pzp-pc--onlive') ?? false,
+    advertising: isPlayerAdActive(qs(ID.livePlayerLayout)),
     viewerCount: null,
   };
 }

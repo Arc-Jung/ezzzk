@@ -522,7 +522,7 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       vi.useRealTimers();
     });
 
-    const state = (slot: number, online: boolean) => ({
+    const state = (slot: number, online: boolean, advertising = false) => ({
       channel: MV_CHANNEL,
       dir: 's2p' as const,
       kind: 'state' as const,
@@ -531,6 +531,7 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       volumePercent: 0,
       quality: null,
       online,
+      advertising,
       viewerCount: null,
     });
     const notice = (slot: number) =>
@@ -559,6 +560,41 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       expect(notice(1)?.textContent).toContain('재생이 시작되지 않았습니다');
       // 다른 슬롯까지 덮어쓰지 않는다.
       expect(notice(2)).toBeNull();
+      stage.close();
+    });
+
+    it('광고가 90초 이어져도 실패 안내 없이 기다리고 다른 슬롯의 실패는 표시한다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 2 });
+      sendFromSlot(state(1, false, true));
+      sendFromSlot(state(2, false));
+      vi.advanceTimersByTime(90_000);
+      sendFromSlot(state(1, false, true));
+      sendFromSlot(state(2, false));
+      expect(notice(1)).toBeNull();
+      expect(notice(2)).not.toBeNull();
+      stage.close();
+    });
+
+    it('광고 감지 시 기존 안내를 지우고 광고 종료 후부터 실패 대기 시간을 다시 센다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 2 });
+      sendFromSlot(state(1, false));
+      vi.advanceTimersByTime(11_000);
+      sendFromSlot(state(1, false));
+      expect(notice(1)).not.toBeNull();
+      sendFromSlot(state(1, false, true));
+      expect(notice(1)).toBeNull();
+      vi.advanceTimersByTime(90_000);
+      sendFromSlot(state(1, false));
+      expect(notice(1)).toBeNull();
+      vi.advanceTimersByTime(11_000);
+      sendFromSlot(state(1, false));
+      expect(notice(1)).not.toBeNull();
       stage.close();
     });
 

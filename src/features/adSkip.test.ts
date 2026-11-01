@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../constants/storage';
-import { AD, clickSkipButtons, isClickableSkipButton, parseSkipCountdown } from './adSkip';
+import {
+  AD,
+  clickSkipButtons,
+  isClickableSkipButton,
+  parseSkipCountdown,
+  isPlayerAdActive,
+} from './adSkip';
 
 /**
  * 픽스처는 실측 덤프 그대로다
@@ -155,5 +161,30 @@ describe('AD 셀렉터', () => {
 describe('기본값 — 요청대로 자동 스킵이 켜져 있다', () => {
   it('adSkip.enabled 는 true 다', () => {
     expect(DEFAULT_SETTINGS.adSkip.enabled).toBe(true);
+  });
+});
+
+describe('isPlayerAdActive — 광고 상태와 본방송 실패를 구분한다', () => {
+  it('스킵 전 카운트다운 영역이 보이면 광고로 판정한다', () => {
+    mountCountdownState(15);
+    const marker = document.querySelector('.ad_info_area')!;
+    marker.getBoundingClientRect = () => ({ width: 300, height: 40 }) as DOMRect;
+    expect(isPlayerAdActive(document.querySelector('#live_player_layout'))).toBe(true);
+  });
+  it('스킵 버튼이 보이는 광고도 판정한다', () => {
+    mountSkippableState();
+    expect(isPlayerAdActive(document.querySelector('#live_player_layout'))).toBe(true);
+  });
+  it('종료 후 남아 있는 숨긴 광고 마크업과 플레이어 밖 링크는 무시한다', () => {
+    mountSkippableState();
+    const button = document.querySelector('button.btn_skip') as HTMLElement;
+    button.style.display = 'none';
+    expect(isPlayerAdActive(document.querySelector('#live_player_layout'))).toBe(false);
+    document.body.innerHTML =
+      '<a class="link_more">광고 페이지 보기</a><div id="live_player_layout"><video></video></div>';
+    const link = document.querySelector('a')!;
+    link.getBoundingClientRect = () => ({ width: 300, height: 40 }) as DOMRect;
+    expect(isPlayerAdActive(document.querySelector('#live_player_layout'))).toBe(false);
+    expect(isPlayerAdActive(null)).toBe(false);
   });
 });
