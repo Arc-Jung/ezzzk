@@ -274,7 +274,7 @@ export const DEFAULT_SETTINGS: Settings = {
     fontPx: 16,
     textColor: '#ffffff',
     backgroundColor: '#000000',
-    backgroundOpacity: 30,
+    backgroundOpacity: 10,
     showNickname: true,
   },
   chatWidth: {
