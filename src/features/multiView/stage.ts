@@ -248,6 +248,20 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   background: rgba(0, 0, 0, 0.55);
   pointer-events: none;
 }
+/* 광고 상태는 영상·스킵 버튼을 가리지 않는 작은 안내로 표시한다. */
+#${OURS.multiViewStageId} .cm-slot__ad-notice {
+  position: absolute;
+  left: 12px;
+  top: calc(28px + var(--cm-bar-overlap, 0px));
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  font-size: 13px;
+  pointer-events: none;
+}
 #${OURS.multiViewStageId} .cm-slot__retry {
   position: absolute;
   inset: 0;
@@ -1066,6 +1080,15 @@ export class MultiViewStage {
     warning(`slot ${runtime.slot} has been ready but not playing for ${SLOT_OFFLINE_NOTICE_MS}ms`);
   }
 
+  private showSlotAdNotice(runtime: SlotRuntime): void {
+    if (runtime.failed || runtime.cell.querySelector('.cm-slot__ad-notice')) return;
+    const notice = document.createElement('div');
+    notice.className = 'cm-slot__ad-notice';
+    notice.setAttribute('role', 'status');
+    notice.textContent = '광고 재생 중입니다';
+    runtime.cell.appendChild(notice);
+  }
+
   /** 재시도 중임을 알리는 일시 상태. 다음 로드가 붙거나 최종 실패로 넘어가면 스스로 사라진다. */
   private showSlotRetryStatus(cell: HTMLElement, attempt: number): void {
     cell.querySelector('.cm-slot__retry')?.remove();
@@ -1362,6 +1385,8 @@ export class MultiViewStage {
         return;
       }
       if (message.kind === 'state') {
+        if (message.advertising === true) this.showSlotAdNotice(runtime);
+        else runtime.cell.querySelector('.cm-slot__ad-notice')?.remove();
         if (!message.online && message.advertising !== true) {
           runtime.header.dataset.offline = 'true';
           /**

@@ -537,6 +537,24 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     const notice = (slot: number) =>
       document.querySelector(`#cm-multiview-stage .cm-slot[data-slot="${slot}"] .cm-slot__notice`);
 
+    const adNotice = (slot: number) =>
+      document.querySelector(
+        `#cm-multiview-stage .cm-slot[data-slot="${slot}"] .cm-slot__ad-notice`,
+      );
+
+    it('광고 시작을 즉시 알리고 중복 없이 유지하다가 본방송 전환 때 지운다', () => {
+      const { stage } = openStage();
+      sendFromSlot(state(1, false, true));
+      expect(adNotice(1)?.textContent).toBe('광고 재생 중입니다');
+      expect(adNotice(1)?.getAttribute('role')).toBe('status');
+      expect(adNotice(2)).toBeNull();
+      sendFromSlot(state(1, true, true));
+      expect(document.querySelectorAll('.cm-slot__ad-notice')).toHaveLength(1);
+      sendFromSlot(state(1, true));
+      expect(adNotice(1)).toBeNull();
+      stage.close();
+    });
+
     it('잠깐 꺼져 보이는 것만으로는 안내하지 않는다 (방송 시작 직후·광고 구간)', () => {
       vi.useFakeTimers();
       const { stage } = openStage();
@@ -574,6 +592,7 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       sendFromSlot(state(1, false, true));
       sendFromSlot(state(2, false));
       expect(notice(1)).toBeNull();
+      expect(adNotice(1)?.textContent).toBe('광고 재생 중입니다');
       expect(notice(2)).not.toBeNull();
       stage.close();
     });
@@ -592,6 +611,7 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       vi.advanceTimersByTime(90_000);
       sendFromSlot(state(1, false));
       expect(notice(1)).toBeNull();
+      expect(adNotice(1)).toBeNull();
       vi.advanceTimersByTime(11_000);
       sendFromSlot(state(1, false));
       expect(notice(1)).not.toBeNull();

@@ -64,6 +64,7 @@ try {
     });
   });
   await page.goto('https://chzzk.naver.com/live/11111111111111111111111111111111');
+  const adNotice = page.locator('.cm-slot[data-slot="1"] .cm-slot__ad-notice');
   const notice = (slot) => page.locator(`.cm-slot[data-slot="${slot}"] .cm-slot__notice`);
   await notice(2).waitFor({ timeout: 25000 });
   await page.screenshot({ path: resolve(out, baseline ? 'before.png' : 'advertising.png') });
@@ -78,15 +79,26 @@ try {
     console.log('BASELINE: 광고 마크업과 재생 실패 안내 동시 표시 재현');
   } else {
     if (await notice(1).count()) throw new Error('광고 중 실패 안내 노출');
+    if ((await adNotice.textContent()) !== '광고 재생 중입니다')
+      throw new Error('광고 상태 안내 없음');
+    const separated = await adNotice.evaluate(
+      (e) =>
+        e.getBoundingClientRect().top >=
+        e.parentElement.querySelector('.cm-slot__head').getBoundingClientRect().bottom + 2,
+    );
+    if (!separated) throw new Error('광고 안내가 채널 헤더에 겹칩니다');
     const handle = await page.locator('.cm-slot[data-slot="1"] iframe').elementHandle();
     const frame = await handle.contentFrame();
     await frame.locator('.vod_player_wrap').evaluate((e) => (e.hidden = true));
     await page.waitForFunction(() => window.__adStates[1]?.advertising === false);
     if (await notice(1).count()) throw new Error('광고 종료 직후 대기 시간 없이 실패 표시');
+    if (await adNotice.count()) throw new Error('광고 종료 후 광고 안내 잔류');
     await notice(1).waitFor({ timeout: 16000 });
     reports.push({ phase: 'ad-ended-without-playback', notice1: await notice(1).count() });
     await frame.locator('.vod_player_wrap').evaluate((e) => (e.hidden = false));
     await notice(1).waitFor({ state: 'detached', timeout: 5000 });
+    if ((await adNotice.textContent()) !== '광고 재생 중입니다')
+      throw new Error('광고 재시작 안내 없음');
     reports.push({ phase: 'ad-resumed', notice1: await notice(1).count() });
     await frame.evaluate(() => {
       document.querySelector('.vod_player_wrap').hidden = true;
@@ -97,6 +109,7 @@ try {
     );
     await page.waitForTimeout(12000);
     if (await notice(1).count()) throw new Error('본방송 전환 후 실패 표시');
+    if (await adNotice.count()) throw new Error('본방송 전환 후 광고 안내 잔류');
     reports.push({
       phase: 'live',
       states: await page.evaluate(() => window.__adStates),
