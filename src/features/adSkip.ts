@@ -50,6 +50,16 @@ export const AD = {
   advertiserLink: 'a.link_more, div.link_btn_area',
 } as const;
 
+/** 본방송과 별도로 뜨는 광고 플레이어가 보이는 동안은 재생 실패로 보지 않는다. */
+export function isPlayerAdActive(root: ParentNode | null): boolean {
+  if (!root) return false;
+  // SKIP 버튼은 카운트다운 동안 숨겨지므로 광고 영역·링크도 확인한다.
+  const markers = root.querySelectorAll(
+    `.vod_player_wrap, .ad_info_area, ${AD.skipButton}, ${AD.advertiserLink}`,
+  );
+  return [...markers].some(isVisible);
+}
+
 /**
  * 이 요소를 클릭해도 되는가. **순수 함수** — 테스트 대상.
  *

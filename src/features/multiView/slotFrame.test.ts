@@ -257,6 +257,28 @@ describe('startSlotController — 슬롯 탭을 부모로 넘긴다', () => {
     };
   }
 
+  it('광고 상태를 본방송 online과 별도로 보고하고 광고 종료도 전달한다', () => {
+    vi.useFakeTimers();
+    mountPlayer();
+    const marker = document.createElement('div');
+    marker.className = 'ad_info_area';
+    marker.getBoundingClientRect = () => ({ width: 300, height: 40 }) as DOMRect;
+    document.querySelector('#live_player_layout')!.appendChild(marker);
+    const parent = captureParentMessages();
+    const dispose = startSlotController(1);
+    try {
+      vi.advanceTimersByTime(2000);
+      const states = () => parent.messages.filter((m) => (m as { kind?: string }).kind === 'state');
+      expect(states().at(-1)).toMatchObject({ online: false, advertising: true });
+      marker.style.display = 'none';
+      vi.advanceTimersByTime(2000);
+      expect(states().at(-1)).toMatchObject({ online: false, advertising: false });
+    } finally {
+      dispose();
+      parent.restore();
+    }
+  });
+
   it('프레임 안에서 누르면 부모에 requestAudio 를 보낸다', () => {
     mountPlayer();
     const parent = captureParentMessages();

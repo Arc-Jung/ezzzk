@@ -248,6 +248,20 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   background: rgba(0, 0, 0, 0.55);
   pointer-events: none;
 }
+/* 광고 상태는 영상·스킵 버튼을 가리지 않는 작은 안내로 표시한다. */
+#${OURS.multiViewStageId} .cm-slot__ad-notice {
+  position: absolute;
+  left: 12px;
+  top: calc(28px + var(--cm-bar-overlap, 0px));
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  font-size: 13px;
+  pointer-events: none;
+}
 #${OURS.multiViewStageId} .cm-slot__retry {
   position: absolute;
   inset: 0;
@@ -1051,7 +1065,7 @@ export class MultiViewStage {
   /**
    * 로드는 됐는데 **재생이 시작되지 않는** 슬롯 안내.
    *
-   * 원인을 단정하지 않는다 — 방송 종료, 성인 인증·로그인이 필요한 방송, 지역 제한이 모두
+   * 광고가 보이는 시간은 제외한다. 방송 종료, 성인 인증·로그인, 지역 제한은 모두
    * 같은 신호(`pzp-pc--onlive` 없음)로 오기 때문이다(실측 2026-08-24: 비로그인 프로필에서
    * 라이브 목록에 뜬 채널 하나가 프레임 안에서 플레이어를 아예 만들지 않았다).
    */
@@ -1064,6 +1078,15 @@ export class MultiViewStage {
       '재생이 시작되지 않았습니다. 방송이 끝났거나 로그인·연령 확인이 필요한 방송일 수 있습니다.';
     runtime.cell.appendChild(notice);
     warning(`slot ${runtime.slot} has been ready but not playing for ${SLOT_OFFLINE_NOTICE_MS}ms`);
+  }
+
+  private showSlotAdNotice(runtime: SlotRuntime): void {
+    if (runtime.failed || runtime.cell.querySelector('.cm-slot__ad-notice')) return;
+    const notice = document.createElement('div');
+    notice.className = 'cm-slot__ad-notice';
+    notice.setAttribute('role', 'status');
+    notice.textContent = '광고 재생 중입니다';
+    runtime.cell.appendChild(notice);
   }
 
   /** 재시도 중임을 알리는 일시 상태. 다음 로드가 붙거나 최종 실패로 넘어가면 스스로 사라진다. */
@@ -1362,7 +1385,9 @@ export class MultiViewStage {
         return;
       }
       if (message.kind === 'state') {
-        if (!message.online) {
+        if (message.advertising === true) this.showSlotAdNotice(runtime);
+        else runtime.cell.querySelector('.cm-slot__ad-notice')?.remove();
+        if (!message.online && message.advertising !== true) {
           runtime.header.dataset.offline = 'true';
           /**
            * 🔴 실측 확정 (2026-08-24, `etc/probe/multiview-report2.json`): 4슬롯 중 하나가

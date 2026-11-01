@@ -522,7 +522,7 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       vi.useRealTimers();
     });
 
-    const state = (slot: number, online: boolean) => ({
+    const state = (slot: number, online: boolean, advertising = false) => ({
       channel: MV_CHANNEL,
       dir: 's2p' as const,
       kind: 'state' as const,
@@ -531,10 +531,29 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       volumePercent: 0,
       quality: null,
       online,
+      advertising,
       viewerCount: null,
     });
     const notice = (slot: number) =>
       document.querySelector(`#cm-multiview-stage .cm-slot[data-slot="${slot}"] .cm-slot__notice`);
+
+    const adNotice = (slot: number) =>
+      document.querySelector(
+        `#cm-multiview-stage .cm-slot[data-slot="${slot}"] .cm-slot__ad-notice`,
+      );
+
+    it('광고 시작을 즉시 알리고 중복 없이 유지하다가 본방송 전환 때 지운다', () => {
+      const { stage } = openStage();
+      sendFromSlot(state(1, false, true));
+      expect(adNotice(1)?.textContent).toBe('광고 재생 중입니다');
+      expect(adNotice(1)?.getAttribute('role')).toBe('status');
+      expect(adNotice(2)).toBeNull();
+      sendFromSlot(state(1, true, true));
+      expect(document.querySelectorAll('.cm-slot__ad-notice')).toHaveLength(1);
+      sendFromSlot(state(1, true));
+      expect(adNotice(1)).toBeNull();
+      stage.close();
+    });
 
     it('잠깐 꺼져 보이는 것만으로는 안내하지 않는다 (방송 시작 직후·광고 구간)', () => {
       vi.useFakeTimers();
@@ -559,6 +578,43 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       expect(notice(1)?.textContent).toContain('재생이 시작되지 않았습니다');
       // 다른 슬롯까지 덮어쓰지 않는다.
       expect(notice(2)).toBeNull();
+      stage.close();
+    });
+
+    it('광고가 90초 이어져도 실패 안내 없이 기다리고 다른 슬롯의 실패는 표시한다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 2 });
+      sendFromSlot(state(1, false, true));
+      sendFromSlot(state(2, false));
+      vi.advanceTimersByTime(90_000);
+      sendFromSlot(state(1, false, true));
+      sendFromSlot(state(2, false));
+      expect(notice(1)).toBeNull();
+      expect(adNotice(1)?.textContent).toBe('광고 재생 중입니다');
+      expect(notice(2)).not.toBeNull();
+      stage.close();
+    });
+
+    it('광고 감지 시 기존 안내를 지우고 광고 종료 후부터 실패 대기 시간을 다시 센다', () => {
+      vi.useFakeTimers();
+      const { stage } = openStage();
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 1 });
+      sendFromSlot({ channel: MV_CHANNEL, dir: 's2p', kind: 'ready', slot: 2 });
+      sendFromSlot(state(1, false));
+      vi.advanceTimersByTime(11_000);
+      sendFromSlot(state(1, false));
+      expect(notice(1)).not.toBeNull();
+      sendFromSlot(state(1, false, true));
+      expect(notice(1)).toBeNull();
+      vi.advanceTimersByTime(90_000);
+      sendFromSlot(state(1, false));
+      expect(notice(1)).toBeNull();
+      expect(adNotice(1)).toBeNull();
+      vi.advanceTimersByTime(11_000);
+      sendFromSlot(state(1, false));
+      expect(notice(1)).not.toBeNull();
       stage.close();
     });
 
