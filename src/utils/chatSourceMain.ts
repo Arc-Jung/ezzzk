@@ -1,4 +1,4 @@
-/** 페이지 실행 환경 전용. 최신 공개 채팅의 닉네임·본문만 응답한다. */
+/** 페이지 실행 환경 전용. 최신 공개 채팅의 표시용 텍스트·이모티콘·닉네임 색상만 응답한다. */
 import { readSubtitleSnapshot } from './chatMessages';
 import { CHAT_SOURCE_CHANNEL } from './chatSourceProtocol';
 

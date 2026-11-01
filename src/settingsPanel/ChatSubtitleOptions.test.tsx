@@ -27,6 +27,14 @@ describe('자막형 채팅 설정', () => {
     const toggle = host.querySelector<HTMLButtonElement>('button[role="switch"]')!;
     act(() => toggle.click());
     expect(latest.chatSubtitle.enabled).toBe(true);
+    const nicknameColor = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="치지직 원본 닉네임 색상 사용 켜짐"]',
+    )!;
+    expect(nicknameColor.getAttribute('aria-checked')).toBe('true');
+    act(() => nicknameColor.click());
+    expect(latest.chatSubtitle.useNicknameColor).toBe(false);
+    act(() => nicknameColor.click());
+    expect(latest.chatSubtitle.useNicknameColor).toBe(true);
     const select = host.querySelector<HTMLSelectElement>('#cm-subtitle-count')!;
     expect([...select.options].map((option) => option.value)).toEqual(['0', '3', '4', '5', '6']);
     act(() => {

@@ -1,14 +1,15 @@
 /**
  * 서비스 워커.
  *
- * NFR-07: 외부 서버로 어떤 데이터도 보내지 않는다. 여기서 하는 일은
- * ① 최초 설치 시 기본값·기본 프리셋 시딩 ② 팝업 ↔ content script 브로드캐스트 중계뿐이다.
+ * 설정·시청 정보는 외부 서버로 보내지 않는다.
+ * 기본값 시딩·팝업 메시지 중계 및 GitHub의 공개 릴리스 버전 조회를 담당한다.
  */
 
 import { SCHEMA_VERSION, SCHEMA_VERSION_KEY, STORAGE_KEY } from './constants/storage';
 import { buildBuiltinPresets } from './features/optionPreset';
 import { loadSettings, saveSettings } from './storage';
 import { error, info } from './utils/log';
+import { checkLatestRelease } from './updateCheck';
 
 chrome.runtime.onInstalled.addListener((details) => {
   void (async () => {
@@ -35,9 +36,20 @@ chrome.runtime.onInstalled.addListener((details) => {
  * 여기서는 storage 로 표현하기 어려운 명령형 요청(패널 열기 등)만 중계한다.
  */
 export type BackgroundMessage =
-  { kind: 'openSettingsPanel' } | { kind: 'openMultiViewSheet' } | { kind: 'ping' };
+  | { kind: 'openSettingsPanel' }
+  | { kind: 'openMultiViewSheet' }
+  | { kind: 'ping' }
+  | { kind: 'checkForUpdate' };
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, _sender, sendResponse) => {
+  if (message.kind === 'checkForUpdate') {
+    void checkLatestRelease().then(
+      (release) => sendResponse({ release }),
+      () => sendResponse({ release: null }),
+    );
+    return true;
+  }
+
   if (message.kind === 'ping') {
     sendResponse({ ok: true, schemaVersion: SCHEMA_VERSION, storageKey: STORAGE_KEY });
     return false;

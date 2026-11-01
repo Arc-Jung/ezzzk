@@ -28,6 +28,7 @@ import {
 } from './tabs';
 import { ChatTab, MultiViewTab, PresetTab, REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
 import { LicenseTab } from './LicenseTab';
+import { ExtensionStatus } from './ExtensionStatus';
 
 type Props = {
   device: DeviceDecision;
@@ -90,9 +91,7 @@ export function SettingsPanel({ device, onClose, initialTab = 'playback' }: Prop
       touchTargetPx={device.profile.touchTargetPx}
       footer={
         <>
-          <span className="cm-sheet__note" style={{ marginRight: 'auto' }}>
-            변경은 즉시 저장됩니다.
-          </span>
+          <ExtensionStatus />
           {/* 되돌릴 설정이 없는 탭(라이선스 고지)에서는 아예 렌더하지 않는다 —
               눌러도 아무 일이 없는 버튼을 남기지 않는다 (FR-15). */}
           {sections.length > 0 ? (

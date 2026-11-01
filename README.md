@@ -15,7 +15,7 @@
 
 - 지원: **데스크톱 Chrome / Edge**, 안드로이드는 **Edge Canary 만** (Dev·Beta·Stable 은 확장 미지원). **iOS 제외**
 - 설계 우선순위: **모바일·태블릿 10인치급 우선**. 요구가 충돌하면 모바일·태블릿을 채택한다.
-- 외부 서버 없음. 모든 설정은 `chrome.storage.local` 에만 저장하고 권한은 `storage` 하나만 쓴다.
+- 설정·시청 정보는 외부 서버로 보내지 않는다. 설정창에서 GitHub의 공개 최신 릴리스 정보만 조회한다. 모든 설정은 `chrome.storage.local` 에만 저장하고 권한은 `storage` 하나만 쓴다.
 
 ---
 

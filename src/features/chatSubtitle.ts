@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, type Settings } from '../constants/storage';
 import { removeStyle, upsertStyle } from '../utils/dom';
 import { readSubtitleMessages } from '../utils/chatMessages';
 import { watchLatestChat } from '../utils/chatSource';
+import { emoticonUrl, nicknameColor } from '../utils/chatPresentation';
 export { readSubtitleMessages } from '../utils/chatMessages';
 export type { SubtitleMessage } from '../utils/chatMessages';
 import type { Feature } from './types';
@@ -35,6 +36,7 @@ export function subtitleSettings(value?: Partial<SubtitleSettings>): SubtitleSet
     backgroundColor: color(value?.backgroundColor, defaults.backgroundColor),
     backgroundOpacity: bounded(value?.backgroundOpacity, defaults.backgroundOpacity, 0, 100),
     showNickname: value?.showNickname !== false,
+    useNicknameColor: value?.useNicknameColor !== false,
   };
 }
 
@@ -110,6 +112,10 @@ export const CHAT_SUBTITLE_CSS = `
 #${CHAT_SUBTITLE_ID} .cm-subtitle-lines { overflow: hidden; overflow-wrap: anywhere; }
 #${CHAT_SUBTITLE_ID} .cm-subtitle-message { margin: 0; padding: 0; }
 #${CHAT_SUBTITLE_ID} .cm-subtitle-author { font-weight: 700; }
+#${CHAT_SUBTITLE_ID} .cm-subtitle-emoticon {
+  display: inline-block; width: 1.3em; height: 1.3em;
+  object-fit: contain; vertical-align: -0.25em;
+}
 `;
 
 export const chatSubtitleFeature: Feature = {
@@ -203,9 +209,37 @@ export const chatSubtitleFeature: Feature = {
               const author = document.createElement('span');
               author.className = 'cm-subtitle-author';
               author.textContent = `${message.nickname}: `;
+              const color = settings.useNicknameColor
+                ? nicknameColor(message.nicknameColor)
+                : undefined;
+              if (color) author.style.color = color;
               row.appendChild(author);
             }
-            row.appendChild(document.createTextNode(message.text));
+            if (message.parts) {
+              for (const part of message.parts) {
+                if (part.type === 'text') row.appendChild(document.createTextNode(part.text));
+                else {
+                  const src = emoticonUrl(part.src);
+                  if (!src) {
+                    row.appendChild(document.createTextNode(part.alt));
+                    continue;
+                  }
+                  const image = document.createElement('img');
+                  image.className = 'cm-subtitle-emoticon';
+                  image.alt = part.alt;
+                  image.title = part.alt;
+                  image.referrerPolicy = 'no-referrer';
+                  image.draggable = false;
+                  image.addEventListener(
+                    'error',
+                    () => image.replaceWith(document.createTextNode(part.alt)),
+                    { once: true },
+                  );
+                  image.src = src;
+                  row.appendChild(image);
+                }
+              }
+            } else row.appendChild(document.createTextNode(message.text));
             return row;
           }),
         );

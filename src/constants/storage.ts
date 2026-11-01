@@ -97,6 +97,7 @@ export type Settings = {
     backgroundColor: string;
     backgroundOpacity: number;
     showNickname: boolean;
+    useNicknameColor: boolean;
   };
   chatWidth: {
     enabled: boolean;
@@ -274,8 +275,9 @@ export const DEFAULT_SETTINGS: Settings = {
     fontPx: 16,
     textColor: '#ffffff',
     backgroundColor: '#000000',
-    backgroundOpacity: 30,
+    backgroundOpacity: 10,
     showNickname: true,
+    useNicknameColor: true,
   },
   chatWidth: {
     enabled: true,

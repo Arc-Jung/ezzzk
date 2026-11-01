@@ -8,6 +8,17 @@
 import { BG, BORDER, FG, OVERLAY, RADIUS, ACCENT } from '../ui/tokens';
 
 export const SETTINGS_PANEL_CSS = `
+.cm-sheet:has(.cm-sp) .cm-sheet__foot { flex-wrap: wrap; }
+.cm-sp__footer-note.cm-sheet__note {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+  min-width: 0; margin: 0 auto 0 0;
+}
+.cm-sp__update-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 8px; box-sizing: border-box;
+  color: ${ACCENT}; text-decoration: underline; border-radius: 4px;
+}
+
 .cm-subtitle-preview {
   display: flex; justify-content: flex-end;
   margin: 10px 0; padding: 24px 12px 12px;
