@@ -116,6 +116,12 @@ export function ChatSubtitleOptions({
         checked={value.showNickname}
         onChange={(showNickname) => patch({ showNickname })}
       />
+      <Toggle
+        label="치지직 원본 닉네임 색상 사용"
+        checked={value.useNicknameColor}
+        onChange={(useNicknameColor) => patch({ useNicknameColor })}
+      />
+      <p className="cm-sheet__note">끄면 닉네임도 위에서 선택한 글자색으로 표시합니다.</p>
       <div
         className="cm-subtitle-preview"
         data-position={value.position}
@@ -129,13 +135,29 @@ export function ChatSubtitleOptions({
           }}
         >
           <div>
-            {value.showNickname && <strong>시청자: </strong>}채팅이 선택한 영상 하단 위치에
-            표시됩니다.
+            {value.showNickname && (
+              <strong style={{ color: value.useNicknameColor ? '#56c98d' : undefined }}>
+                시청자:{' '}
+              </strong>
+            )}
+            채팅이 선택한 영상 하단 위치에 표시됩니다.
           </div>
           <div>
-            {value.showNickname && <strong>이지직: </strong>}배경색과 불투명도를 조절해 보세요.
+            {value.showNickname && (
+              <strong style={{ color: value.useNicknameColor ? '#d69afa' : undefined }}>
+                이지직:{' '}
+              </strong>
+            )}
+            배경색과 불투명도를 조절해 보세요.
           </div>
-          <div>{value.showNickname && <strong>시청자: </strong>}화면에 맞춰 3~6줄로 표시해요.</div>
+          <div>
+            {value.showNickname && (
+              <strong style={{ color: value.useNicknameColor ? '#56c98d' : undefined }}>
+                시청자:{' '}
+              </strong>
+            )}
+            화면에 맞춰 3~6줄로 표시해요.
+          </div>
         </div>
       </div>
       <button

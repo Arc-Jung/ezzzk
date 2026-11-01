@@ -150,6 +150,41 @@ describe('채팅 수집과 표시 생명주기', () => {
     ]);
   });
 
+  it('원본 이모티콘을 그리며 로드 실패 시 대체 문구를 표시하고 닉네임 색상을 끌 수 있다', () => {
+    vi.useFakeTimers();
+    chatFixture();
+    const author = document.querySelector('aside ._nickname_test') as HTMLElement;
+    author.style.color = '#9FCE8E';
+    const image = document.querySelector('aside img') as HTMLImageElement;
+    image.src = 'https://nng-phinf.pstatic.net/glive/subscription/emoji/channel/1/emote.gif';
+    const ctx: FeatureContext = {
+      settings: mergeSettings({ chatSubtitle: { enabled: true } }),
+      device: decideDevice('mobile'),
+      page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    };
+    const stop = chatSubtitleFeature.start(ctx);
+    const overlay = document.getElementById(CHAT_SUBTITLE_ID)!;
+    const emote = overlay.querySelector('img')!;
+    expect(emote.src).toBe(image.src);
+    expect(emote.alt).toBe('웃음');
+    expect(emote.referrerPolicy).toBe('no-referrer');
+    expect(overlay.querySelector<HTMLElement>('.cm-subtitle-author')!.style.color).toBe(
+      'rgb(159, 206, 142)',
+    );
+    emote.dispatchEvent(new Event('error'));
+    expect(overlay.querySelector('img')).toBeNull();
+    expect(overlay.textContent).toContain('웃음');
+    stop?.();
+    const stopPlain = chatSubtitleFeature.start({
+      ...ctx,
+      settings: mergeSettings({ chatSubtitle: { enabled: true, useNicknameColor: false } }),
+    });
+    expect(
+      document.querySelector<HTMLElement>('#cm-chat-subtitle .cm-subtitle-author')!.style.color,
+    ).toBe('');
+    stopPlain?.();
+  });
+
   it('일반·슬롯 플레이어 안에 표시하고 메시지를 HTML로 실행하지 않으며 해제 시 정리한다', () => {
     vi.useFakeTimers();
     const player = chatFixture();

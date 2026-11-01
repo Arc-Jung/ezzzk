@@ -1,28 +1,61 @@
-/** 페이지의 채팅 데이터에서 표시용 닉네임·본문만 읽는다. */
+/** 페이지의 채팅 데이터에서 표시용 닉네임·본문·이모티콘만 읽는다. */
 import { CHZZK } from '../constants/class';
 import { normalizeText } from './dom';
 import { findChatClient, readChatMessage } from './reactFiber';
-export type SubtitleMessage = { nickname: string; text: string };
+import { emoticonUrl, nicknameColor, subtitleParts, type SubtitlePart } from './chatPresentation';
+export type SubtitleMessage = {
+  nickname: string;
+  text: string;
+  parts?: SubtitlePart[];
+  nicknameColor?: string;
+};
 
-/** 네이티브가 이모티콘을 React 노드 배열로 바꾼 경우에도 표시용 텍스트만 읽는다. */
-function contentText(value: unknown, depth = 0): string {
-  if (typeof value === 'string') return value;
-  if (depth >= 4) return '';
-  if (Array.isArray(value))
-    return value
-      .slice(0, 100)
-      .map((item) => contentText(item, depth + 1))
-      .join('');
-  if (!value || typeof value !== 'object') return '';
-  const node = value as Record<string, unknown>;
-  const props = node['props'];
-  if (!props || typeof props !== 'object') return '';
-  const fields = props as Record<string, unknown>;
-  if (node['type'] === 'img') {
-    const label = fields['alt'] ?? fields['title'];
-    return typeof label === 'string' ? label.slice(0, 100) : '[이모티콘]';
+/** React 노드·문자열에서 원본 순서대로 텍스트와 이모티콘만 읽는다. */
+function contentParts(value: unknown): SubtitlePart[] {
+  const parts: SubtitlePart[] = [];
+  let visited = 0;
+  function visit(value: unknown, depth = 0): void {
+    if (++visited > 64 || depth > 8) return;
+    if (typeof value === 'string') {
+      parts.push({ type: 'text', text: value.slice(0, 1000) });
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value.slice(0, 64)) visit(item, depth + 1);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    const node = value as Record<string, unknown>;
+    if (!node.props || typeof node.props !== 'object') return;
+    const fields = node.props as Record<string, unknown>;
+    if (node.type === 'img') {
+      const label = fields.alt ?? fields.title;
+      const alt = typeof label === 'string' && label ? label.slice(0, 100) : '[이모티콘]';
+      const src = emoticonUrl(fields.src);
+      parts.push(src ? { type: 'emoticon', src, alt } : { type: 'text', text: alt });
+    } else visit(fields.children, depth + 1);
   }
-  return contentText(fields['children'], depth + 1);
+  visit(value);
+  return parts;
+}
+
+function subtitleMessage(
+  nickname: string,
+  rawParts: SubtitlePart[],
+  color?: string,
+): SubtitleMessage | null {
+  const text = normalizeText(
+    rawParts.map((part) => (part.type === 'text' ? part.text : part.alt)).join(''),
+  ).slice(0, 1000);
+  if (!text) return null;
+  const parts = subtitleParts(rawParts);
+  const safeColor = nicknameColor(color);
+  return {
+    nickname: normalizeText(typeof nickname === 'string' ? nickname : '').slice(0, 100),
+    text,
+    ...(parts ? { parts } : {}),
+    ...(safeColor ? { nicknameColor: safeColor } : {}),
+  };
 }
 
 /** React 데이터가 보이지 않는 확장 격리 환경에서도 본문과 닉네임을 분리한다. */
@@ -42,10 +75,16 @@ export function readSubtitleSnapshot(root: ParentNode = document): {
       .sort((a, b) => (a.time ?? 0) - (b.time ?? 0))
       .slice(-6)
       .flatMap((message) => {
-        const text = normalizeText(contentText(message.content));
-        return text
-          ? [{ nickname: message.profile?.nickname ?? '', text: text.slice(0, 1000) }]
-          : [];
+        const dark = document.documentElement.classList.contains('theme_dark');
+        const color = dark
+          ? message.displayNicknameColor?.dark
+          : message.displayNicknameColor?.light;
+        const result = subtitleMessage(
+          message.profile?.nickname ?? '',
+          contentParts(message.content),
+          color,
+        );
+        return result ? [result] : [];
       });
     return { live: true, messages };
   }
@@ -55,19 +94,38 @@ export function readSubtitleSnapshot(root: ParentNode = document): {
     .sort((a, b) => a.top - b.top);
   const messages = ordered.slice(-6).flatMap(({ node }) => {
     const message = readChatMessage(node);
-    if (typeof message?.content === 'string') {
-      const text = normalizeText(message.content);
-      return text ? [{ nickname: message.profile?.nickname ?? '', text: text.slice(0, 1000) }] : [];
+    const author = node.querySelector('[class*="_nickname_"]');
+    const nickname = message?.profile?.nickname ?? normalizeText(author?.textContent);
+    const dark = document.documentElement.classList.contains('theme_dark');
+    const nativeColor = dark
+      ? message?.displayNicknameColor?.dark
+      : message?.displayNicknameColor?.light;
+    const color = nativeColor ?? (author ? getComputedStyle(author).color : undefined);
+    if (message?.content !== undefined) {
+      const result = subtitleMessage(nickname, contentParts(message.content), color);
+      return result ? [result] : [];
     }
-    const nickname = normalizeText(node.querySelector('[class*="_nickname_"]')?.textContent);
     const copy = node.cloneNode(true) as Element;
-    // _text_ 는 닉네임에도 쓰인다. 첫 번째 span을 본문으로 선택하지 않는다.
     copy.querySelectorAll('button, [class*="_nickname_"]').forEach((element) => element.remove());
-    copy
-      .querySelectorAll('img')
-      .forEach((image) => image.replaceWith(image.getAttribute('alt') ?? ''));
-    const text = normalizeText(copy.textContent);
-    return text ? [{ nickname, text: text.slice(0, 1000) }] : [];
+    const rawParts: SubtitlePart[] = [];
+    let visited = 0;
+    function visit(element: Node, depth = 0): void {
+      if (++visited > 128 || depth > 12) return;
+      if (element.nodeType === Node.TEXT_NODE) {
+        rawParts.push({ type: 'text', text: (element.textContent ?? '').slice(0, 1000) });
+        return;
+      }
+      if (element instanceof HTMLImageElement) {
+        const alt = element.alt || element.title || '[이모티콘]';
+        const src = emoticonUrl(element.currentSrc || element.src);
+        rawParts.push(src ? { type: 'emoticon', src, alt } : { type: 'text', text: alt });
+        return;
+      }
+      for (const child of element.childNodes) visit(child, depth + 1);
+    }
+    visit(copy);
+    const result = subtitleMessage(nickname, rawParts, color);
+    return result ? [result] : [];
   });
   return { live: false, messages };
 }

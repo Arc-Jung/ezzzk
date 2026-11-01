@@ -9,6 +9,7 @@ afterEach(() => {
   stop?.();
   stop = undefined;
   document.body.replaceChildren();
+  document.documentElement.classList.remove('theme_dark');
   document.getElementById('cm-chat-source-main')?.remove();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -76,6 +77,72 @@ describe('격리 환경의 최신 채팅 소스', () => {
       },
     });
     expect(readSubtitleSnapshot().messages.at(-1)).toEqual({ nickname: '현재', text: '새 웃음' });
+  });
+
+  it('원본 스트리머 이모티콘과 테마별 닉네임 색상을 최신 목록에서 보존한다', () => {
+    const src =
+      'https://nng-phinf.pstatic.net/glive/subscription/emoji/channel/1/emote.gif?type=f60_60';
+    document.body.innerHTML =
+      '<aside id="aside-chatting"><div class="_wrapper_8lqsk_test"></div></aside>';
+    Object.assign(document.querySelector('aside > div')!, {
+      __reactFiber$test: {
+        memoizedProps: {
+          client: {
+            messageLimitCount: 200,
+            messageList: [
+              {
+                time: 1,
+                profile: { nickname: '스트리머 팬' },
+                displayNicknameColor: { dark: '#9FCE8E', light: '#1C8B13' },
+                content: ['안녕 ', { type: 'img', props: { src, title: '팬이모티콘' } }, ' 반가워'],
+              },
+            ],
+          },
+        },
+      },
+    });
+    document.documentElement.classList.add('theme_dark');
+    const dark = readSubtitleSnapshot().messages[0]!;
+    expect(dark).toEqual({
+      nickname: '스트리머 팬',
+      text: '안녕 팬이모티콘 반가워',
+      nicknameColor: '#9FCE8E',
+      parts: [
+        { type: 'text', text: '안녕 ' },
+        { type: 'emoticon', src, alt: '팬이모티콘' },
+        { type: 'text', text: ' 반가워' },
+      ],
+    });
+    const reply = parseChatSourceReply({
+      channel: CHAT_SOURCE_CHANNEL,
+      kind: 'snapshot',
+      id: 'new',
+      path: '/',
+      live: true,
+      messages: [dark],
+    });
+    expect(reply?.messages[0]).toEqual(dark);
+    document.documentElement.classList.remove('theme_dark');
+    expect(readSubtitleSnapshot().messages[0]?.nicknameColor).toBe('#1C8B13');
+  });
+
+  it('프로토콜의 외부 이미지와 CSS 삽입은 텍스트로 대체한다', () => {
+    const reply = parseChatSourceReply({
+      channel: CHAT_SOURCE_CHANNEL,
+      kind: 'snapshot',
+      id: 'safe',
+      path: '/',
+      live: true,
+      messages: [
+        {
+          nickname: '시청자',
+          text: '웃음',
+          nicknameColor: 'red;background:url(x)',
+          parts: [{ type: 'emoticon', src: 'https://example.com/a.png', alt: '웃음' }],
+        },
+      ],
+    });
+    expect(reply?.messages).toEqual([{ nickname: '시청자', text: '웃음' }]);
   });
 
   it('현재 요청·현재 경로·같은 프레임 응답만 적용하고 해제 후에는 받지 않는다', () => {
