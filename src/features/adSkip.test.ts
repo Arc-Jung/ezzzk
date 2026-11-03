@@ -165,6 +165,17 @@ describe('기본값 — 요청대로 자동 스킵이 켜져 있다', () => {
 });
 
 describe('isPlayerAdActive — 광고 상태와 본방송 실패를 구분한다', () => {
+  it('본방송 컨테이너 밖의 프리롤도 찾고 종료 후 숨겨진 광고는 제외한다', () => {
+    document.body.innerHTML =
+      '<div id="root"><div class="vod_player_wrap"><video></video></div></div><a class="link_more">더 보기</a>';
+    const ad = document.querySelector<HTMLElement>('.vod_player_wrap')!;
+    ad.getBoundingClientRect = () => ({ width: 300, height: 200 }) as DOMRect;
+    const link = document.querySelector('a')!;
+    link.getBoundingClientRect = () => ({ width: 80, height: 40 }) as DOMRect;
+    expect(isPlayerAdActive(document)).toBe(true);
+    ad.style.display = 'none';
+    expect(isPlayerAdActive(document)).toBe(false);
+  });
   it('스킵 전 카운트다운 영역이 보이면 광고로 판정한다', () => {
     mountCountdownState(15);
     const marker = document.querySelector('.ad_info_area')!;

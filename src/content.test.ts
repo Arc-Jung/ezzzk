@@ -225,6 +225,7 @@ describe('폴드 기기 전환 정책', () => {
       'autoFullscreen',
       'chatSubtitle',
       'chatWidth',
+      'fullscreenChat',
       'multiView',
       'playbackStall',
       'quality',

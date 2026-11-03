@@ -60,6 +60,7 @@ export const ICON_PATHS = {
     { tag: 'path', d: 'M4 8h3M9 8h3M4 10.5h8' },
   ],
   fullscreen: 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10',
+  minimize: 'M2.5 6H6V2.5M10 2.5V6h3.5M13.5 10H10v3.5M6 13.5V10H2.5',
   resizeHorizontal: 'M2.5 8h11M5 5l-2.5 3L5 11M11 5l2.5 3L11 11',
   chevronRight: 'M6 3.5l5 4.5-5 4.5',
   chevronLeft: 'M10 3.5L5 8l5 4.5',

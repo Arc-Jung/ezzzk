@@ -106,6 +106,8 @@ export type ControlBarButtonOptions = {
   content?: string;
   /** 인라인 SVG 아이콘. `content` 와 함께 주면 아이콘이 이긴다. */
   icon?: IconName;
+  /** 지정한 네이티브 버튼 바로 앞에 삽입한다. 없으면 그룹 맨 앞에 둔다. */
+  before?: string;
   onClick: () => void;
   /** 삽입·재삽입 시 최신 토글 상태 등을 반영한다. */
   onMount?: (button: HTMLButtonElement) => void;
@@ -209,20 +211,30 @@ export function mountControlBarButton(options: ControlBarButtonOptions): Dispose
 
   const host = (): Element | null => qs(PLAYER.bottomButtonsRight);
 
+  const anchor = (container: Element): Element | null => {
+    let target = options.before ? container.querySelector(options.before) : null;
+    while (target && target.parentElement !== container) target = target.parentElement;
+    return target;
+  };
   const mount = () => {
     const container = host();
     if (!container) return;
     if (!node) node = buildButton(options);
-    if (node.parentElement !== container) {
-      // firstChild 앞에 넣는다 — 그룹이 왼쪽으로 자라고 네이티브 버튼은 밀리지 않는다.
-      container.insertBefore(node, container.firstChild);
+    const before = anchor(container);
+    if (node.parentElement !== container || (before && node.nextSibling !== before)) {
+      container.insertBefore(node, before ?? container.firstChild);
       options.onMount?.(node);
     }
   };
 
   const isMounted = (): boolean => {
     const container = host();
-    return container !== null && node !== null && node.parentElement === container;
+    return (
+      container !== null &&
+      node !== null &&
+      node.parentElement === container &&
+      (!anchor(container) || node.nextSibling === anchor(container))
+    );
   };
 
   /**

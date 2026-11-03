@@ -9,6 +9,12 @@ import {
 import { mergeSettings, migrate } from './storage';
 
 describe('재생 시작 화면', () => {
+  it('기존 멀티뷰 설정은 자동 전체화면 꺼짐으로 보완하고 명시한 켜짐은 유지한다', () => {
+    expect(mergeSettings({ multiView: { enabled: true } }).multiView.autoFullscreen).toBe(false);
+    expect(mergeSettings({ multiView: { autoFullscreen: true } }).multiView.autoFullscreen).toBe(
+      true,
+    );
+  });
   it('기존 자동 넓은 화면 on/off 값을 선택 모드로 읽는다', () => {
     expect(playbackScreenMode(mergeSettings({ wideScreen: { enabled: true } }).wideScreen)).toBe(
       'wide',

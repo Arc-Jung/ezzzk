@@ -73,11 +73,21 @@ html, body {
 /* transform이 있는 조상은 fixed 플레이어의 기준 좌표를 바꾼다.
  * 넓은 화면을 끈 치지직 section은 사이드바·헤더만큼 이동하므로 슬롯에서만 해제한다.
  * 해시 대신 플레이어를 포함하는 실제 조상만 선택해 DOM을 이동하지 않는다. */
-html, body, ${ID.root}, ${ID.root} :has(${ID.livePlayerLayout}) {
+html, body, ${ID.root}, ${ID.root} :has(${ID.livePlayerLayout}), ${ID.root} :has(.vod_player_wrap) {
   transform: none !important;
 }
 ${ID.root} { visibility: hidden !important; }
 ${ID.livePlayerLayout} { visibility: visible !important; }
+/* 프리롤은 본방송 컨테이너가 생기기 전 별도 광고 플레이어로 표시될 수 있다.
+ * 자손 전체의 visibility를 덮지 않아 광고 UI가 스스로 숨긴 요소는 유지한다. */
+${ID.root}:not(:has(${ID.livePlayerLayout})) .vod_player_wrap {
+  visibility: visible;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: ${OURS.topZIndex - 1} !important;
+}
 ${ID.livePlayerLayout} {
   position: fixed !important;
   inset: 0 !important;
@@ -187,7 +197,7 @@ function readState(slot: SlotIndex): SlotToParent {
     quality: checked ? normalizeText(checked.textContent) : null,
     // `pzp-pc--onlive` 는 실측으로 확인된 라이브 여부 modifier 다.
     online: playerRoot?.classList.contains('pzp-pc--onlive') ?? false,
-    advertising: isPlayerAdActive(qs(ID.livePlayerLayout)),
+    advertising: isPlayerAdActive(document),
     viewerCount: null,
   };
 }

@@ -279,6 +279,27 @@ describe('startSlotController — 슬롯 탭을 부모로 넘긴다', () => {
     }
   });
 
+  it('본방송 컨테이너가 아직 없는 프리롤 상태도 부모에게 알린다', () => {
+    vi.useFakeTimers();
+    document.body.innerHTML =
+      '<div id="root"><div class="vod_player_wrap"><video></video></div></div>';
+    const ad = document.querySelector<HTMLElement>('.vod_player_wrap')!;
+    ad.getBoundingClientRect = () => ({ width: 300, height: 200 }) as DOMRect;
+    const parent = captureParentMessages();
+    const dispose = startSlotController(1);
+    try {
+      vi.advanceTimersByTime(2000);
+      const states = () => parent.messages.filter((m) => (m as { kind?: string }).kind === 'state');
+      expect(states().at(-1)).toMatchObject({ online: false, advertising: true });
+      ad.remove();
+      vi.advanceTimersByTime(2000);
+      expect(states().at(-1)).toMatchObject({ online: false, advertising: false });
+    } finally {
+      dispose();
+      parent.restore();
+    }
+  });
+
   it('프레임 안에서 누르면 부모에 requestAudio 를 보낸다', () => {
     mountPlayer();
     const parent = captureParentMessages();

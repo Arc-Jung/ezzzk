@@ -23,7 +23,7 @@ try {
       html,body,#root,section,main,#live_player_layout,.pzp-pc {margin:0;width:100%;height:100%;background:#151515;color:white}
       .vod_player_wrap {position:absolute;inset:0;background:#193a47;display:flex;align-items:center;justify-content:center}
       .ad_info_area {padding:30px} .vod_player_wrap[hidden] {display:none}
-    </style></head><body><div id="root"><section><main><div id="live_player_layout"><div class="pzp-pc pzp-pc--live"><video></video>
+    </style></head><body><div id="root"><section><main><div id="${slot === '1' ? 'ad-stage' : 'live_player_layout'}"><div class="pzp-pc pzp-pc--live"><video></video>
       <div class="vod_player_wrap" ${slot === '1' ? '' : 'hidden'}><div class="ad_info_area">광고 마크업 테스트 — 실제 방송 화면이 아닙니다</div></div>
     </div></div></main></section><aside id="aside-chatting"></aside></div></body></html>`,
     });
@@ -79,8 +79,7 @@ try {
     console.log('BASELINE: 광고 마크업과 재생 실패 안내 동시 표시 재현');
   } else {
     if (await notice(1).count()) throw new Error('광고 중 실패 안내 노출');
-    if ((await adNotice.textContent()) !== '광고 재생 중입니다')
-      throw new Error('광고 상태 안내 없음');
+    if ((await adNotice.textContent()) !== '광고 재생 중') throw new Error('광고 상태 안내 없음');
     const separated = await adNotice.evaluate(
       (e) =>
         e.getBoundingClientRect().top >=
@@ -97,11 +96,11 @@ try {
     reports.push({ phase: 'ad-ended-without-playback', notice1: await notice(1).count() });
     await frame.locator('.vod_player_wrap').evaluate((e) => (e.hidden = false));
     await notice(1).waitFor({ state: 'detached', timeout: 5000 });
-    if ((await adNotice.textContent()) !== '광고 재생 중입니다')
-      throw new Error('광고 재시작 안내 없음');
+    if ((await adNotice.textContent()) !== '광고 재생 중') throw new Error('광고 재시작 안내 없음');
     reports.push({ phase: 'ad-resumed', notice1: await notice(1).count() });
     await frame.evaluate(() => {
       document.querySelector('.vod_player_wrap').hidden = true;
+      document.querySelector('#ad-stage').id = 'live_player_layout';
       document.querySelector('.pzp-pc').classList.add('pzp-pc--onlive');
     });
     await page.waitForFunction(

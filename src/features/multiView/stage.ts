@@ -257,11 +257,15 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   box-sizing: border-box;
   padding: 6px 10px;
   border-radius: 6px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.7);
+  color: #211800;
+  background: #ffdc73;
+  border: 1px solid #fff3bd;
   font-size: 13px;
+  font-weight: 600;
+  z-index: 3;
   pointer-events: none;
 }
+#${OURS.multiViewStageId} .cm-slot__ad-notice strong { font-size: 14px; font-weight: 800; }
 #${OURS.multiViewStageId} .cm-slot__retry {
   position: absolute;
   inset: 0;
@@ -578,6 +582,7 @@ export class MultiViewStage {
   private container: HTMLElement | null = null;
   /** 하단 컨트롤 바. 스트립이 이 바를 피하도록 좌표를 읽는다. */
   private bar: HTMLElement | null = null;
+  private fullscreenButton: HTMLButtonElement | null = null;
   /**
    * 바가 영상 위로 겹칠 때 무대 위쪽에서 바가 덮는 높이(px). 겹치지 않으면 0.
    * 🔴 이 값만큼 슬롯 헤더를 아래로 밀어 2026-08-16 회귀(바가 헤더 버튼을 덮어 눌리지
@@ -650,6 +655,7 @@ export class MultiViewStage {
      * 되돌릴 UI 가 없어 채팅을 다시 켤 방법이 사라진다.
      */
     const onFullscreenChange = () => {
+      this.updateFullscreenButton();
       if (this.isFullscreen()) this.chatOpen = true;
       this.syncChatWidth();
     };
@@ -660,6 +666,7 @@ export class MultiViewStage {
     this.updateChatControls();
     this.layout();
     info(`multiview stage opened with ${slots.length} slot(s)`);
+    if (this.settings.multiView.autoFullscreen) void this.enterAutoFullscreen();
   }
 
   close(): void {
@@ -673,6 +680,7 @@ export class MultiViewStage {
     this.container?.remove();
     this.container = null;
     this.bar = null;
+    this.fullscreenButton = null;
     this.chatControls = null;
     this.chatLabel = null;
     this.chatToggle = null;
@@ -695,9 +703,12 @@ export class MultiViewStage {
    * 재시작 대신 여기서 제자리 반영한다.
    */
   updateSettings(next: Settings): void {
+    const enableAutoFullscreen =
+      next.multiView.autoFullscreen && !this.settings.multiView.autoFullscreen;
     this.settings = next;
     this.layout();
     for (const runtime of this.runtimes.values()) this.applyQuality(runtime.slot);
+    if (enableAutoFullscreen) void this.enterAutoFullscreen();
   }
 
   /** 접힘·펼침 때 iframe과 재생 상태를 유지한 채 프로필·배치만 갱신한다. */
@@ -752,7 +763,21 @@ export class MultiViewStage {
   }
 
   private isFullscreen(): boolean {
-    return document.fullscreenElement !== null;
+    return Boolean(document.fullscreenElement);
+  }
+
+  private updateFullscreenButton(): void {
+    const button = this.fullscreenButton;
+    if (!button) return;
+    const maximized = this.isFullscreen();
+    const label = maximized ? '전체 화면 종료 (최소화)' : '전체 화면 전환 (주소창 숨김)';
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', String(maximized));
+    button.title = label;
+    button.replaceChildren(
+      createIconElement(maximized ? 'minimize' : 'fullscreen'),
+      barLabel(maximized ? '최소화' : '최대화'),
+    );
   }
 
   /** 채팅 폭을 다시 계산해 적용하고 무대를 재배치한다. */
@@ -1085,7 +1110,9 @@ export class MultiViewStage {
     const notice = document.createElement('div');
     notice.className = 'cm-slot__ad-notice';
     notice.setAttribute('role', 'status');
-    notice.textContent = '광고 재생 중입니다';
+    const badge = document.createElement('strong');
+    badge.textContent = '광고';
+    notice.append(badge, document.createTextNode(' 재생 중'));
     runtime.cell.appendChild(notice);
   }
 
@@ -1209,9 +1236,8 @@ export class MultiViewStage {
      */
     const fullscreenButton = document.createElement('button');
     fullscreenButton.type = 'button';
-    fullscreenButton.setAttribute('aria-label', '전체 화면 전환 (주소창 숨김)');
-    fullscreenButton.appendChild(createIconElement('fullscreen'));
-    fullscreenButton.appendChild(barLabel('최대화'));
+    this.fullscreenButton = fullscreenButton;
+    this.updateFullscreenButton();
     fullscreenButton.addEventListener('click', () => {
       void this.toggleFullscreen();
     });
@@ -1236,6 +1262,17 @@ export class MultiViewStage {
    * 스테이지를 전체 화면으로 전환한다.
    * 실패해도 조용히 넘긴다 — 제스처 없이 호출되면 브라우저가 거부하는 것이 정상이다.
    */
+  private async enterAutoFullscreen(): Promise<void> {
+    // 시작·옵션 활성화 때만 요청한다. Esc 이후나 다른 설정 변경에는 재진입하지 않는다.
+    if (!this.container || document.fullscreenElement) return;
+    if (typeof document.documentElement.requestFullscreen !== 'function') return;
+    try {
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch (e) {
+      warning('multiview auto fullscreen request was rejected', e);
+    }
+  }
+
   private async toggleFullscreen(): Promise<void> {
     try {
       if (document.fullscreenElement) {
