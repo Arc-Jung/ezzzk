@@ -57,7 +57,12 @@ export function isPlayerAdActive(root: ParentNode | null): boolean {
   const markers = root.querySelectorAll(
     `.vod_player_wrap, .ad_info_area, ${AD.skipButton}, ${AD.advertiserLink}`,
   );
-  return [...markers].some(isVisible);
+  return [...markers].some(
+    (marker) =>
+      isVisible(marker) &&
+      (marker.matches('.vod_player_wrap, .ad_info_area') ||
+        marker.closest('.vod_player_wrap, #live_player_layout, #player_layout') !== null),
+  );
 }
 
 /**

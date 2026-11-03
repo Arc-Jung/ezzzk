@@ -91,6 +91,14 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         checked={multiView.restoreLastLayout}
         onChange={(next) => patch({ restoreLastLayout: next })}
       />
+      <Toggle
+        label="멀티뷰 상태일 때 자동 전체화면"
+        checked={multiView.autoFullscreen}
+        onChange={(next) => patch({ autoFullscreen: next })}
+      />
+      <p className="cm-sheet__hint">
+        브라우저에서 자동 진입을 제한하면 멀티뷰의 최대화 버튼을 눌러 주세요.
+      </p>
 
       {/*
         멀티뷰 채팅은 임시로 꺼 두었다 (`features/multiView/chatFeature.ts`, 2026-08-22).

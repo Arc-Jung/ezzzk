@@ -216,20 +216,23 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     deviceClass,
     chatMode,
     lowerInactiveQuality,
+    autoFullscreen,
   }: {
     deviceClass?: 'mobile';
     chatMode?: 'active' | 'none';
     lowerInactiveQuality?: boolean;
+    autoFullscreen?: boolean;
   } = {}) {
     const onActiveSlotChange = vi.fn();
     const settings =
-      chatMode || lowerInactiveQuality
+      chatMode || lowerInactiveQuality || autoFullscreen
         ? {
             ...DEFAULT_SETTINGS,
             multiView: {
               ...DEFAULT_SETTINGS.multiView,
               ...(chatMode ? { chatMode } : {}),
               ...(lowerInactiveQuality ? { lowerInactiveQuality } : {}),
+              ...(autoFullscreen ? { autoFullscreen } : {}),
             },
           }
         : DEFAULT_SETTINGS;
@@ -242,6 +245,65 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     stage.open(SLOTS);
     return { stage, onActiveSlotChange };
   }
+
+  it('자동 전체화면은 기본 꺼짐이고 켜진 멀티뷰 시작 때만 요청한다', () => {
+    const request = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      configurable: true,
+      value: request,
+    });
+    const normal = openStage();
+    expect(request).not.toHaveBeenCalled();
+    normal.stage.close();
+    const automatic = openStage({ autoFullscreen: true });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith({ navigationUI: 'hide' });
+    automatic.stage.close();
+    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
+  });
+
+  it('사용 중 켜면 프레임을 유지하고 진입하며 이후 설정 변경·끄기에는 재요청하지 않는다', () => {
+    const request = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      configurable: true,
+      value: request,
+    });
+    const { stage } = openStage();
+    const frames = [...document.querySelectorAll('iframe')];
+    const enabled = {
+      ...DEFAULT_SETTINGS,
+      multiView: { ...DEFAULT_SETTINGS.multiView, autoFullscreen: true },
+    };
+    stage.updateSettings(enabled);
+    expect(request).toHaveBeenCalledTimes(1);
+    stage.updateSettings({ ...enabled, volume: { ...enabled.volume, step: 10 } });
+    stage.updateSettings(DEFAULT_SETTINGS);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect([...document.querySelectorAll('iframe')]).toEqual(frames);
+    stage.close();
+    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
+  });
+
+  it('브라우저가 자동 전체화면을 거부해도 멀티뷰와 수동 최대화는 유지된다', async () => {
+    const request = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('NotAllowedError'))
+      .mockResolvedValue(undefined);
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      configurable: true,
+      value: request,
+    });
+    const { stage } = openStage({ autoFullscreen: true });
+    await Promise.resolve();
+    const button = document.querySelector<HTMLButtonElement>(
+      '.cm-stage-bar [aria-label^="전체 화면"]',
+    )!;
+    button.click();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(document.querySelectorAll('iframe')).toHaveLength(SLOTS.length);
+    stage.close();
+    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
+  });
 
   function sendFromSlot(data: unknown, origin = 'https://chzzk.naver.com') {
     window.dispatchEvent(new MessageEvent('message', { data, origin }));
@@ -545,7 +607,8 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     it('광고 시작을 즉시 알리고 중복 없이 유지하다가 본방송 전환 때 지운다', () => {
       const { stage } = openStage();
       sendFromSlot(state(1, false, true));
-      expect(adNotice(1)?.textContent).toBe('광고 재생 중입니다');
+      expect(adNotice(1)?.textContent).toBe('광고 재생 중');
+      expect(adNotice(1)?.querySelector('strong')?.textContent).toBe('광고');
       expect(adNotice(1)?.getAttribute('role')).toBe('status');
       expect(adNotice(2)).toBeNull();
       sendFromSlot(state(1, true, true));
@@ -592,7 +655,7 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       sendFromSlot(state(1, false, true));
       sendFromSlot(state(2, false));
       expect(notice(1)).toBeNull();
-      expect(adNotice(1)?.textContent).toBe('광고 재생 중입니다');
+      expect(adNotice(1)?.textContent).toBe('광고 재생 중');
       expect(notice(2)).not.toBeNull();
       stage.close();
     });
@@ -1007,6 +1070,45 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     expect(svg?.getAttribute('aria-hidden')).toBe('true');
     expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16');
     stage.close();
+  });
+
+  it('실제 전체화면 진입·종료와 이미 최대화된 상태에 아이콘·문구를 맞춘다', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
+    let fullscreen: Element | null = null;
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => fullscreen,
+    });
+    const { stage } = openStage();
+    try {
+      const button = document.querySelector<HTMLButtonElement>(
+        '.cm-stage-bar [aria-label^="전체 화면"]',
+      )!;
+      const originalPath = button.querySelector('path')!.getAttribute('d');
+      expect(button.textContent).toBe('최대화');
+      fullscreen = document.documentElement;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      expect(button.textContent).toBe('최소화');
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      expect(button.title).toBe('전체 화면 종료 (최소화)');
+      expect(button.querySelector('path')!.getAttribute('d')).not.toBe(originalPath);
+      fullscreen = null;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      expect(button.textContent).toBe('최대화');
+      expect(button.getAttribute('aria-pressed')).toBe('false');
+      expect(button.querySelector('path')!.getAttribute('d')).toBe(originalPath);
+      stage.close();
+      fullscreen = document.documentElement;
+      const reopened = openStage();
+      expect(document.querySelector('.cm-stage-bar [aria-label^="전체 화면"]')!.textContent).toBe(
+        '최소화',
+      );
+      reopened.stage.close();
+    } finally {
+      stage.close();
+      if (descriptor) Object.defineProperty(document, 'fullscreenElement', descriptor);
+      else Reflect.deleteProperty(document, 'fullscreenElement');
+    }
   });
 
   /** 터치 타겟 하한(44px 모바일) — `ctx.device.profile.touchTargetPx` 를 그대로 CSS 에 넣는다. */

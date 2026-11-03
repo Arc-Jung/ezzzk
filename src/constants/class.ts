@@ -46,6 +46,8 @@ export const PLAYER = {
   /** aria-label: `넓은 화면`(=현재 좁음) ↔ `좁은 화면`(=현재 넓음). 상태 판별은 이 label 로 한다. */
   viewModeButton: 'button.pzp-viewmode-button',
   fullscreenButton: 'button.pzp-pc__fullscreen-button',
+  /** 전체화면 채팅 버튼의 삽입 기준. 클래스/한국어 접근성 이름으로 클립 버튼을 찾는다. */
+  clipButton: 'button[class*="clip"], button[aria-label*="클립"]',
 
   /**
    * 진행바(탐색 바). **박스가 0×0 이라 rect 로는 위치를 알 수 없다** (실측 2026-09-07: 라이브·VOD

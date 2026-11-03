@@ -23,7 +23,7 @@ import {
   sectionsForTab,
   type TabId,
 } from './tabs';
-import { ChatTab, REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
+import { ChatTab, MultiViewTab, REFERENCE_SCROLLER_HEIGHT } from './tabsExtra';
 import { SETTINGS_PANEL_CSS } from './settingsPanelCss';
 import { SHEET_CSS } from '../ui/Sheet';
 import { SettingsPanel } from './SettingsPanel';
@@ -89,6 +89,30 @@ describe('채팅 설정의 치지직 클린봇', () => {
 });
 
 describe('재생 시작 화면 선택', () => {
+  it('멀티뷰 자동 전체화면은 기본 꺼짐이고 토글을 양방향으로 저장한다', () => {
+    let latest = DEFAULT_SETTINGS;
+    function Harness() {
+      const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+      latest = settings;
+      return (
+        <MultiViewTab
+          settings={settings}
+          device={decideDevice('auto')}
+          update={(patch) => setSettings((old) => ({ ...old, ...patch }))}
+        />
+      );
+    }
+    mount(<Harness />);
+    const toggle = host!.querySelector<HTMLButtonElement>(
+      '[aria-label^="멀티뷰 상태일 때 자동 전체화면"]',
+    )!;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    act(() => toggle.click());
+    expect(latest.multiView.autoFullscreen).toBe(true);
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    act(() => toggle.click());
+    expect(latest.multiView.autoFullscreen).toBe(false);
+  });
   it('기본·넓은 화면·전체화면을 하나의 설정으로 저장한다', () => {
     const update = vi.fn();
     mount(

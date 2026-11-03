@@ -190,6 +190,8 @@ export type Settings = {
      */
     lowerInactiveQuality: boolean;
     restoreLastLayout: boolean;
+    /** 멀티뷰 시작·복원 시 전체화면 요청. 기본 끄기. */
+    autoFullscreen: boolean;
     /**
      * 멀티뷰 스테이지의 **사이드 채팅 패널(BETA)** 을 쓸지. `'none'` 이면 만들지 않는다.
      *
@@ -320,6 +322,7 @@ export const DEFAULT_SETTINGS: Settings = {
     // 요청에 따라 기본값은 **끄기** — 비활성 슬롯도 목표 화질(1080p)로 재생한다.
     lowerInactiveQuality: false,
     restoreLastLayout: true,
+    autoFullscreen: false,
     chatMode: 'none',
     slotChatLines: 3,
     slotChatLinesActive: 5,
