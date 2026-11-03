@@ -71,21 +71,18 @@ export function readSubtitleSnapshot(root: ParentNode = document): {
   const client = (scroller && findChatClient(scroller)) || (anchor && findChatClient(anchor));
   const history = client?.messageList;
   if (history !== undefined) {
-    const messages = [...history]
-      .sort((a, b) => (a.time ?? 0) - (b.time ?? 0))
-      .slice(-6)
-      .flatMap((message) => {
-        const dark = document.documentElement.classList.contains('theme_dark');
-        const color = dark
-          ? message.displayNicknameColor?.dark
-          : message.displayNicknameColor?.light;
-        const result = subtitleMessage(
-          message.profile?.nickname ?? '',
-          contentParts(message.content),
-          color,
-        );
-        return result ? [result] : [];
-      });
+    // 원본 목록은 수신 순서다. 메시지 시각은 역전·누락될 수 있어 정렬 기준으로 쓰면
+    // 시각이 앞선 과거 메시지가 계속 하단에 남고 새 메시지는 그 위로 끼어든다.
+    const messages = history.slice(-6).flatMap((message) => {
+      const dark = document.documentElement.classList.contains('theme_dark');
+      const color = dark ? message.displayNicknameColor?.dark : message.displayNicknameColor?.light;
+      const result = subtitleMessage(
+        message.profile?.nickname ?? '',
+        contentParts(message.content),
+        color,
+      );
+      return result ? [result] : [];
+    });
     return { live: true, messages };
   }
   // 가상 목록은 DOM 순서와 표시 순서가 다를 수 있다. 화면 아래쪽의 최신 메시지를 읽는다.
