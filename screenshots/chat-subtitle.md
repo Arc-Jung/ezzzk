@@ -76,3 +76,14 @@ yarn demo:shots chat-subtitle-multiview-toggle fold8-ultra-open
 ```sh
 node scripts/verify-subtitle-emoticons.mjs
 ```
+
+## 특정 채팅 잔류 수정 (2026-11-03)
+
+원본 클라이언트의 `messageList`는 수신 순서이며 메시지의 `time`은 이 순서와 다를 수 있다. 실제 방송 두 곳에서도 시각 역전을 확인했다. 시각으로 다시 정렬하면 앞선 시각을 가진 과거 메시지가 마지막 여섯 개에 계속 남는다. 원본 목록 순서를 유지하고 뒤의 여섯 개만 읽도록 수정했다.
+
+모의 채팅을 사용하는 Chromium 검사에서 수정 전 새 메시지 8개 뒤에도 과거 메시지가 하단에 남는 현상을 재현했다. 수정 후 일반·슬롯 모드에서 12개 메시지를 연속 입력해 오래된 메시지 제거, 시각 없는 최신 메시지 표시, 하단 스크롤 유지를 검사한다. 실제 방송에 테스트 채팅을 전송하지 않는다.
+
+```sh
+yarn build
+node scripts/verify-subtitle-order.mjs
+```

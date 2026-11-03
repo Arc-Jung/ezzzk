@@ -17,6 +17,32 @@ afterEach(() => {
 });
 
 describe('격리 환경의 최신 채팅 소스', () => {
+  it('시각이 앞선 채팅도 수신 목록 순서대로 밀려나며 시각 없는 새 채팅도 마지막에 표시한다', () => {
+    document.body.innerHTML =
+      '<aside id="aside-chatting"><div class="_wrapper_8lqsk_test"></div></aside>';
+    const client: { messageLimitCount: number; messageList: { time?: number; content: string }[] } =
+      {
+        messageLimitCount: 200,
+        messageList: [{ time: 999999, content: '계속 남던 메시지' }],
+      };
+    Object.assign(document.querySelector('aside > div')!, {
+      __reactFiber$test: { memoizedProps: { client } },
+    });
+    for (let index = 1; index <= 12; index++) {
+      client.messageList.push({
+        time: index === 9 ? undefined : index,
+        content: `새 채팅${index}`,
+      });
+      const messages = readSubtitleSnapshot().messages;
+      expect(messages.at(-1)?.text).toBe(`새 채팅${index}`);
+      expect(messages.map((message) => message.text)).toEqual(
+        client.messageList.slice(-6).map((message) => message.content),
+      );
+      if (index >= 6)
+        expect(messages.some((message) => message.text === '계속 남던 메시지')).toBe(false);
+    }
+    expect(client.messageList[0]?.content).toBe('계속 남던 메시지');
+  });
   it('원본 DOM이 예전 채팅에 머물러도 최신 목록을 읽고 원본은 건드리지 않는다', () => {
     document.body.innerHTML =
       '<aside id="aside-chatting"><div class="_chatting_message_test">예전 채팅</div></aside>';
