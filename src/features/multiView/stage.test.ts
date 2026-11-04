@@ -1087,7 +1087,10 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
       const originalPath = button.querySelector('path')!.getAttribute('d');
       expect(button.textContent).toBe('최대화');
       fullscreen = document.documentElement;
-      document.dispatchEvent(new Event('fullscreenchange'));
+      const blockPropagation = (event: Event) => event.stopPropagation();
+      document.documentElement.addEventListener('fullscreenchange', blockPropagation);
+      document.documentElement.dispatchEvent(new Event('fullscreenchange', { bubbles: true }));
+      document.documentElement.removeEventListener('fullscreenchange', blockPropagation);
       expect(button.textContent).toBe('최소화');
       expect(button.getAttribute('aria-pressed')).toBe('true');
       expect(button.title).toBe('전체 화면 종료 (최소화)');

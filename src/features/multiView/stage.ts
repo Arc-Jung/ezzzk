@@ -659,8 +659,11 @@ export class MultiViewStage {
       if (this.isFullscreen()) this.chatOpen = true;
       this.syncChatWidth();
     };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    this.disposers.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange));
+    // 플레이어가 대상 요소에서 전파를 막아도 실제 전체화면 상태를 먼저 읽는다.
+    document.addEventListener('fullscreenchange', onFullscreenChange, true);
+    this.disposers.push(() =>
+      document.removeEventListener('fullscreenchange', onFullscreenChange, true),
+    );
 
     this.focusDesired = this.settings.multiView.activeSlot;
     this.updateChatControls();
@@ -1270,6 +1273,8 @@ export class MultiViewStage {
       await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
     } catch (e) {
       warning('multiview auto fullscreen request was rejected', e);
+    } finally {
+      this.updateFullscreenButton();
     }
   }
 
@@ -1287,6 +1292,8 @@ export class MultiViewStage {
       await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
     } catch (e) {
       warning('fullscreen request was rejected', e);
+    } finally {
+      this.updateFullscreenButton();
     }
   }
 
