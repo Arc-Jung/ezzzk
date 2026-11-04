@@ -99,6 +99,11 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
       <p className="cm-sheet__hint">
         브라우저에서 자동 진입을 제한하면 멀티뷰의 최대화 버튼을 눌러 주세요.
       </p>
+      <Toggle
+        label="멀티뷰 자동 음량"
+        checked={multiView.autoVolume}
+        onChange={(next) => patch({ autoVolume: next })}
+      />
 
       {/*
         멀티뷰 채팅은 임시로 꺼 두었다 (`features/multiView/chatFeature.ts`, 2026-08-22).

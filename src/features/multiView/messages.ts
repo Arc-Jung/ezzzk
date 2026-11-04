@@ -17,6 +17,13 @@ export const MV_CHANNEL = 'ezzzk/multiview' as const;
 
 /** 부모 → 슬롯 */
 export type ParentToSlot =
+  | {
+      channel: typeof MV_CHANNEL;
+      dir: 'p2s';
+      kind: 'setAutoVolume';
+      slot: SlotIndex;
+      enabled: boolean;
+    }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'enterSlotMode'; slot: SlotIndex }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'exitSlotMode'; slot: SlotIndex }
   | {
@@ -81,6 +88,7 @@ export type SlotToParent =
       /** 광고는 별도 플레이어이므로 online과 독립적으로 보고한다. 이전 프레임은 생략 가능. */
       advertising?: boolean;
       viewerCount: number | null;
+      autoVolumeState?: 'off' | 'waiting' | 'active' | 'unavailable';
     }
   | {
       channel: typeof MV_CHANNEL;
@@ -125,6 +133,7 @@ export function parseMvMessage(
   if (msg.channel !== MV_CHANNEL) return null;
   if (msg.dir !== expectedDir) return null;
   if (typeof msg.kind !== 'string') return null;
+  if (msg.kind === 'setAutoVolume' && typeof msg.enabled !== 'boolean') return null;
   if (typeof msg.slot !== 'number' || msg.slot < 1 || msg.slot > 4) return null;
   return data as MvMessage;
 }

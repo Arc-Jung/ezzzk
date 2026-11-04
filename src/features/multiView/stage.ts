@@ -102,6 +102,7 @@ const STAGE_BAR_COMPACT_MAX_PX = 600;
 const SIDE_CHAT_LINES = 40;
 
 export type StageCallbacks = {
+  onAutoVolumeChange?: (enabled: boolean) => void;
   onRequestConfig: () => void;
   onExit: (activeChannelId: string | null) => void;
   onActiveSlotChange: (slot: SlotIndex) => void;
@@ -140,6 +141,7 @@ type SlotRuntime = {
    * 재생이 시작되면 `null` 로 되돌린다 — 안내를 띄울지 판단하는 유일한 근거다.
    */
   offlineSince: number | null;
+  autoVolumeState?: 'off' | 'waiting' | 'active' | 'unavailable';
 };
 
 /**
@@ -583,6 +585,7 @@ export class MultiViewStage {
   /** 하단 컨트롤 바. 스트립이 이 바를 피하도록 좌표를 읽는다. */
   private bar: HTMLElement | null = null;
   private fullscreenButton: HTMLButtonElement | null = null;
+  private autoVolumeButton: HTMLButtonElement | null = null;
   /**
    * 바가 영상 위로 겹칠 때 무대 위쪽에서 바가 덮는 높이(px). 겹치지 않으면 0.
    * 🔴 이 값만큼 슬롯 헤더를 아래로 밀어 2026-08-16 회귀(바가 헤더 버튼을 덮어 눌리지
@@ -684,6 +687,7 @@ export class MultiViewStage {
     this.container = null;
     this.bar = null;
     this.fullscreenButton = null;
+    this.autoVolumeButton = null;
     this.chatControls = null;
     this.chatLabel = null;
     this.chatToggle = null;
@@ -706,9 +710,11 @@ export class MultiViewStage {
    * 재시작 대신 여기서 제자리 반영한다.
    */
   updateSettings(next: Settings): void {
+    const autoVolumeChanged = next.multiView.autoVolume !== this.settings.multiView.autoVolume;
     const enableAutoFullscreen =
       next.multiView.autoFullscreen && !this.settings.multiView.autoFullscreen;
     this.settings = next;
+    if (autoVolumeChanged) this.syncAutoVolume();
     this.layout();
     for (const runtime of this.runtimes.values()) this.applyQuality(runtime.slot);
     if (enableAutoFullscreen) void this.enterAutoFullscreen();
@@ -781,6 +787,45 @@ export class MultiViewStage {
       createIconElement(maximized ? 'minimize' : 'fullscreen'),
       barLabel(maximized ? '최소화' : '최대화'),
     );
+  }
+
+  private syncAutoVolume(): void {
+    for (const slot of this.runtimes.keys()) {
+      this.post({
+        channel: MV_CHANNEL,
+        dir: 'p2s',
+        kind: 'setAutoVolume',
+        slot,
+        enabled: this.settings.multiView.autoVolume,
+      });
+    }
+    this.updateAutoVolumeButton();
+  }
+
+  private updateAutoVolumeButton(): void {
+    const button = this.autoVolumeButton;
+    if (!button) return;
+    const enabled = this.settings.multiView.autoVolume;
+    const active = [...this.runtimes.values()].filter(
+      (runtime) => runtime.autoVolumeState === 'active',
+    ).length;
+    const unavailable = [...this.runtimes.values()].some(
+      (runtime) => runtime.autoVolumeState === 'unavailable',
+    );
+    const status = unavailable
+      ? '일부 방송 측정 불가'
+      : `${active}/${this.runtimes.size}개 방송 조정 중`;
+    button.setAttribute('aria-pressed', String(enabled));
+    const label = button.querySelector('.cm-stage-bar__label');
+    if (label) label.textContent = `자동 음량 ${enabled ? 'ON' : 'OFF'}`;
+    button.setAttribute(
+      'aria-label',
+      `자동 음량 ${enabled ? '켜짐, 누르면 끄기' : '꺼짐, 누르면 켜기'}`,
+    );
+    button.title = enabled
+      ? `자동 음량 켜짐 · ${status} · 누르면 끄기`
+      : '자동 음량 꺼짐 · 방송별 음량을 비슷하게 맞추기';
+    button.style.color = enabled ? '#00ffa3' : '';
   }
 
   /** 채팅 폭을 다시 계산해 적용하고 무대를 재배치한다. */
@@ -1163,6 +1208,23 @@ export class MultiViewStage {
     });
     bar.appendChild(settingsButton);
 
+    const autoVolumeButton = document.createElement('button');
+    autoVolumeButton.type = 'button';
+    autoVolumeButton.id = 'cm-multiview-auto-volume';
+    autoVolumeButton.append(createIconElement('autoVolume'), barLabel('자동 음량'));
+    this.autoVolumeButton = autoVolumeButton;
+    this.updateAutoVolumeButton();
+    autoVolumeButton.addEventListener('click', () => {
+      const enabled = !this.settings.multiView.autoVolume;
+      this.settings = {
+        ...this.settings,
+        multiView: { ...this.settings.multiView, autoVolume: enabled },
+      };
+      this.syncAutoVolume();
+      this.callbacks.onAutoVolumeChange?.(enabled);
+    });
+    bar.appendChild(autoVolumeButton);
+
     /**
      * 새로고침 (요청 2026-09-07). 슬롯이 멎거나 방송이 끊겼을 때 페이지를 다시 읽는다.
      *
@@ -1399,6 +1461,13 @@ export class MultiViewStage {
         this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'enterSlotMode', slot: message.slot });
         this.registerFocus(message.slot);
         this.applyQuality(message.slot);
+        this.post({
+          channel: MV_CHANNEL,
+          dir: 'p2s',
+          kind: 'setAutoVolume',
+          slot: message.slot,
+          enabled: this.settings.multiView.autoVolume,
+        });
         // 채팅 줄 수(`setChatLines`)도 여기서 다시 나간다.
         this.layout();
         return;
@@ -1429,6 +1498,8 @@ export class MultiViewStage {
         return;
       }
       if (message.kind === 'state') {
+        runtime.autoVolumeState = message.autoVolumeState;
+        this.updateAutoVolumeButton();
         if (message.advertising === true) this.showSlotAdNotice(runtime);
         else runtime.cell.querySelector('.cm-slot__ad-notice')?.remove();
         if (!message.online && message.advertising !== true) {

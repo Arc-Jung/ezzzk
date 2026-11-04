@@ -309,6 +309,37 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     window.dispatchEvent(new MessageEvent('message', { data, origin }));
   }
 
+  it('자동 음량 버튼은 꺼짐으로 시작하고 모든 슬롯 및 늦게 준비된 슬롯에 상태를 전한다', () => {
+    const { stage } = openStage();
+    const frames = [...document.querySelectorAll<HTMLIFrameElement>('iframe')];
+    const posts = frames.map((frame) => vi.spyOn(frame.contentWindow!, 'postMessage'));
+    const button = document.getElementById('cm-multiview-auto-volume')!;
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    button.click();
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    posts.forEach((post, index) =>
+      expect(post).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'setAutoVolume', slot: index + 1, enabled: true }),
+        'https://chzzk.naver.com',
+      ),
+    );
+    sendFromSlot({
+      channel: MV_CHANNEL,
+      dir: 's2p',
+      kind: 'ready',
+      slot: 1,
+      channelName: '새 방송',
+    });
+    expect(posts[0]).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'setAutoVolume', enabled: true }),
+      'https://chzzk.naver.com',
+    );
+    button.click();
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect([...document.querySelectorAll('iframe')]).toEqual(frames);
+    stage.close();
+  });
+
   const audioShortcut = (slot: number) => ({
     channel: MV_CHANNEL,
     dir: 's2p' as const,
