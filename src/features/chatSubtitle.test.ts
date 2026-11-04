@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../utils/chatSource', () => ({
-  watchLatestChat: () => ({ read: () => null, refresh() {}, dispose() {} }),
+  watchLatestChat: () => ({ read: () => null, reset() {}, refresh() {}, dispose() {} }),
 }));
 
 import { DEFAULT_SETTINGS } from '../constants/storage';
@@ -106,6 +106,56 @@ function chatFixture() {
 }
 
 describe('채팅 수집과 표시 생명주기', () => {
+  it('일시정지 중 표시 DOM이 비워져도 playing에서 같은 채팅을 복구하고 새 채팅을 갱신한다', () => {
+    vi.useFakeTimers();
+    const player = chatFixture();
+    const stop = chatSubtitleFeature.start({
+      settings: mergeSettings({ chatSubtitle: { enabled: true } }),
+      device: decideDevice('auto'),
+      page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    });
+    const overlay = document.getElementById(CHAT_SUBTITLE_ID)!;
+    const expected = overlay.textContent;
+    const lines = overlay.firstElementChild!;
+    player.querySelector('video')!.dispatchEvent(new Event('pause'));
+    lines.replaceChildren();
+    overlay.replaceChildren();
+    player.querySelector('video')!.dispatchEvent(new Event('playing'));
+    expect(overlay.firstElementChild).toBe(lines);
+    expect(overlay.textContent).toBe(expected);
+    document.querySelector('aside ._text_test:last-child')!.textContent = '재생 재개 후 새 채팅';
+    vi.advanceTimersByTime(1000);
+    expect(overlay.textContent).toContain('재생 재개 후 새 채팅');
+    stop?.();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('송출 중단으로 플레이어가 사라졌다가 새 video로 돌아오면 즉시 다시 붙는다', () => {
+    vi.useFakeTimers();
+    const player = chatFixture();
+    const stop = chatSubtitleFeature.start({
+      settings: mergeSettings({ chatSubtitle: { enabled: true } }),
+      device: decideDevice('auto'),
+      page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: true },
+    });
+    const overlay = document.getElementById(CHAT_SUBTITLE_ID)!;
+    player.remove();
+    vi.advanceTimersByTime(1000);
+    expect(overlay.isConnected).toBe(false);
+    const replacement = player.cloneNode(false) as HTMLElement;
+    replacement.innerHTML = '<video></video>';
+    vi.spyOn(replacement, 'getBoundingClientRect').mockReturnValue(player.getBoundingClientRect());
+    document.querySelector('#live_player_layout')!.appendChild(replacement);
+    document.querySelector('aside ._text_test:last-child')!.textContent = '방송 복구 후 새 채팅';
+    replacement.querySelector('video')!.dispatchEvent(new Event('loadedmetadata'));
+    expect(overlay.parentElement).toBe(replacement);
+    expect(overlay.hidden).toBe(false);
+    expect(overlay.textContent).toContain('방송 복구 후 새 채팅');
+    stop?.();
+    replacement.querySelector('video')!.dispatchEvent(new Event('playing'));
+    expect(document.getElementById(CHAT_SUBTITLE_ID)).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('닉네임 안 _text_ span을 본문으로 오인하지 않고 이모티콘 대체 문구를 읽는다', () => {
     chatFixture();
     expect(readSubtitleMessages()).toEqual([{ nickname: '시청자', text: '안녕하세요 웃음' }]);

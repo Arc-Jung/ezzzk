@@ -17,6 +17,36 @@ afterEach(() => {
 });
 
 describe('격리 환경의 최신 채팅 소스', () => {
+  it('재생 재개 시 이전 스냅샷을 버리고 요청 제한 없이 새 클라이언트를 다시 읽는다', () => {
+    vi.stubGlobal('chrome', {
+      runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
+    });
+    const send = vi.spyOn(window, 'postMessage').mockImplementation(() => {});
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const source = watchLatestChat(vi.fn());
+    stop = source.dispose;
+    source.refresh();
+    const request = send.mock.calls[0]![0] as { id: string; path: string };
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        origin: location.origin,
+        data: {
+          ...request,
+          channel: CHAT_SOURCE_CHANNEL,
+          kind: 'snapshot',
+          live: true,
+          messages: [{ nickname: '시청자', text: '중단 전 채팅' }],
+        },
+      }),
+    );
+    expect(source.read()?.[0]?.text).toBe('중단 전 채팅');
+    clock.mockReturnValue(1050);
+    source.reset();
+    expect(source.read()).toBeNull();
+    source.refresh();
+    expect(send).toHaveBeenCalledTimes(2);
+  });
   it('시각이 앞선 채팅도 수신 목록 순서대로 밀려나며 시각 없는 새 채팅도 마지막에 표시한다', () => {
     document.body.innerHTML =
       '<aside id="aside-chatting"><div class="_wrapper_8lqsk_test"></div></aside>';
