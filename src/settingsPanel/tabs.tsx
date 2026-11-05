@@ -234,10 +234,7 @@ export function PlaybackTab({ settings, update }: TabProps) {
           />
         </span>
       </div>
-      <p className="cm-sheet__note">└ 목록에 없으면 최고 화질로 대체</p>
-      <p className="cm-sheet__note">
-        └ VOD 의 &apos;자동 (1080p)&apos; 은 이미 달성으로 간주해 건드리지 않음
-      </p>
+      <p className="cm-sheet__note">선택한 화질이 없으면 최고 화질을 적용합니다.</p>
       <Toggle
         label="VOD에도 적용"
         checked={quality.applyToVod}
@@ -258,19 +255,13 @@ export function PlaybackTab({ settings, update }: TabProps) {
           <option value="fullscreen">전체화면</option>
         </select>
       </div>
-      <p className="cm-sheet__note">
-        └ 전체화면 자동 전환이 차단되면 영상 영역을 한 번 누를 때 전환합니다.
-      </p>
+      <p className="cm-sheet__note">전체화면으로 바뀌지 않으면 영상을 한 번 눌러 주세요.</p>
       <h3>방송 재개</h3>
       <Toggle
         label="방송이 다시 시작되면 자동으로 들어가기"
         checked={liveResume.enabled}
         onChange={(next) => update({ liveResume: { enabled: next } })}
       />
-      <p className="cm-sheet__note">
-        └ 방송이 끝난 채널 화면에서 방송 상태를 확인 (처음 10회는 1분 간격, 이후 10분 간격)
-      </p>
-      <p className="cm-sheet__note">└ 시작되면 그때 한 번만 새로고침 (1분마다 새로고침하지 않음)</p>
     </>
   );
 }
@@ -332,9 +323,7 @@ export function SoundTab({ settings, update }: TabProps) {
         checked={volume.restoreLast}
         onChange={(next) => update({ volume: { ...volume, restoreLast: next } })}
       />
-      <p className="cm-sheet__warn">
-        ⚠ 브라우저 정책상 최초 클릭 전까지 음소거 해제가 미뤄질 수 있습니다.
-      </p>
+      <p className="cm-sheet__warn">소리가 나지 않으면 영상을 한 번 눌러 주세요.</p>
 
       {/*
         FR-03.2 증폭 · FR-19 컴프레서 (2026-08-20).
@@ -343,9 +332,7 @@ export function SoundTab({ settings, update }: TabProps) {
       */}
       <h3>소리 키우기 · 다듬기</h3>
       <p className="cm-sheet__note">
-        볼륨은 컨트롤바 `+` 로 최대 {MAX_BOOST_PERCENT}% 까지 올릴 수 있습니다. 100% 를 넘으면
-        표시가 주황색으로 바뀝니다 — 원본보다 크게 트는 상태라 방송에 따라 소리가 찢어질 수
-        있습니다.
+        볼륨은 최대 {MAX_BOOST_PERCENT}%까지 높일 수 있습니다. 증폭하면 소리가 왜곡될 수 있습니다.
       </p>
       <Toggle
         label="음량 평탄화(컴프레서)"
@@ -354,10 +341,7 @@ export function SoundTab({ settings, update }: TabProps) {
           update({ audio: { ...settings.audio, compressor: { ...compressor, enabled: next } } })
         }
       />
-      <p className="cm-sheet__note">
-        방송마다 들쭉날쭉한 음량을 눌러 균일하게 만듭니다. 작은 소리는 잘 들리고 큰 소리는 덜
-        튑니다.
-      </p>
+      <p className="cm-sheet__note">큰 소리와 작은 소리의 차이를 줄입니다.</p>
       <div className="cm-sheet__row">
         <span>누르기 시작하는 세기</span>
         <span className="cm-sp__controls">
@@ -429,16 +413,21 @@ export function SoundTab({ settings, update }: TabProps) {
           />
         </span>
       </div>
-      <p className="cm-sheet__note">
-        구현은 오픈소스 chzzk-plus(MIT)의 오디오 컴프레서를 참고했습니다 — 설정 → 오픈소스
-        라이선스에 고지되어 있습니다.
-      </p>
     </>
   );
 }
 
 /** 조절 단위 후보(%) — FR-05. */
 const CHAT_WIDTH_STEPS = [1, 2, 5, 10] as const;
+
+const DEVICE_TITLES: Record<(typeof DEVICE_CLASSES)[number], string> = {
+  desktop: '데스크톱',
+  laptop: '노트북',
+  'tablet-13': '태블릿 13인치',
+  'tablet-10': '태블릿 10인치',
+  'tablet-7': '태블릿 7인치',
+  mobile: '모바일',
+};
 
 export function LayoutTab({
   settings,
@@ -501,7 +490,6 @@ export function LayoutTab({
           />
         </span>
       </div>
-      <p className="cm-sheet__note">{chatOccupancyText(viewportWidth)}</p>
 
       <div className="cm-sheet__row">
         <span>조절 단위</span>
@@ -526,7 +514,7 @@ export function LayoutTab({
         onChange={(next) => update({ ultraWide: { ...ultraWide, enabled: next } })}
       />
       <div className="cm-sheet__row">
-        <span>└ 최소 채팅 폭</span>
+        <span>최소 채팅 폭</span>
         <span className="cm-sp__controls">
           <Stepper
             label="최소 채팅 폭"
@@ -548,12 +536,12 @@ export function LayoutTab({
         </span>
       </div>
       <Toggle
-        label="└ 좁으면 오버레이"
+        label="공간이 부족하면 채팅 겹쳐 표시"
         checked={ultraWide.overlayFallback}
         onChange={(next) => update({ ultraWide: { ...ultraWide, overlayFallback: next } })}
       />
       <div className="cm-sheet__row">
-        <span>└ 영상 위치 (초광폭 전체)</span>
+        <span>영상 위치</span>
         <select
           aria-label="초광폭 영상 위치"
           value={ultraWide.videoAlign}
@@ -574,7 +562,7 @@ export function LayoutTab({
   );
 }
 
-export function MiscTab({ settings, device, update }: TabProps) {
+export function MiscTab({ settings, update }: TabProps) {
   const { powerCollect, promoHide, adSkip } = settings;
   return (
     <>
@@ -582,21 +570,12 @@ export function MiscTab({ settings, device, update }: TabProps) {
         label="통나무 자동 수집"
         checked={powerCollect.enabled}
         onChange={(next) => update({ powerCollect: { enabled: next } })}
-        hint={
-          // 되돌리기 어려운 항목이라 켜짐 여부와 무관하게 항목 옆에 항상 노출한다 (FR-09.2).
-          <p className="cm-sheet__warn">⚠ 자동화는 이용약관 위반 소지가 있어 주의해야합니다.</p>
-        }
       />
       <Toggle
         label="광고 SKIP 버튼 자동 누르기"
         checked={adSkip.enabled}
         onChange={(next) => update({ adSkip: { enabled: next } })}
-        hint={
-          <p className="cm-sheet__note">
-            └ 카운트다운이 끝나 `SKIP` 버튼이 나타나면 대신 눌러 줍니다. 광고 자체를 차단하지는
-            않습니다.
-          </p>
-        }
+        hint={<p className="cm-sheet__note">건너뛰기 버튼이 나타나면 자동으로 누릅니다.</p>}
       />
       <Toggle
         label="치트키 배너 숨김"
@@ -614,9 +593,7 @@ export function MiscTab({ settings, device, update }: TabProps) {
         onChange={(next) =>
           update({ promoHide: { ...promoHide, disableCheatkeyNavigation: next } })
         }
-        hint={
-          <p className="cm-sheet__note">└ 진행바 위 치트키 안내용 클릭 영역을 비활성화합니다.</p>
-        }
+        hint={<p className="cm-sheet__note">진행바 위 치트키 안내를 눌러도 이동하지 않습니다.</p>}
       />
       <div className="cm-sheet__row">
         <span>기기 유형</span>
@@ -630,13 +607,11 @@ export function MiscTab({ settings, device, update }: TabProps) {
           <option value="auto">자동</option>
           {DEVICE_CLASSES.map((deviceClass) => (
             <option key={deviceClass} value={deviceClass}>
-              {deviceClass}
+              {DEVICE_TITLES[deviceClass]}
             </option>
           ))}
         </select>
       </div>
-      <p className="cm-sheet__note">└ 자동 판별 결과: {device.deviceClass}</p>
-      <p className="cm-sheet__note">└ 판정 근거: {device.reason}</p>
       <Toggle
         label="디버그 로그"
         checked={settings.debug}

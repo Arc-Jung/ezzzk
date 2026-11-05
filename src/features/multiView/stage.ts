@@ -1149,7 +1149,7 @@ export class MultiViewStage {
     runtime.failed = true;
     const error = document.createElement('div');
     error.className = 'cm-slot__error';
-    error.textContent = '이 슬롯을 불러올 수 없습니다. 치지직이 임베드를 차단했을 수 있습니다.';
+    error.textContent = '방송을 불러올 수 없습니다. 새로고침해 주세요.';
     cell.appendChild(error);
     warning(
       `slot ${slot.index} gave up after ${MAX_SLOT_LOAD_RETRIES} retries (loaded=${runtime.loaded})`,
@@ -1168,8 +1168,7 @@ export class MultiViewStage {
     if (runtime.cell.querySelector('.cm-slot__notice')) return;
     const notice = document.createElement('div');
     notice.className = 'cm-slot__notice';
-    notice.textContent =
-      '재생이 시작되지 않았습니다. 방송이 끝났거나 로그인·연령 확인이 필요한 방송일 수 있습니다.';
+    notice.textContent = '재생이 시작되지 않았습니다. 방송 페이지에서 상태를 확인해 주세요.';
     runtime.cell.appendChild(notice);
     warning(`slot ${runtime.slot} has been ready but not playing for ${SLOT_OFFLINE_NOTICE_MS}ms`);
   }
