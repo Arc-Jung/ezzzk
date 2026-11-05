@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import { BETA_BADGE_TEXT, OURS } from '../constants/class';
-import { BG, BORDER, FG, RADIUS, ACCENT, FONT_FAMILY } from './tokens';
+import { BG, BORDER, FG, RADIUS, ACCENT, FONT_FAMILY, UI_STATE } from './tokens';
 import { CloseIcon } from './icons';
 
 export const SHEET_MAX_W = 920;
@@ -181,9 +181,9 @@ export const SHEET_CSS = `
   display: flex;
   flex-direction: column;
   background: ${BG.floating};
-  border: 1px solid ${BORDER.subtle};
-  border-radius: ${RADIUS.md};
-  box-shadow: 0 12px 40px ${BG.scrim};
+  border: 1px solid ${UI_STATE.border};
+  border-radius: ${RADIUS.lg};
+  box-shadow: 0 16px 48px ${BG.scrim};
   overflow: hidden;
 }
 /*
@@ -307,7 +307,7 @@ export const SHEET_CSS = `
   color: ${FG.body};
   cursor: pointer;
 }
-.cm-sheet__btn--primary { border-color: ${ACCENT}; color: ${ACCENT}; }
+.cm-sheet__btn--primary { border-color: ${UI_STATE.selectedBorder}; background: ${UI_STATE.selected}; color: ${ACCENT}; }
 .cm-sheet__btn:disabled { opacity: 0.35; cursor: default; }
 .cm-sheet__note { margin: 4px 0 0; font-size: 11px; color: ${FG.muted}; }
 .cm-sheet__warn { margin: 4px 0 0; font-size: 11px; color: #ffb454; }
@@ -317,6 +317,24 @@ export const SHEET_CSS = `
   justify-content: space-between;
   gap: 10px;
   padding: 5px 0;
+}
+.cm-sheet button, .cm-sheet input, .cm-sheet select { font-family: inherit; }
+.cm-sheet select, .cm-sheet input:is([type='text'], [type='number']) {
+  background: ${BG.raised}; color: ${FG.body};
+  border: 1px solid ${UI_STATE.border}; border-radius: ${RADIUS.sm};
+  padding: 4px 8px;
+}
+.cm-sheet input { accent-color: ${ACCENT}; }
+.cm-sheet { color-scheme: dark; scrollbar-color: #ffffff40 transparent; scrollbar-width: thin; }
+.cm-sheet :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid ${ACCENT}; outline-offset: 2px;
+}
+.cm-sheet__btn, .cm-sheet__close { transition: background-color 140ms ease; }
+@media (hover: hover) {
+  .cm-sheet__btn:not(:disabled):hover, .cm-sheet__close:hover { background: ${UI_STATE.hover}; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-sheet *, .cm-sheet *::before, .cm-sheet *::after { transition: none !important; }
 }
 /* 커버 화면과 회전한 폴드에서도 바깥 여백보다 조작 공간을 우선한다. */
 @media (pointer: coarse) and (max-width: 1000px) {

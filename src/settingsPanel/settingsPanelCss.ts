@@ -5,7 +5,7 @@
  * `.css` 파일이 아니라 문자열 모듈인 이유: content script 는 `upsertStyle` 로 스타일을 주입하며
  * (`SHEET_CSS` 와 동일한 방식), 별도 CSS 파일은 확장 번들에서 자동으로 페이지에 붙지 않는다.
  */
-import { BG, BORDER, FG, OVERLAY, RADIUS, ACCENT } from '../ui/tokens';
+import { BG, BORDER, FG, OVERLAY, RADIUS, ACCENT, UI_STATE } from '../ui/tokens';
 
 export const SETTINGS_PANEL_CSS = `
 .cm-sheet:has(.cm-sp) .cm-sheet__foot { flex-wrap: wrap; }
@@ -33,7 +33,7 @@ export const SETTINGS_PANEL_CSS = `
 }
 .cm-sp input[type='color'] { min-width: 44px; min-height: 44px; }
 .cm-sp input[type='range'] { max-width: 40vw; min-height: 44px; }
-.cm-sp { display: flex; gap: 14px; align-items: flex-start; }
+.cm-sp { display: flex; gap: 20px; align-items: flex-start; }
 .cm-sp__rail {
   display: flex;
   flex-direction: column;
@@ -41,9 +41,9 @@ export const SETTINGS_PANEL_CSS = `
   flex: 0 0 auto;
   min-width: 104px;
   padding: 4px;
-  border: 1px solid ${BORDER.subtle};
+  border: 1px solid ${UI_STATE.border};
   border-radius: ${RADIUS.md};
-  background: ${BG.raised};
+  background: ${BG.base};
 }
 .cm-sp__tab {
   min-height: var(--cm-target, 32px);
@@ -57,9 +57,13 @@ export const SETTINGS_PANEL_CSS = `
   text-align: left;
   cursor: pointer;
 }
-.cm-sp__tab[aria-selected='true'] { background: ${BG.raised}; color: ${ACCENT}; font-weight: 700; }
+.cm-sp__tab { transition: background-color 140ms ease; }
+.cm-sp__tab[aria-selected='true'] { background: ${UI_STATE.selected}; color: ${ACCENT}; font-weight: 700; box-shadow: inset 0 0 0 1px ${UI_STATE.selectedBorder}; }
+@media (hover: hover) {
+  .cm-sp__tab:not([aria-selected='true']):hover { background: ${UI_STATE.hover}; }
+}
 .cm-sp__panel { flex: 1 1 auto; min-width: 0; }
-.cm-sp__panel h3 { margin: 12px 0 4px; font-size: 12px; color: ${FG.muted}; }
+.cm-sp__panel h3 { margin: 20px 0 8px; font-size: 12px; color: ${FG.muted}; }
 .cm-sp__controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .cm-sp__controls label { display: inline-flex; align-items: center; gap: 4px; }
 .cm-sp__list { list-style: none; margin: 4px 0; padding: 0; }

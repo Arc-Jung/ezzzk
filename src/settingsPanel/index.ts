@@ -1,7 +1,7 @@
 /**
  * FR-09.2 설정 패널 기능 진입점.
  *
- * - 컨트롤바에 `⚙*` 버튼을 삽입한다 (배지로 네이티브 `설정` 과 구분 — §11 미결정 8).
+ * - 컨트롤바에 EZ 전용 SVG 버튼을 삽입해 네이티브 톱니 설정과 구분한다.
  * - 단축키는 `Alt + ,` 다. 네이티브 `space` `k` `m` `f` 는 절대 쓰지 않는다 (FR-03 참조).
  * - 기기 프로필이 `shortcuts: 'off'` 면 단축키를 걸지 않는다. 버튼은 그대로 동작한다.
  * - m.chzzk(`mobile-web`)은 컨트롤바 구조가 달라 삽입 지점이 없다 → 대상에서 제외한다.
@@ -52,8 +52,8 @@ export const settingsPanelFeature: Feature = {
     const stopButton = mountControlBarButton({
       id: OURS.settingsButtonId,
       ariaLabel: '이지직 설정',
-      icon: 'gear',
-      badge: true,
+      icon: 'ezzzkSettings',
+      iconSize: 24,
       minTargetPx: device.profile.touchTargetPx,
       onClick: toggle,
     });

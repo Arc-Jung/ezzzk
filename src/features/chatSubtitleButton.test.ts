@@ -56,7 +56,7 @@ describe('자막형 채팅 아이콘', () => {
     stop = chatSubtitleButtonFeature.start(context());
     expect(button().querySelector('svg')).not.toBeNull();
     expect(button().getAttribute('aria-pressed')).toBe('false');
-    expect(parseInt(button().style.width)).toBeGreaterThanOrEqual(44);
+    expect(parseInt(button().style.minWidth || button().style.width)).toBeGreaterThanOrEqual(44);
     const playerClick = vi.fn();
     document.querySelector('.pzp-pc')!.addEventListener('click', playerClick);
     button().click();

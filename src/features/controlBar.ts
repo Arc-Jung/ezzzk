@@ -19,6 +19,7 @@ import { BETA_BADGE_TEXT, OURS, PLAYER } from '../constants/class';
 import { qs, upsertStyle } from '../utils/dom';
 import { keepMounted, type Disposer } from '../utils/observe';
 import { createIconElement, type IconName } from '../ui/icons';
+import { ACCENT, RADIUS, UI_STATE } from '../ui/tokens';
 
 /** 네이티브 버튼 크기 (실측 고정값) */
 export const NATIVE_BUTTON_PX = 36;
@@ -46,7 +47,15 @@ const AUTO_HIDE_STYLE_ID = 'cm-controlbar-autohide-style';
  * 줄을 바꿔 **모든 버튼이 화면 안에 남게** 한다. 잘라내지 않는다 — 조작 요소는 도달 가능해야 한다.
  */
 export const CONTROL_BAR_AUTO_HIDE_CSS = `
-.${CONTROL_ITEM_CLASS} { transition: opacity 200ms; }
+.${CONTROL_ITEM_CLASS} { transition: opacity 200ms, background-color 140ms ease; border-radius: ${RADIUS.sm}; }
+.${CONTROL_ITEM_CLASS}[aria-pressed='true'] { background: ${UI_STATE.selected} !important; }
+.${CONTROL_ITEM_CLASS}:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 2px; }
+@media (hover: hover) {
+  .${CONTROL_ITEM_CLASS}:hover { background: ${UI_STATE.hover} !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .${CONTROL_ITEM_CLASS} { transition: none; }
+}
 .pzp-pc:not(.pzp-pc--controls) .${CONTROL_ITEM_CLASS} {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -106,6 +115,9 @@ export type ControlBarButtonOptions = {
   content?: string;
   /** 인라인 SVG 아이콘. `content` 와 함께 주면 아이콘이 이긴다. */
   icon?: IconName;
+  iconSize?: number;
+  /** 아이콘 오른쪽에 함께 표시할 이름. */
+  iconLabel?: string;
   /** 지정한 네이티브 버튼 바로 앞에 삽입한다. 없으면 그룹 맨 앞에 둔다. */
   before?: string;
   onClick: () => void;
@@ -127,7 +139,7 @@ function buildButton(options: ControlBarButtonOptions): HTMLButtonElement {
   button.className = CONTROL_ITEM_CLASS;
   button.setAttribute('aria-label', options.ariaLabel);
   button.title = options.ariaLabel;
-  if (options.icon) button.appendChild(createIconElement(options.icon));
+  if (options.icon) button.appendChild(createIconElement(options.icon, options.iconSize));
   else if (options.content !== undefined) button.textContent = options.content;
   button.style.cssText = [
     `width: ${size}px`,
@@ -147,6 +159,18 @@ function buildButton(options: ControlBarButtonOptions): HTMLButtonElement {
     'line-height: 1',
     'padding: 0',
   ].join('; ');
+
+  if (options.icon && options.iconLabel) {
+    const label = document.createElement('span');
+    label.textContent = options.iconLabel;
+    label.setAttribute('aria-hidden', 'true');
+    button.appendChild(label);
+    button.style.width = 'auto';
+    button.style.minWidth = `${size}px`;
+    button.style.padding = '0 8px';
+    button.style.gap = '6px';
+    button.style.whiteSpace = 'nowrap';
+  }
 
   if (options.badge) {
     const badge = document.createElement('span');
