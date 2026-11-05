@@ -97,3 +97,11 @@ export const ACCENT = '#00ffa3';
  */
 export const FONT_FAMILY =
   '-apple-system, system-ui, "Malgun Gothic", "맑은 고딕", Helvetica, Arial, sans-serif';
+
+/** 확장 UI 공통 상태. 영상 위에서도 과한 강조 없이 조작 상태를 구별한다. */
+export const UI_STATE = {
+  border: 'rgba(255, 255, 255, 0.12)',
+  hover: 'rgba(255, 255, 255, 0.08)',
+  selected: 'rgba(0, 255, 163, 0.1)',
+  selectedBorder: 'rgba(0, 255, 163, 0.32)',
+} as const;

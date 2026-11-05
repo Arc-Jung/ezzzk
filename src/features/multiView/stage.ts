@@ -11,6 +11,7 @@
  */
 
 import { createIconElement } from '../../ui/icons';
+import { ACCENT, FONT_FAMILY, RADIUS, UI_STATE } from '../../ui/tokens';
 import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
 import type { MultiViewSlot, Settings, SlotIndex, SlotLines } from '../../constants/storage';
 import type { DeviceDecision } from '../../device';
@@ -316,8 +317,10 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   gap: 6px;
   padding: 3px 8px;
   background: #16181bbf;
-  border: 1px solid #2a2d31;
-  border-radius: 8px;
+  border: 1px solid ${UI_STATE.border};
+  border-radius: ${RADIUS.lg};
+  font-family: ${FONT_FAMILY};
+  box-shadow: 0 4px 16px #0003;
   z-index: 3;
 }
 /*
@@ -349,14 +352,32 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   min-width: ${touchTargetPx}px;
   min-height: ${touchTargetPx}px;
   padding: 0 6px;
-  border: 1px solid #2a2d31;
-  border-radius: 5px;
-  background: #1c1f22b3;
+  border: 1px solid transparent;
+  border-radius: ${RADIUS.sm};
+  background: #1c1f2280;
+  font: inherit;
+  transition: background-color 140ms ease, border-color 140ms ease;
   color: #e9ecef;
   cursor: pointer;
 }
+#${OURS.multiViewStageId} .cm-stage-bar button[aria-pressed='true'] {
+  background: ${UI_STATE.selected};
+  border-color: ${UI_STATE.selectedBorder};
+}
+#${OURS.multiViewStageId} .cm-stage-bar button:focus-visible {
+  outline: 2px solid ${ACCENT}; outline-offset: 2px;
+}
+@media (hover: hover) {
+  #${OURS.multiViewStageId} .cm-stage-bar button:hover {
+    background: ${UI_STATE.hover}; border-color: ${UI_STATE.border};
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #${OURS.multiViewStageId} .cm-stage-bar button { transition: none; }
+}
 #${OURS.multiViewStageId} .cm-stage-bar__label {
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
 }
 #${OURS.multiViewStageId} .cm-stage-bar output { min-width: 40px; text-align: center; }

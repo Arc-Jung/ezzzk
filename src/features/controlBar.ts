@@ -19,6 +19,7 @@ import { BETA_BADGE_TEXT, OURS, PLAYER } from '../constants/class';
 import { qs, upsertStyle } from '../utils/dom';
 import { keepMounted, type Disposer } from '../utils/observe';
 import { createIconElement, type IconName } from '../ui/icons';
+import { ACCENT, RADIUS, UI_STATE } from '../ui/tokens';
 
 /** 네이티브 버튼 크기 (실측 고정값) */
 export const NATIVE_BUTTON_PX = 36;
@@ -46,7 +47,15 @@ const AUTO_HIDE_STYLE_ID = 'cm-controlbar-autohide-style';
  * 줄을 바꿔 **모든 버튼이 화면 안에 남게** 한다. 잘라내지 않는다 — 조작 요소는 도달 가능해야 한다.
  */
 export const CONTROL_BAR_AUTO_HIDE_CSS = `
-.${CONTROL_ITEM_CLASS} { transition: opacity 200ms; }
+.${CONTROL_ITEM_CLASS} { transition: opacity 200ms, background-color 140ms ease; border-radius: ${RADIUS.sm}; }
+.${CONTROL_ITEM_CLASS}[aria-pressed='true'] { background: ${UI_STATE.selected} !important; }
+.${CONTROL_ITEM_CLASS}:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 2px; }
+@media (hover: hover) {
+  .${CONTROL_ITEM_CLASS}:hover { background: ${UI_STATE.hover} !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .${CONTROL_ITEM_CLASS} { transition: none; }
+}
 .pzp-pc:not(.pzp-pc--controls) .${CONTROL_ITEM_CLASS} {
   opacity: 0 !important;
   pointer-events: none !important;
