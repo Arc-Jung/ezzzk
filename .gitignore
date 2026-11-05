@@ -121,3 +121,8 @@ etc/
 # AGENTS.md 는 CLAUDE.md 를 가리키는 포인터일 뿐이다.
 CLAUDE.md
 AGENTS.md
+
+# 공개 배포 이력만 추적하고 기존 로컬 작업 문서는 계속 제외한다.
+!/Docs/
+/Docs/*
+!/Docs/CHANGELOG.md
