@@ -1,0 +1,14 @@
+{
+  "requestedSlots": 4,
+  "measuredSlots": [
+    1,
+    2,
+    4
+  ],
+  "unmeasuredSlots": [
+    3
+  ],
+  "snapshots": 12,
+  "maximumObservedOutputPeak": 0.5548346042633057,
+  "note": "실방송은 시점과 내용이 달라 전후 동일 신호 비교가 아니다. 한 슬롯은 영상 준비를 확인하지 못했으며, 정량 수렴 및 피크 회귀 검사는 별도 4개 합성 신호로 수행했다."
+}

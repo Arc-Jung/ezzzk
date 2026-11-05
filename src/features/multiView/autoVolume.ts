@@ -1,5 +1,11 @@
 /** 슬롯별 RMS 자동 게인. 원본 음량·음소거·컴프레서 설정은 변경하지 않는다. */
-import { ensureGraph, ensureNormalization, resumeGraph, type AudioGraph } from '../audioPipeline';
+import {
+  ensureGraph,
+  ensureNormalization,
+  resumeGraph,
+  setNormalizationEnabled,
+  type AudioGraph,
+} from '../audioPipeline';
 export type AutoVolumeState = 'off' | 'waiting' | 'active' | 'unavailable';
 export const AUTO_VOLUME_TARGET = 0.08;
 export const AUTO_VOLUME_INTERVAL_MS = 250;
@@ -32,6 +38,7 @@ export function createAutoVolume(getVideos: () => HTMLVideoElement[]) {
     for (const [video, meter] of meters) {
       if (!videos.includes(video)) {
         reset(meter);
+        setNormalizationEnabled(meter.graph, false);
         meters.delete(video);
       }
     }
@@ -60,6 +67,7 @@ export function createAutoVolume(getVideos: () => HTMLVideoElement[]) {
           failed = true;
           continue;
         }
+        setNormalizationEnabled(graph, true);
         meter = { graph, samples: new Float32Array(normalization.analyser.fftSize), power: null };
         meters.set(video, meter);
       }
@@ -107,7 +115,10 @@ export function createAutoVolume(getVideos: () => HTMLVideoElement[]) {
       tick();
       timer = setInterval(tick, AUTO_VOLUME_INTERVAL_MS);
     } else {
-      for (const meter of meters.values()) reset(meter);
+      for (const meter of meters.values()) {
+        reset(meter);
+        setNormalizationEnabled(meter.graph, false);
+      }
       meters.clear();
       state = 'off';
     }

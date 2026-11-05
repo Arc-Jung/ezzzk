@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, STORAGE_KEY, type Settings } from '../constants/stora
 import { resetAllSettings } from '../storage';
 import { auditIconButtons } from '../ui/iconButtonAudit.test-utils';
 import { resetInputTrackingForTests } from './multiView/userIntent';
+import { existingGraph } from './audioPipeline';
 import type { FeatureContext } from './types';
 import {
   CHANNEL_VOLUME_STORAGE_KEY,
@@ -459,6 +460,71 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
     vi.useRealTimers();
     vi.restoreAllMocks();
     document.body.innerHTML = '';
+  });
+
+  it('증폭에서 50%로 내리면 남은 게인을 해제하고 음량을 두 번 낮추지 않는다', async () => {
+    vi.useFakeTimers();
+    const node = () => ({ connect: vi.fn(), disconnect: vi.fn() });
+    const parameter = () => ({
+      value: 1,
+      setValueAtTime(value: number) {
+        this.value = value;
+      },
+    });
+    class FakeContext {
+      currentTime = 0;
+      destination = node();
+      resume = () => Promise.resolve();
+      createMediaElementSource = node;
+      createGain = () => ({ ...node(), gain: parameter() });
+      createDynamicsCompressor = () => ({
+        ...node(),
+        threshold: parameter(),
+        knee: parameter(),
+        ratio: parameter(),
+        attack: parameter(),
+        release: parameter(),
+      });
+    }
+    vi.stubGlobal('AudioContext', FakeContext);
+    const video = addVideo(mountPlayer());
+    const dispose = volumeFeature.start({
+      ...ctx,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        volume: {
+          ...DEFAULT_SETTINGS.volume,
+          defaultLevel: 100,
+          restoreLast: false,
+          autoUnmute: false,
+        },
+        audio: {
+          ...DEFAULT_SETTINGS.audio,
+          compressor: { ...DEFAULT_SETTINGS.audio.compressor, enabled: false },
+        },
+      },
+    });
+    try {
+      await vi.advanceTimersByTimeAsync(200);
+      const plus = document.querySelector<HTMLButtonElement>('[aria-label="볼륨 높이기"]')!;
+      const minus = document.querySelector<HTMLButtonElement>('[aria-label="볼륨 낮추기"]')!;
+      for (let i = 0; i < 5; i++) plus.click();
+      expect(video.volume).toBe(1);
+      expect(existingGraph(video)?.gain.gain.value).toBe(1.5);
+      video.volume = 0.5;
+      video.dispatchEvent(new Event('volumechange'));
+      expect(existingGraph(video)?.gain.gain.value).toBe(1);
+      for (let i = 0; i < 10; i++) plus.click();
+      expect(existingGraph(video)?.gain.gain.value).toBe(1.5);
+      for (let i = 0; i < 10; i++) minus.click();
+      expect(video.volume).toBe(0.5);
+      expect(existingGraph(video)?.gain.gain.value).toBe(1);
+      // 기존 컴프레서와 함께 쓸 때도 0.5 × 1 이며 0.5 × 0.5가 아니다.
+      document.querySelector<HTMLButtonElement>('[aria-label="음량 평탄화 켜기"]')!.click();
+      expect(existingGraph(video)?.gain.gain.value).toBe(1);
+    } finally {
+      dispose?.();
+    }
   });
 
   it('접힘·펼침에서는 같은 컨트롤과 음량을 유지하고 터치 크기·노출만 바꾼다', async () => {

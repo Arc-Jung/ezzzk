@@ -3,6 +3,7 @@ const audio = vi.hoisted(() => ({
   ensureGraph: vi.fn(),
   ensureNormalization: vi.fn(),
   resumeGraph: vi.fn(),
+  setNormalizationEnabled: vi.fn(),
 }));
 vi.mock('../audioPipeline', () => audio);
 import { createAutoVolume, normalizationGain } from './autoVolume';
@@ -47,11 +48,13 @@ describe('자동 음량', () => {
     expect(controller.state()).toBe('off');
     expect(audio.ensureGraph).not.toHaveBeenCalled();
     controller.setEnabled(true);
+    expect(audio.setNormalizationEnabled).toHaveBeenLastCalledWith(expect.anything(), true);
     expect(controller.state()).toBe('active');
     expect(parameter.setTargetAtTime).toHaveBeenLastCalledWith(expect.closeTo(0.14), 0, 0.15);
     expect(video.volume).toBe(0.7);
     expect(video.muted).toBe(false);
     controller.setEnabled(false);
+    expect(audio.setNormalizationEnabled).toHaveBeenLastCalledWith(expect.anything(), false);
     expect(parameter.setTargetAtTime).toHaveBeenLastCalledWith(1, 0, 0.1);
     expect(controller.state()).toBe('off');
     expect(vi.getTimerCount()).toBe(0);
@@ -96,6 +99,24 @@ describe('자동 음량', () => {
     expect(controller.state()).toBe('waiting');
     expect(audio.resumeGraph).toHaveBeenCalled();
     expect(parameter.setTargetAtTime).not.toHaveBeenCalled();
+    graph.context.state = 'running';
+    vi.advanceTimersByTime(250);
+    expect(controller.state()).toBe('active');
+    expect(audio.ensureGraph).toHaveBeenCalledTimes(1);
+    controller.dispose();
+  });
+  it('일시정지 후 같은 영상이 재개되면 측정도 다시 시작한다', () => {
+    const { controller, parameter, video } = setup(0.4);
+    controller.setEnabled(true);
+    Object.defineProperty(video, 'paused', { configurable: true, value: true });
+    vi.advanceTimersByTime(250);
+    expect(controller.state()).toBe('waiting');
+    expect(parameter.setTargetAtTime).toHaveBeenLastCalledWith(1, 0, 0.1);
+    Object.defineProperty(video, 'paused', { configurable: true, value: false });
+    vi.advanceTimersByTime(250);
+    expect(controller.state()).toBe('active');
+    expect(parameter.setTargetAtTime).toHaveBeenLastCalledWith(expect.closeTo(0.14), 0, 0.15);
+    expect(audio.ensureGraph).toHaveBeenCalledTimes(1);
     controller.dispose();
   });
 });

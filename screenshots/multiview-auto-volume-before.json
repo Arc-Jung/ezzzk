@@ -1,0 +1,45 @@
+{
+  "states": [
+    {
+      "phase": "enabled",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.08013807844591742,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.07990931202462816,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.07975803432087354,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.08007559257333283,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    }
+  ],
+  "enabledSpreadDb": 0.041289653472445925,
+  "transient": {
+    "peak": 4.990119457244873
+  }
+}

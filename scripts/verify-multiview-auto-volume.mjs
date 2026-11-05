@@ -12,8 +12,8 @@ const context = await openLiveContext(
   },
 );
 const report = { states: [] };
-function wav(amplitude, frequency) {
-  const count = 48000 * 3;
+function wav(amplitude, frequency, transient = false) {
+  const count = 48000 * (transient ? 6 : 3);
   const data = Buffer.alloc(44 + count * 2);
   data.write('RIFF');
   data.writeUInt32LE(data.length - 8, 4);
@@ -29,7 +29,11 @@ function wav(amplitude, frequency) {
   data.writeUInt32LE(count * 2, 40);
   for (let n = 0; n < count; n++)
     data.writeInt16LE(
-      Math.round(Math.sin((n * 2 * Math.PI * frequency) / 48000) * amplitude * 32767),
+      Math.round(
+        Math.sin((n * 2 * Math.PI * frequency) / 48000) *
+          (transient && n >= 48000 * 4 && n < 48000 * 4.3 ? 0.8 : amplitude) *
+          32767,
+      ),
       44 + n * 2,
     );
   return data;
@@ -39,7 +43,11 @@ try {
     const slot = Number(/audio-(\d)/.exec(route.request().url())[1]);
     return route.fulfill({
       contentType: 'audio/wav',
-      body: wav(slot === 0 ? 0 : 0.08 * 2 ** (slot - 1), 400 + slot * 50),
+      body: wav(
+        slot === 0 ? 0 : slot === 5 ? 0.005 : 0.08 * 2 ** (slot - 1),
+        400 + slot * 50,
+        slot === 5,
+      ),
     });
   });
   await context.route('https://chzzk.naver.com/live/**', (route) => {
@@ -110,7 +118,9 @@ try {
   const Native=AudioContext;globalThis.__levelProbe={contexts:[],sources:0};
   globalThis.AudioContext=class extends Native{constructor(...args){super(...args);const record={context:this,outputs:[],lastOutput:null};__levelProbe.contexts.push(record);
     const source=this.createMediaElementSource.bind(this);this.createMediaElementSource=(...a)=>{__levelProbe.sources++;return source(...a)};
-    const gain=this.createGain.bind(this);this.createGain=()=>{const node=gain();const connect=node.connect.bind(node);node.connect=(target,...a)=>{const result=connect(target,...a);if(target===this.destination){const analyser=this.createAnalyser();analyser.fftSize=4096;connect(analyser);record.lastOutput=analyser;record.outputs.push(analyser)}return result};return node};
+    const instrument=node=>{const connect=node.connect.bind(node);node.connect=(target,...a)=>{const result=connect(target,...a);if(target===this.destination){const analyser=this.createAnalyser();analyser.fftSize=4096;connect(analyser);record.lastOutput=analyser;record.outputs.push(analyser)}return result};return node};
+    const gain=this.createGain.bind(this);this.createGain=()=>instrument(gain());
+    const compressor=this.createDynamicsCompressor.bind(this);this.createDynamicsCompressor=()=>instrument(compressor());
   }};
  })()`,
     });
@@ -139,6 +149,58 @@ try {
     report.enabledSpreadDb > 2
   )
     throw new Error('자동 보정 출력이 수렴하지 않았습니다: ' + JSON.stringify(enabled));
+  // 작은 소리 직후 큰 소리가 나올 때의 피크. 일정 진폭 검사에서 놓치는 클리핑을 측정한다.
+  const stressWorld = worlds.find((w) => slots.get(w.auxData.frameId) === 1);
+  const transient = async () => {
+    await frames[0].evaluate(async () => {
+      const video = document.querySelector('video');
+      video.src = '/audio-5.wav';
+      await video.play();
+    });
+    const { result, exceptionDetails } = await session.send('Runtime.evaluate', {
+      contextId: stressWorld.id,
+      awaitPromise: true,
+      returnByValue: true,
+      expression: `new Promise(resolve => {let peak=0,count=0;const values=new Float32Array(4096);const timer=setInterval(()=>{const a=__levelProbe.contexts.at(-1)?.lastOutput;a?.getFloatTimeDomainData(values);for(const v of values)peak=Math.max(peak,Math.abs(v));count++;},10);setTimeout(()=>{clearInterval(timer);resolve({peak,count});},6000);})`,
+    });
+    if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
+    if (result.value.peak <= 0.05 || result.value.peak > 0.95 || result.value.count < 100)
+      throw new Error('급격한 음량 변화의 출력 제한 실패: ' + JSON.stringify(result.value));
+    return result.value;
+  };
+  report.transient = await transient();
+  await frames[0].evaluate(() => {
+    for (let n = 0; n < 10; n++) document.querySelector('[aria-label="볼륨 높이기"]').click();
+  });
+  report.transientBoosted = await transient();
+  await frames[0].evaluate(() => {
+    for (let n = 0; n < 10; n++) document.querySelector('[aria-label="볼륨 낮추기"]').click();
+  });
+  await frames[0].evaluate(async () => {
+    const video = document.querySelector('video');
+    video.src = '/audio-1.wav';
+    await video.play();
+  });
+  await page.waitForTimeout(8000);
+  const restored = await read();
+  if (restored.some((s) => s.volume !== 1) || spread(restored) > 2)
+    throw new Error('200% 증폭에서 100% 복귀 실패');
+  report.states.push({ phase: 'after-boost', slots: restored });
+  await frames[2].evaluate(() => document.querySelector('video').pause());
+  await page.waitForTimeout(800);
+  const paused = await read();
+  if (paused.find((s) => s.slot === 3).rms > 0.0001)
+    throw new Error('일시정지 중 출력이 남아 있습니다');
+  await frames[2].click('#play');
+  await page.waitForTimeout(8000);
+  const resumedPlayback = await read();
+  if (spread(resumedPlayback) > 2 || resumedPlayback.some((s) => s.sources !== 1))
+    throw new Error('일시정지 후 보정 재개 실패');
+  report.states.push({ phase: 'pause-resume', slots: resumedPlayback });
+  console.log(
+    'transient',
+    JSON.stringify({ normal: report.transient, boosted: report.transientBoosted }),
+  );
   await page.screenshot({ path: resolve(out, 'enabled.png') });
   await page.setViewportSize({ width: 411, height: 900 });
   await page.waitForFunction(
@@ -197,7 +259,7 @@ try {
   report.states.push({ phase: 'compressor-and-manual-volume', slots: compressed });
   report.compressedSpreadDb = spread(compressed);
   if (
-    compressed.some((s) => s.rms < 0.015 || s.rms > 0.025 || s.volume !== 0.5) ||
+    compressed.some((s) => s.rms < 0.035 || s.rms > 0.045 || s.volume !== 0.5) ||
     report.compressedSpreadDb > 3
   )
     throw new Error('컴프레서·수동 음량과 함께 보정되지 않습니다: ' + JSON.stringify(compressed));
