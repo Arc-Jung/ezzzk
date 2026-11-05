@@ -188,17 +188,20 @@ export function buildLayoutCss(claim: WidthClaim | null): string {
    * 저장된 수동 비율은 그대로 두고 펼쳤을 때 다시 사용한다.
    */
   if (claim.mode === 'bottom' && !collapsed) {
+    // 네이티브 전체화면은 wrapper 자체 또는 내부 플레이어를 올린다.
+    // 이때 일반 페이지의 하단 채팅 예약 높이·16:9 상한을 남기면 분할 창을 채우지 못한다.
+    const pageOnly = ':not(:fullscreen):not(:fullscreen *)';
     return [
       base,
-      `${CHZZK.layoutWrapper} { flex-direction: column !important; }`,
-      `${ID.asideChatting} {
+      `${CHZZK.layoutWrapper}${pageOnly} { flex-direction: column !important; }`,
+      `${ID.asideChatting}${pageOnly} {
   width: 100% !important;
   height: ${width}px !important;
   flex: 1 1 ${width}px !important;
   min-width: 0 !important;
   min-height: 0 !important;
 }`,
-      `${CHZZK.mainContainer} {
+      `${CHZZK.mainContainer}${pageOnly} {
   min-width: 0 !important;
   min-height: 0 !important;
   height: calc(100% - ${width}px) !important;
