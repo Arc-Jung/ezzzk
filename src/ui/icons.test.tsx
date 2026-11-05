@@ -15,6 +15,7 @@ import {
   CompressorIcon,
   createIconElement,
   GearIcon,
+  EzzzkSettingsIcon,
   HammerIcon,
   ICON_PATHS,
   LayoutBottomIcon,
@@ -67,6 +68,7 @@ const STROKE_ICONS: Array<[string, ComponentType<IconProps>]> = [
   ['LayoutRightIcon', LayoutRightIcon],
   ['LayoutBottomIcon', LayoutBottomIcon],
   ['GearIcon', GearIcon],
+  ['EzzzkSettingsIcon', EzzzkSettingsIcon],
   ['CompressorIcon', CompressorIcon],
   ['HammerIcon', HammerIcon],
 ];

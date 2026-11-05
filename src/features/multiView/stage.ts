@@ -1201,7 +1201,8 @@ export class MultiViewStage {
     const settingsButton = document.createElement('button');
     settingsButton.type = 'button';
     settingsButton.setAttribute('aria-label', '이지직 설정 열기');
-    settingsButton.appendChild(createIconElement('hammer'));
+    settingsButton.title = '이지직 설정 열기';
+    settingsButton.appendChild(createIconElement('ezzzkSettings', 20));
     settingsButton.appendChild(barLabel('설정'));
     settingsButton.addEventListener('click', () => {
       window.dispatchEvent(new Event(OURS.openSettingsEventName));

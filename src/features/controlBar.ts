@@ -106,6 +106,7 @@ export type ControlBarButtonOptions = {
   content?: string;
   /** 인라인 SVG 아이콘. `content` 와 함께 주면 아이콘이 이긴다. */
   icon?: IconName;
+  iconSize?: number;
   /** 지정한 네이티브 버튼 바로 앞에 삽입한다. 없으면 그룹 맨 앞에 둔다. */
   before?: string;
   onClick: () => void;
@@ -127,7 +128,7 @@ function buildButton(options: ControlBarButtonOptions): HTMLButtonElement {
   button.className = CONTROL_ITEM_CLASS;
   button.setAttribute('aria-label', options.ariaLabel);
   button.title = options.ariaLabel;
-  if (options.icon) button.appendChild(createIconElement(options.icon));
+  if (options.icon) button.appendChild(createIconElement(options.icon, options.iconSize));
   else if (options.content !== undefined) button.textContent = options.content;
   button.style.cssText = [
     `width: ${size}px`,
