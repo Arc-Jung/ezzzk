@@ -25,9 +25,6 @@ export function ChatSubtitleOptions({
         checked={value.enabled}
         onChange={(enabled) => patch({ enabled })}
       />
-      <p className="cm-sheet__note">
-        최근 채팅을 영상 위에 자막처럼 표시합니다. 기존 채팅창은 그대로 사용할 수 있습니다.
-      </p>
       <div className="cm-sheet__row">
         <label htmlFor="cm-subtitle-position">표시 위치</label>
         <select
@@ -61,9 +58,6 @@ export function ChatSubtitleOptions({
           ))}
         </select>
       </div>
-      <p className="cm-sheet__note">
-        작은 영상에서는 여유 공간에 맞춰 표시 크기와 줄 수를 조정합니다.
-      </p>
       <div className="cm-sheet__row">
         <span>자막 글자 크기</span>
         <Stepper
@@ -121,7 +115,9 @@ export function ChatSubtitleOptions({
         checked={value.useNicknameColor}
         onChange={(useNicknameColor) => patch({ useNicknameColor })}
       />
-      <p className="cm-sheet__note">끄면 닉네임도 위에서 선택한 글자색으로 표시합니다.</p>
+      {!value.useNicknameColor ? (
+        <p className="cm-sheet__note">닉네임에도 선택한 글자색을 사용합니다.</p>
+      ) : null}
       <div
         className="cm-subtitle-preview"
         data-position={value.position}
@@ -140,7 +136,7 @@ export function ChatSubtitleOptions({
                 시청자:{' '}
               </strong>
             )}
-            채팅이 선택한 영상 하단 위치에 표시됩니다.
+            안녕하세요!
           </div>
           <div>
             {value.showNickname && (
@@ -148,7 +144,7 @@ export function ChatSubtitleOptions({
                 이지직:{' '}
               </strong>
             )}
-            배경색과 불투명도를 조절해 보세요.
+            반갑습니다.
           </div>
           <div>
             {value.showNickname && (
@@ -156,7 +152,7 @@ export function ChatSubtitleOptions({
                 시청자:{' '}
               </strong>
             )}
-            화면에 맞춰 3~6줄로 표시해요.
+            방송 잘 보고 있어요.
           </div>
         </div>
       </div>

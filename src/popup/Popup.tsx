@@ -12,14 +12,10 @@ import {
   type SlotLines,
   type SplitCount,
 } from '../constants/storage';
-import { lineHeightForFont, visibleLines } from '../features/chatFont';
 import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
 import { Stepper } from './Stepper';
 import { useSettings } from './useSettings';
 import { CloseIcon } from '../ui/icons';
-
-/** 실측: 채팅 스크롤 영역은 안정화 후 761px (1920×1080). 줄 수 안내에만 쓰는 참고값이다. */
-const REFERENCE_SCROLLER_HEIGHT = 761;
 
 export function Popup() {
   const { settings, ready, update } = useSettings();
@@ -95,9 +91,6 @@ export function Popup() {
               통나무 자동 수집
             </label>
           </div>
-          {powerCollect.enabled && (
-            <p className="cm-warn">⚠ 자동화는 이용약관 위반 소지가 있어 주의해야합니다.</p>
-          )}
         </section>
 
         <section className="cm-section">
@@ -111,7 +104,7 @@ export function Popup() {
                   update({ chatClutter: { ...chatClutter, header: e.target.checked } })
                 }
               />
-              `채팅` 헤더
+              채팅 헤더
             </label>
             <label className="cm-label">
               <input
@@ -154,12 +147,7 @@ export function Popup() {
               무료 치즈 받기
             </label>
           </div>
-          <p className="cm-hint">
-            └ 숨긴 만큼 채팅 목록이 길어집니다 (헤더 44px · 랭킹 110px · 배너 108px)
-          </p>
-          <p className="cm-hint">
-            └ 광고 배너는 배너 UI만 가립니다 (영상 광고 재생에는 개입하지 않음)
-          </p>
+          <p className="cm-hint">광고 배너 숨기기는 영상 광고를 차단하지 않습니다.</p>
         </section>
 
         <section className="cm-section">
@@ -175,29 +163,28 @@ export function Popup() {
               onChange={(next) => update({ chatFont: { ...chatFont, sidePx: next } })}
             />
           </div>
-          <p className="cm-hint">
-            한 줄 {lineHeightForFont(chatFont.sidePx)}px · 약{' '}
-            {visibleLines(REFERENCE_SCROLLER_HEIGHT, chatFont.sidePx)}줄 표시
-          </p>
-          <div className="cm-row">
-            <span>슬롯 채팅</span>
-            <Stepper
-              label="슬롯 채팅 글자 크기"
-              value={chatFont.slotPx}
-              min={CHAT_FONT_RANGE.slot.min}
-              max={CHAT_FONT_RANGE.slot.max}
-              unit=" px"
-              onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
-            />
-          </div>
+          {MULTIVIEW_CHAT_ENABLED ? (
+            <div className="cm-row">
+              <span>슬롯 채팅</span>
+              <Stepper
+                label="슬롯 채팅 글자 크기"
+                value={chatFont.slotPx}
+                min={CHAT_FONT_RANGE.slot.min}
+                max={CHAT_FONT_RANGE.slot.max}
+                unit=" px"
+                onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
+              />
+            </div>
+          ) : null}
           <button
             type="button"
             className="cm-btn"
             onClick={() =>
               update({
                 chatFont: {
+                  ...chatFont,
                   sidePx: CHAT_FONT_RANGE.side.default,
-                  slotPx: CHAT_FONT_RANGE.slot.default,
+                  ...(MULTIVIEW_CHAT_ENABLED ? { slotPx: CHAT_FONT_RANGE.slot.default } : {}),
                 },
               })
             }

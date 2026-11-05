@@ -63,6 +63,14 @@ export const SETTINGS_PANEL_CSS = `
   .cm-sp__tab:not([aria-selected='true']):hover { background: ${UI_STATE.hover}; }
 }
 .cm-sp__panel { flex: 1 1 auto; min-width: 0; }
+.cm-sp__advanced { margin-top: 16px; border-top: 1px solid ${UI_STATE.border}; }
+.cm-sp__advanced > summary {
+  display: list-item; cursor: pointer; padding: 10px 2px;
+  min-height: var(--cm-target, 32px); box-sizing: border-box;
+  color: ${FG.muted}; font-size: 12px;
+}
+.cm-sp__advanced > summary:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 2px; }
+.cm-sp__advanced[open] > summary { color: ${FG.body}; }
 .cm-sp__panel h3 { margin: 20px 0 8px; font-size: 12px; color: ${FG.muted}; }
 .cm-sp__controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .cm-sp__controls label { display: inline-flex; align-items: center; gap: 4px; }

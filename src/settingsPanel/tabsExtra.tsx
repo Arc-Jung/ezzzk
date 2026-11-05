@@ -11,7 +11,6 @@ import {
   type SlotLines,
   type SplitCount,
 } from '../constants/storage';
-import { emojiSizeForFont, lineHeightForFont, visibleLines } from '../features/chatFont';
 import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
 import {
   CHAT_PRESET_ENABLED,
@@ -20,11 +19,7 @@ import {
   reorderPresets,
   updatePreset,
 } from '../features/chatPreset';
-import {
-  isSplitAvailable,
-  recommendedPlacement,
-  slotLineHeight,
-} from '../features/multiView/slotLayout';
+import { isSplitAvailable, recommendedPlacement } from '../features/multiView/slotLayout';
 import {
   applyPreset,
   deletePreset,
@@ -35,7 +30,7 @@ import {
   summarizePreset,
 } from '../features/optionPreset';
 import { Stepper } from '../popup/Stepper';
-import { RevertButton, Toggle, placementTradeOff, type TabProps } from './tabs';
+import { RevertButton, Toggle, type TabProps } from './tabs';
 import { CloseIcon } from '../ui/icons';
 import { cleanBotTarget, readCleanBotState } from '../features/chzzkCleanBot';
 import { ChatSubtitleOptions } from './ChatSubtitleOptions';
@@ -44,7 +39,6 @@ const SPLITS: SplitCount[] = [2, 3, 4];
 
 export function MultiViewTab({ settings, device, update }: TabProps) {
   const multiView = settings.multiView;
-  const hints = placementTradeOff(multiView.slotChatLines, settings.chatFont.slotPx);
 
   const patch = (next: Partial<Settings['multiView']>) =>
     update({ multiView: { ...multiView, ...next } });
@@ -96,9 +90,9 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         checked={multiView.autoFullscreen}
         onChange={(next) => patch({ autoFullscreen: next })}
       />
-      <p className="cm-sheet__hint">
-        브라우저에서 자동 진입을 제한하면 멀티뷰의 최대화 버튼을 눌러 주세요.
-      </p>
+      {multiView.autoFullscreen ? (
+        <p className="cm-sheet__note">자동으로 전환되지 않으면 최대화 버튼을 눌러 주세요.</p>
+      ) : null}
       <Toggle
         label="멀티뷰 자동 음량"
         checked={multiView.autoVolume}
@@ -126,7 +120,7 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
             </span>
           </div>
           <div className="cm-sheet__row">
-            <span>└ 활성 슬롯</span>
+            <span>선택한 방송</span>
             <Stepper
               label="활성 슬롯 채팅 줄 수"
               value={multiView.slotChatLinesActive}
@@ -138,7 +132,7 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
           </div>
 
           <div className="cm-sheet__row">
-            <span>└ 배치</span>
+            <span>배치</span>
             <span className="cm-sp__controls" role="radiogroup" aria-label="슬롯 채팅 배치">
               <label>
                 <input
@@ -162,15 +156,8 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
               </label>
             </span>
           </div>
-          <p className="cm-sheet__note">{hints.four}</p>
-          <p className="cm-sheet__note">{hints.two}</p>
         </>
-      ) : (
-        <p className="cm-sheet__note">
-          멀티뷰 채팅(슬롯 채팅 · 사이드 채팅)은 오류가 있어 임시로 꺼 두었습니다. 수정 후 다시
-          제공합니다.
-        </p>
-      )}
+      ) : null}
 
       <h3>
         저장된 조합 ({multiView.sets.length}/{LIMITS.multiViewSets})
@@ -252,30 +239,20 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
  */
 export const REFERENCE_SCROLLER_HEIGHT = 761;
 
-export function ChatTab({
-  settings,
-  update,
-  scrollerHeightPx,
-}: TabProps & { scrollerHeightPx: number }) {
+export function ChatTab({ settings, update }: TabProps & { scrollerHeightPx: number }) {
   const { chatFont, chatPresets, chatUserFilter, chatClutter } = settings;
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [listError, setListError] = useState<string | null>(null);
 
-  const emoji = emojiSizeForFont(chatFont.sidePx);
-
   return (
     <>
-      <h3>클린봇</h3>
       <Toggle
         label="치지직 클린봇 사용"
         checked={cleanBotTarget(settings.chzzkCleanBot) ?? readCleanBotState() ?? true}
         onChange={(enabled) => update({ chzzkCleanBot: { enabled, disable: !enabled } })}
       />
-      <p className="cm-sheet__note">
-        치지직 내장 클린봇을 켜거나 끕니다. 변경한 설정은 새로고침 후에도 적용됩니다.
-      </p>
       <ChatSubtitleOptions settings={settings} update={update} />
       <h3>채팅 글자 크기</h3>
       <div className="cm-sheet__row">
@@ -301,40 +278,28 @@ export function ChatTab({
           </button>
         </span>
       </div>
-      <p className="cm-sheet__note">
-        └ 한 줄 {lineHeightForFont(chatFont.sidePx)}px · 스크롤 영역 {scrollerHeightPx}px · 약{' '}
-        {visibleLines(scrollerHeightPx, chatFont.sidePx)}줄 표시
-      </p>
-      <p className="cm-sheet__note">
-        └ 이모티콘 {emoji}×{emoji}px
-      </p>
 
-      <div className="cm-sheet__row">
-        <span>슬롯 채팅</span>
-        <span className="cm-sp__controls">
-          <Stepper
-            label="슬롯 채팅 글자 크기"
-            value={chatFont.slotPx}
-            min={CHAT_FONT_RANGE.slot.min}
-            max={CHAT_FONT_RANGE.slot.max}
-            unit=" px"
-            onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
-          />
-          <span className="cm-sheet__note">
-            ({CHAT_FONT_RANGE.slot.min}~{CHAT_FONT_RANGE.slot.max})
+      {MULTIVIEW_CHAT_ENABLED ? (
+        <div className="cm-sheet__row">
+          <span>슬롯 채팅</span>
+          <span className="cm-sp__controls">
+            <Stepper
+              label="슬롯 채팅 글자 크기"
+              value={chatFont.slotPx}
+              min={CHAT_FONT_RANGE.slot.min}
+              max={CHAT_FONT_RANGE.slot.max}
+              unit=" px"
+              onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
+            />
+            <RevertButton
+              label="슬롯 채팅 글자 크기"
+              onClick={() =>
+                update({ chatFont: { ...chatFont, slotPx: CHAT_FONT_RANGE.slot.default } })
+              }
+            />
           </span>
-          <RevertButton
-            label="슬롯 채팅 글자 크기"
-            onClick={() =>
-              update({ chatFont: { ...chatFont, slotPx: CHAT_FONT_RANGE.slot.default } })
-            }
-          />
-        </span>
-      </div>
-      <p className="cm-sheet__note">
-        └ 한 줄 {slotLineHeight(chatFont.slotPx)}px · 슬롯 채팅 줄 수와 연동
-      </p>
-      <p className="cm-sheet__note">└ 이모티콘도 함께 확대됩니다 (1.3em)</p>
+        </div>
+      ) : null}
 
       {/*
         채팅 프리셋은 임시로 꺼 두었다 (`features/chatPreset.ts`, 2026-08-23).
@@ -536,7 +501,7 @@ export function ChatTab({
                 update({ chatClutter: { ...chatClutter, header: event.target.checked } })
               }
             />
-            `채팅` 헤더
+            채팅 헤더
           </label>
           <label>
             <input
@@ -608,13 +573,7 @@ export function ChatTab({
           </label>
         </span>
       </div>
-      <p className="cm-sheet__note">└ 숨긴 만큼 채팅 목록이 길어집니다 (헤더 44px · 랭킹 110px).</p>
-      <p className="cm-sheet__note">
-        └ 공지·환영 메시지, `후원하기` 버튼, 전송 버튼은 숨기지 않습니다.
-      </p>
-      <p className="cm-sheet__note">
-        └ 광고 배너는 <b>배너 UI만</b> 가립니다. 영상 광고 재생에는 개입하지 않습니다.
-      </p>
+      <p className="cm-sheet__note">광고 배너 숨기기는 영상 광고를 차단하지 않습니다.</p>
     </>
   );
 }

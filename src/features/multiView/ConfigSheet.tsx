@@ -25,14 +25,7 @@ import { OURS } from '../../constants/class';
 import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
 import { CONFIG_SHEET_CSS } from './configSheetCss';
 import { upsertStyle } from '../../utils/dom';
-import {
-  computeSlotRects,
-  fitListScrollHeight,
-  isSplitAvailable,
-  recommendedPlacement,
-  resolveSlotChatLines,
-  stripMetrics,
-} from './slotLayout';
+import { fitListScrollHeight, isSplitAvailable, recommendedPlacement } from './slotLayout';
 import {
   LIVES_PAGE_SIZE,
   fetchCurrentLives,
@@ -70,14 +63,7 @@ type ListState =
   /** 화면 ⑤ 폴백 */
   | { kind: 'fallback'; message: string; recent: FollowChannel[] };
 
-export function ConfigSheet({
-  settings,
-  device,
-  currentChannel,
-  stageSize,
-  onClose,
-  onStart,
-}: Props) {
+export function ConfigSheet({ settings, device, currentChannel, onClose, onStart }: Props) {
   const maxSplit = device.profile.maxSplit;
   const [split, setSplit] = useState<SplitCount>(
     Math.min(settings.multiView.defaultSplit, maxSplit) as SplitCount,
@@ -309,47 +295,6 @@ export function ConfigSheet({
     };
   }, [selectedChannelIds]);
 
-  /**
-   * 현재 분할·무대 크기에서의 슬롯·영상 크기. 목업의 "현재 선택" 요약에 쓴다.
-   *
-   * 🔴 `orientation` 을 넘기지 않아 **항상 가로(격자)로 계산했다** (감사 2026-09-07).
-   * 세로 3·4분할이 한 열 배치로 바뀐 뒤(2026-09-06) 미리보기가 실제와 다른 숫자를 보여 줬다 —
-   * mobile-portrait 412×915 에서 `슬롯 205×456 · 영상 205×115 (여백 0)` 로 떴는데,
-   * 실제 무대는 `372×209` 이고 슬롯이 곧 그림이라 여백이 없다. 205×456 에 205×115 그림이면
-   * 여백이 341px 인데 "여백 0" 이라고 적혀 있었으니 두 값이 서로 모순이기까지 했다.
-   */
-  const preview = useMemo(() => {
-    const orientation = stageSize.height > stageSize.width ? 'portrait' : 'landscape';
-    const rects = computeSlotRects(
-      split,
-      stageSize.width,
-      stageSize.height,
-      orientation,
-      undefined,
-      0,
-      layout,
-    );
-    const first = rects[0];
-    if (!first) return null;
-    const lines = resolveSlotChatLines(slotChatLines, first.width, device.deviceClass);
-    const metrics = stripMetrics(
-      first.width,
-      first.height,
-      lines,
-      placement,
-      settings.chatFont.slotPx,
-    );
-    return { rect: first, lines, metrics };
-  }, [
-    split,
-    layout,
-    stageSize,
-    slotChatLines,
-    placement,
-    device.deviceClass,
-    settings.chatFont.slotPx,
-  ]);
-
   const assign = (channel: FollowChannel, index: SlotIndex) => {
     setSlots((prev) => {
       // 같은 채널이 다른 슬롯에 있으면 옮긴다 (중복 배치 금지).
@@ -437,9 +382,7 @@ export function ConfigSheet({
       footer={
         <>
           <span className="cm-sheet__note" style={{ marginRight: 'auto' }}>
-            {preview
-              ? `현재 선택: ${split}분할 · 슬롯 ${preview.rect.width}×${preview.rect.height} · 영상 ${Math.round(preview.metrics.pictureW)}×${Math.round(preview.metrics.pictureH)}${preview.metrics.areaLoss > 0 ? ` (영상 −${(preview.metrics.areaLoss * 100).toFixed(1)}%)` : ' (여백 0)'}`
-              : '무대 크기를 계산할 수 없습니다.'}
+            {placedSlots.length}/{split}개 방송 선택
           </span>
           <button type="button" className="cm-sheet__btn" onClick={onClose}>
             취소
@@ -499,16 +442,8 @@ export function ConfigSheet({
           초기화
         </button>
       </div>
-      {split === 4 && layout === 'main-sidebar' ? (
-        <p className="cm-sheet__note">
-          1번 슬롯을 왼쪽 70%에, 2~4번 슬롯을 오른쪽 30%에 세로로 배치합니다. 세로 화면에서는 화면
-          비율에 맞춰 자동 배치합니다.
-        </p>
-      ) : null}
       {maxSplit === 2 ? (
-        <p className="cm-sheet__note">
-          이 기기({device.deviceClass})에서는 개별 영상이 너무 작아져 3·4분할을 제공하지 않습니다.
-        </p>
+        <p className="cm-sheet__note">작은 화면에서는 2분할만 사용할 수 있습니다.</p>
       ) : null}
 
       {/*
@@ -563,16 +498,6 @@ export function ConfigSheet({
               영상 밑에 따로 표시(영상이 작아집니다)
             </label>
           </div>
-          {preview && preview.lines !== slotChatLines ? (
-            <p className="cm-sheet__note">
-              슬롯 폭 {preview.rect.width}px 에서는 최대 {preview.lines}줄까지 표시됩니다.
-            </p>
-          ) : null}
-          <p className="cm-sheet__note">
-            {split === 2
-              ? '2분할은 세로에 여유가 있어 영상 밑 배치를 권장합니다 (손실 0%).'
-              : '4분할 슬롯은 이미 16:9 라 영상 위 겹침을 권장합니다.'}
-          </p>
         </>
       ) : null}
 
@@ -766,9 +691,6 @@ export function ConfigSheet({
                 </ul>
                 {popularLoading && popular.length > 0 ? (
                   <p className="cm-sheet__note">더 불러오는 중…</p>
-                ) : null}
-                {popularDone && popular.length > 0 ? (
-                  <p className="cm-sheet__note">목록의 끝입니다.</p>
                 ) : null}
                 {!popularDone && !popularLoading && popularPages >= AUTO_LOAD_PAGE_LIMIT ? (
                   <button
