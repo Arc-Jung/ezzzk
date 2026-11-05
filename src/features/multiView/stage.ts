@@ -817,7 +817,7 @@ export class MultiViewStage {
       : `${active}/${this.runtimes.size}개 방송 조정 중`;
     button.setAttribute('aria-pressed', String(enabled));
     const label = button.querySelector('.cm-stage-bar__label');
-    if (label) label.textContent = `자동 음량 ${enabled ? 'ON' : 'OFF'}`;
+    if (label) label.textContent = '자동 음량';
     button.setAttribute(
       'aria-label',
       `자동 음량 ${enabled ? '켜짐, 누르면 끄기' : '꺼짐, 누르면 켜기'}`,
