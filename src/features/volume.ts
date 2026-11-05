@@ -48,6 +48,7 @@ import {
   applyBoost,
   applyCompressorParams,
   ensureGraph,
+  existingGraph,
   isBoosted,
   isClippingRisk,
   resumeGraph,
@@ -586,12 +587,14 @@ export const volumeFeature: Feature = {
       // 🔴 켜짐 여부는 설정 스냅샷이 아니라 로컬 상태(`compressorEnabled`)로 판단한다 —
       // 컨트롤바 토글은 재시작 없이 즉시 반영돼야 한다 (아래 `toggleCompressor` 참조).
       const needsGraph = percent > 100 || compressorEnabled;
-      if (!needsGraph) return;
+      const existing = existingGraph(el);
+      if (!needsGraph && !existing) return;
 
-      const graph = ensureGraph(el);
+      const graph = existing ?? ensureGraph(el);
       if (!graph) return;
       resumeGraph(graph);
-      applyBoost(graph, percent);
+      // 100% 이하는 video.volume이 담당한다. 두 경로에서 곱하면 50%가 25%로 줄어든다.
+      applyBoost(graph, Math.max(100, percent));
       if (compressor) {
         applyCompressorParams(graph, compressor);
         setCompressorEnabled(graph, compressorEnabled);
@@ -1219,6 +1222,7 @@ export const volumeFeature: Feature = {
       // 100% 초과는 요소에 100 까지만 들어간다 — 그 이벤트를 "100 으로 내렸다"로 읽지 않는다.
       if (!el.muted && observed !== Math.min(100, percent)) {
         percent = observed;
+        applyAudioGraph();
         rememberUserChoice();
         if (isUserInitiatedStrict()) saveChannel();
         persist(percent);

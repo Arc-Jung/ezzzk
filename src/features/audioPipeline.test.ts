@@ -13,6 +13,7 @@ import {
   boostToGain,
   ensureGraph,
   ensureNormalization,
+  setNormalizationEnabled,
   CLIPPING_RISK_PERCENT,
   isBoosted,
   isClippingRisk,
@@ -161,6 +162,7 @@ describe('ensureGraph — Web Audio 가 없는 환경', () => {
       disconnect: (to?: { name: string }) => connections.push(`${name}✕${to?.name ?? ''}`),
     });
     class FakeContext {
+      currentTime = 0;
       destination = node('destination');
       createMediaElementSource() {
         sources++;
@@ -170,7 +172,14 @@ describe('ensureGraph — Web Audio 가 없는 환경', () => {
         return { ...node(`gain${++gains}`), gain: { value: 1 } };
       }
       createDynamicsCompressor() {
-        return node('compressor');
+        return {
+          ...node('compressor'),
+          threshold: { value: 0 },
+          knee: { value: 0 },
+          ratio: { value: 0, setValueAtTime: vi.fn() },
+          attack: { value: 0 },
+          release: { value: 0 },
+        };
       }
       createAnalyser() {
         return { ...node('analyser'), fftSize: 0 };
@@ -181,11 +190,20 @@ describe('ensureGraph — Web Audio 가 없는 환경', () => {
     const normal = ensureNormalization(graph);
     expect(ensureNormalization(graph)).toBe(normal);
     expect(sources).toBe(1);
+    expect(normal!.limiter.threshold.value).toBe(0);
+    expect(normal!.limiter.attack.value).toBe(0);
+    setNormalizationEnabled(graph, true);
+    expect(normal!.limiter.ratio.setValueAtTime).toHaveBeenLastCalledWith(20, 0);
+    setNormalizationEnabled(graph, false);
+    expect(normal!.limiter.ratio.setValueAtTime).toHaveBeenLastCalledWith(1, 0);
     expect(connections).toEqual([
       'source→gain1',
       'gain1→destination',
       'analyser→gain2',
-      'gain2→destination',
+      'gain2→gain3',
+      'gain3→compressor',
+      'compressor→gain4',
+      'gain4→destination',
       'gain1→analyser',
       'gain1✕destination',
     ]);

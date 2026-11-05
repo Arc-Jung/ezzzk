@@ -5,7 +5,7 @@
       "slots": [
         {
           "slot": 4,
-          "rms": 0.08014464824486338,
+          "rms": 0.08017040513174195,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -13,7 +13,7 @@
         },
         {
           "slot": 2,
-          "rms": 0.0800922360387485,
+          "rms": 0.07991988149330714,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -21,7 +21,7 @@
         },
         {
           "slot": 1,
-          "rms": 0.0798467112384178,
+          "rms": 0.0796733577195771,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -29,7 +29,81 @@
         },
         {
           "slot": 3,
-          "rms": 0.07996248035465706,
+          "rms": 0.07999518653142455,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "after-boost",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07998488263020996,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.08011031820330354,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.07922785586898576,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.08003849916362896,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "pause-resume",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07985896290179303,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.07991700817351041,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.07974698636404509,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.07872240179915853,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -42,7 +116,7 @@
       "slots": [
         {
           "slot": 4,
-          "rms": 0.45206078704615876,
+          "rms": 0.45280556992216286,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -50,7 +124,7 @@
         },
         {
           "slot": 2,
-          "rms": 0.11301215629072253,
+          "rms": 0.1130092758348372,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -58,7 +132,7 @@
         },
         {
           "slot": 1,
-          "rms": 0.05664321297318888,
+          "rms": 0.056515717338251184,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -66,7 +140,7 @@
         },
         {
           "slot": 3,
-          "rms": 0.2263190078397565,
+          "rms": 0.2261043475647886,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -79,7 +153,7 @@
       "slots": [
         {
           "slot": 4,
-          "rms": 0.0799177953929891,
+          "rms": 0.07984837100201296,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -87,7 +161,7 @@
         },
         {
           "slot": 2,
-          "rms": 0.0799500824457198,
+          "rms": 0.07992879455643379,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -95,7 +169,7 @@
         },
         {
           "slot": 1,
-          "rms": 0.06799637422931058,
+          "rms": 0.06789847332315832,
           "contextState": "running",
           "sources": 2,
           "volume": 1,
@@ -103,7 +177,7 @@
         },
         {
           "slot": 3,
-          "rms": 0.07995562993178547,
+          "rms": 0.08011903208912742,
           "contextState": "running",
           "sources": 1,
           "volume": 1,
@@ -116,7 +190,7 @@
       "slots": [
         {
           "slot": 4,
-          "rms": 0.019956045841639652,
+          "rms": 0.039961487884293996,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -124,7 +198,7 @@
         },
         {
           "slot": 2,
-          "rms": 0.019986269994436444,
+          "rms": 0.03997036051623713,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -132,7 +206,7 @@
         },
         {
           "slot": 1,
-          "rms": 0.01998799413529518,
+          "rms": 0.03987452119328787,
           "contextState": "running",
           "sources": 2,
           "volume": 0.5,
@@ -140,7 +214,7 @@
         },
         {
           "slot": 3,
-          "rms": 0.020001642238608463,
+          "rms": 0.04006722890959019,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -153,7 +227,7 @@
       "slots": [
         {
           "slot": 4,
-          "rms": 0.01997864330503614,
+          "rms": 0.04003526695233197,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -169,7 +243,7 @@
         },
         {
           "slot": 1,
-          "rms": 0.019961364364959856,
+          "rms": 0.039845434610045805,
           "contextState": "running",
           "sources": 2,
           "volume": 0.5,
@@ -177,7 +251,7 @@
         },
         {
           "slot": 3,
-          "rms": 0.019994377373781562,
+          "rms": 0.04003864141703416,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -190,7 +264,7 @@
       "slots": [
         {
           "slot": 4,
-          "rms": 0.020008021595155915,
+          "rms": 0.03992807018899602,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -198,7 +272,7 @@
         },
         {
           "slot": 2,
-          "rms": 0.01969197798090839,
+          "rms": 0.040065205978994836,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -206,7 +280,7 @@
         },
         {
           "slot": 1,
-          "rms": 0.019943208131893365,
+          "rms": 0.0398816986287195,
           "contextState": "running",
           "sources": 2,
           "volume": 0.5,
@@ -214,7 +288,7 @@
         },
         {
           "slot": 3,
-          "rms": 0.02000850104807962,
+          "rms": 0.040019716367257915,
           "contextState": "running",
           "sources": 1,
           "volume": 0.5,
@@ -223,13 +297,21 @@
       ]
     }
   ],
-  "enabledSpreadDb": 0.03234988385420267,
+  "enabledSpreadDb": 0.05401915977700726,
+  "transient": {
+    "peak": 0.5991553068161011,
+    "count": 600
+  },
+  "transientBoosted": {
+    "peak": 0.7925395369529724,
+    "count": 600
+  },
   "mobileBar": {
     "left": 0,
     "right": 411,
     "width": 411
   },
-  "disabledSpreadDb": 18.040979138855256,
-  "compressedSpreadDb": 0.01982324117813987,
+  "disabledSpreadDb": 18.074850321624677,
+  "compressedSpreadDb": 0.04187652124921146,
   "success": true
 }

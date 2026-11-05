@@ -62,7 +62,12 @@ export type AudioGraph = {
   compressor: DynamicsCompressorNode;
   /** 지금 컴프레서를 거치고 있는가. 연결 변경을 멱등하게 하려고 들고 있는다. */
   compressorEnabled: boolean;
-  normalization?: { analyser: AnalyserNode; gain: GainNode };
+  normalization?: {
+    analyser: AnalyserNode;
+    gain: GainNode;
+    limiter: DynamicsCompressorNode;
+    enabled: boolean;
+  };
 };
 
 /**
@@ -70,6 +75,11 @@ export type AudioGraph = {
  * 요소당 소스는 하나뿐이라는 제약 때문에 전역 캐시가 필요하다.
  */
 const graphs = new WeakMap<HTMLMediaElement, AudioGraph>();
+
+/** 이미 연결된 그래프를 새로 만들지 않고 조회한다. */
+export function existingGraph(video: HTMLMediaElement): AudioGraph | undefined {
+  return graphs.get(video);
+}
 
 /** 게인 배율을 계산한다. **순수 함수** — 100% = 1배, 200% = 2배, 범위 밖은 클램프한다. */
 export function boostToGain(percent: number): number {
@@ -135,15 +145,34 @@ export function ensureNormalization(
   if (graph.normalization) return graph.normalization;
   let analyser: AnalyserNode | undefined;
   let gain: GainNode | undefined;
+  let limiter: DynamicsCompressorNode | undefined;
+  let limiterInput: GainNode | undefined;
+  let output: GainNode | undefined;
   try {
     analyser = graph.context.createAnalyser();
     analyser.fftSize = 4096;
     gain = graph.context.createGain();
+    // JS 측정 사이에 갑자기 커지는 소리는 오디오 렌더 스레드에서 제한한다.
+    limiter = graph.context.createDynamicsCompressor();
+    // 문턱을 0dB로 두어 브라우저 내장 메이크업 게인에 의한 평상시 증폭을 피한다.
+    // 앞뒤의 2배·0.5배는 상쇄되며, 0.5를 넘는 피크만 압축한다.
+    limiterInput = graph.context.createGain();
+    output = graph.context.createGain();
+    limiterInput.gain.value = 2;
+    output.gain.value = 0.5;
+    limiter.threshold.value = 0;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 1;
+    limiter.attack.value = 0;
+    limiter.release.value = 0.05;
     analyser.connect(gain);
-    gain.connect(graph.context.destination);
+    gain.connect(limiterInput);
+    limiterInput.connect(limiter);
+    limiter.connect(output);
+    output.connect(graph.context.destination);
     graph.gain.connect(analyser);
     graph.gain.disconnect(graph.context.destination);
-    graph.normalization = { analyser, gain };
+    graph.normalization = { analyser, gain, limiter, enabled: false };
     return graph.normalization;
   } catch (e) {
     // 연결 도중 실패해도 기존 출력과 새 출력이 겹쳐 두 배로 들리지 않게 정리한다.
@@ -151,12 +180,23 @@ export function ensureNormalization(
       if (analyser) graph.gain.disconnect(analyser);
       gain?.disconnect();
       analyser?.disconnect();
+      limiter?.disconnect();
+      limiterInput?.disconnect();
+      output?.disconnect();
     } catch {
       /* 기존 출력은 유지한다. */
     }
     warning('failed to attach automatic volume adjustment', e);
     return null;
   }
+}
+
+/** 자동 음량을 끄면 피크 제한도 해제해 원래 소리 크기를 유지한다. */
+export function setNormalizationEnabled(graph: AudioGraph, enabled: boolean): void {
+  const normal = graph.normalization;
+  if (!normal || normal.enabled === enabled) return;
+  normal.limiter.ratio.setValueAtTime(enabled ? 20 : 1, graph.context.currentTime);
+  normal.enabled = enabled;
 }
 
 /**
