@@ -553,6 +553,18 @@ describe('하단 배치 모드 (2026-08-12 요청 — 채팅 위치 전환 버�
     expect(css).toContain('min-height: 0 !important');
   });
 
+  it('하단 예약·16:9 상한은 전체화면 요소와 그 내부에는 적용하지 않는다', () => {
+    const css = buildLayoutCss(bottom(300));
+    const rules = [...css.matchAll(/([^{}]+)\{([^}]+)\}/g)];
+    const reservations = rules.filter(([, , body]) =>
+      /height: 300px|height: calc\(100% -|flex-direction: column/.test(body!),
+    );
+    expect(reservations).toHaveLength(3);
+    for (const [, selector] of reservations) {
+      expect(selector).toContain(':not(:fullscreen):not(:fullscreen *)');
+    }
+  });
+
   it('오른쪽 배치(flex)에서는 세로 흐름으로 바꾸지 않는다', () => {
     const css = buildLayoutCss({ ...bottom(300), mode: 'flex' });
     expect(css).not.toContain('flex-direction: column');

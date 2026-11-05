@@ -1,0 +1,166 @@
+{
+  "states": [
+    {
+      "viewport": {
+        "width": 859,
+        "height": 450
+      },
+      "screen": {
+        "width": 859,
+        "height": 915
+      },
+      "player": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 450
+      },
+      "video": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 450
+      },
+      "button": {
+        "x": 767.625,
+        "y": 395,
+        "width": 79.375,
+        "height": 43
+      },
+      "sameVideo": true,
+      "paused": false,
+      "currentTime": 0,
+      "overlayConnected": true
+    },
+    {
+      "viewport": {
+        "width": 859,
+        "height": 320
+      },
+      "screen": {
+        "width": 859,
+        "height": 915
+      },
+      "player": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 320
+      },
+      "video": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 320
+      },
+      "button": {
+        "x": 767.625,
+        "y": 265,
+        "width": 79.375,
+        "height": 43
+      },
+      "sameVideo": true,
+      "paused": false,
+      "currentTime": 0,
+      "overlayConnected": true
+    },
+    {
+      "viewport": {
+        "width": 411,
+        "height": 440
+      },
+      "screen": {
+        "width": 859,
+        "height": 915
+      },
+      "player": {
+        "x": 0,
+        "y": 0,
+        "width": 411,
+        "height": 440
+      },
+      "video": {
+        "x": 0,
+        "y": 0,
+        "width": 411,
+        "height": 440
+      },
+      "button": {
+        "x": 319.625,
+        "y": 385,
+        "width": 79.375,
+        "height": 43
+      },
+      "sameVideo": true,
+      "paused": false,
+      "currentTime": 0,
+      "overlayConnected": true
+    },
+    {
+      "viewport": {
+        "width": 859,
+        "height": 798
+      },
+      "screen": {
+        "width": 859,
+        "height": 915
+      },
+      "player": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 798
+      },
+      "video": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 798
+      },
+      "button": {
+        "x": 767.625,
+        "y": 743,
+        "width": 79.375,
+        "height": 43
+      },
+      "sameVideo": true,
+      "paused": false,
+      "currentTime": 0.201062,
+      "overlayConnected": true
+    },
+    {
+      "viewport": {
+        "width": 859,
+        "height": 450
+      },
+      "screen": {
+        "width": 859,
+        "height": 915
+      },
+      "player": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 450
+      },
+      "video": {
+        "x": 0,
+        "y": 0,
+        "width": 859,
+        "height": 450
+      },
+      "button": {
+        "x": 767.625,
+        "y": 395,
+        "width": 79.375,
+        "height": 43
+      },
+      "sameVideo": true,
+      "paused": false,
+      "currentTime": 0.201062,
+      "overlayConnected": true
+    }
+  ],
+  "normalLayoutRestored": true,
+  "success": true
+}
