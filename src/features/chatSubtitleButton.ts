@@ -42,6 +42,7 @@ export const chatSubtitleButtonFeature: Feature = {
       id: CHAT_SUBTITLE_BUTTON_ID,
       ariaLabel: '자막형 채팅 켜기',
       icon: 'captions',
+      iconLabel: '채팅',
       minTargetPx: ctx.device.profile.touchTargetPx,
       onClick: toggle,
       onMount: (button) => {
@@ -61,6 +62,10 @@ export const chatSubtitleButtonFeature: Feature = {
           stageButton.id = CHAT_SUBTITLE_STAGE_BUTTON_ID;
           stageButton.type = 'button';
           stageButton.appendChild(createIconElement('captions'));
+          const label = document.createElement('span');
+          label.className = 'cm-stage-bar__label';
+          label.textContent = '채팅';
+          stageButton.appendChild(label);
           stageButton.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();

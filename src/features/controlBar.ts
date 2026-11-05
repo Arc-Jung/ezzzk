@@ -107,6 +107,8 @@ export type ControlBarButtonOptions = {
   /** 인라인 SVG 아이콘. `content` 와 함께 주면 아이콘이 이긴다. */
   icon?: IconName;
   iconSize?: number;
+  /** 아이콘 오른쪽에 함께 표시할 이름. */
+  iconLabel?: string;
   /** 지정한 네이티브 버튼 바로 앞에 삽입한다. 없으면 그룹 맨 앞에 둔다. */
   before?: string;
   onClick: () => void;
@@ -148,6 +150,18 @@ function buildButton(options: ControlBarButtonOptions): HTMLButtonElement {
     'line-height: 1',
     'padding: 0',
   ].join('; ');
+
+  if (options.icon && options.iconLabel) {
+    const label = document.createElement('span');
+    label.textContent = options.iconLabel;
+    label.setAttribute('aria-hidden', 'true');
+    button.appendChild(label);
+    button.style.width = 'auto';
+    button.style.minWidth = `${size}px`;
+    button.style.padding = '0 8px';
+    button.style.gap = '6px';
+    button.style.whiteSpace = 'nowrap';
+  }
 
   if (options.badge) {
     const badge = document.createElement('span');

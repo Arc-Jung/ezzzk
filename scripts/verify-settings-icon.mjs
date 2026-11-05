@@ -58,6 +58,9 @@ try {
     });
   await page.mouse.move(400, 350);
   await page.mouse.move(410, 355);
+  const chat = page.locator('#cm-chat-subtitle-button');
+  await chat.waitFor();
+  if (!(await chat.textContent()).includes('채팅')) throw new Error('싱글뷰 채팅 이름 누락');
   const single = page.locator('#cm-settings-button');
   const singleState = await read(single);
   if (singleState.svgWidth < 20 || singleState.width < 36 || singleState.ariaHidden !== 'true')
@@ -87,6 +90,11 @@ try {
     throw new Error('싱글뷰·멀티뷰 아이콘 형상이 다릅니다');
   if (multiState.svgWidth < 20 || !multiState.title.includes('이지직'))
     throw new Error('멀티뷰 아이콘 크기·설명 오류');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const chatStage = page.locator('#cm-chat-subtitle-stage-button');
+  await chatStage.waitFor();
+  if (!(await chatStage.textContent()).includes('채팅')) throw new Error('멀티뷰 채팅 이름 누락');
+  await chatStage.locator('span').waitFor({ state: 'visible' });
   await page.locator('.cm-stage-bar').screenshot({ path: resolve(out, 'multi.png') });
   await multi.click();
   await page.locator('#cm-settings-panel [role="dialog"]').waitFor();
@@ -98,6 +106,10 @@ try {
   if (bounds.x < 0 || bounds.x + bounds.width > 411 || bounds.width < 44)
     throw new Error('모바일 설정 버튼 배치·터치 영역 오류: ' + JSON.stringify(bounds));
   report.mobile = { viewportWidth: 411, ...bounds };
+  if (await chatStage.locator('span').isVisible()) throw new Error('좁은 화면 압축 실패');
+  const chatBounds = await chatStage.boundingBox();
+  if (chatBounds.width < 44 || chatBounds.x < 0 || chatBounds.x + chatBounds.width > 411)
+    throw new Error('좁은 화면 채팅 버튼 잘림');
   report.success = true;
   console.log('PASS: 싱글뷰·멀티뷰 동일 EZ SVG, 설정 열기, 411px 터치 영역 확인');
 } finally {
