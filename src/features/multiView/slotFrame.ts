@@ -27,6 +27,7 @@ import { findChatClient, readChatMessage } from '../../utils/reactFiber';
 import { MV_CHANNEL, parseMvMessage, slotFromAudioShortcut, type SlotToParent } from './messages';
 import { isUserInitiatedStrict } from './userIntent';
 import { isPlayerAdActive } from '../adSkip';
+import { createAutoVolume } from './autoVolume';
 import {
   activateQualityItem,
   matchesTarget,
@@ -183,7 +184,7 @@ export function createSlotAudio(
   };
 }
 
-function readState(slot: SlotIndex): SlotToParent {
+function readState(slot: SlotIndex): Extract<SlotToParent, { kind: 'state' }> {
   const video = currentVideo();
   const checked = qsa(`${PLAYER.qualityItem}.${PLAYER.qualityItemChecked}`)[0];
   const playerRoot = qs(PLAYER.rootPc);
@@ -258,6 +259,11 @@ export function startSlotController(slot: SlotIndex): Disposer {
   info(`slot controller started for slot ${slot}`);
 
   let chatLines = 0;
+  const autoVolume = createAutoVolume(() => [
+    ...document.querySelectorAll<HTMLVideoElement>(
+      '#live_player_layout video, .vod_player_wrap video',
+    ),
+  ]);
 
   const post = (message: SlotToParent) => {
     // 부모 origin 을 명시한다. '*' 로 보내면 임의 페이지가 채팅 내용을 읽을 수 있다.
@@ -326,6 +332,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
         upsertStyle(SLOT_STYLE_ID, buildSlotModeCss());
         break;
       case 'exitSlotMode':
+        autoVolume.setEnabled(false);
         removeStyle(SLOT_STYLE_ID);
         break;
       case 'setQuality':
@@ -334,6 +341,9 @@ export function startSlotController(slot: SlotIndex): Disposer {
       case 'setChatLines':
         chatLines = message.lines;
         sendChat();
+        break;
+      case 'setAutoVolume':
+        autoVolume.setEnabled(message.enabled);
         break;
       /*
        * 부모 프레임에서 사용자가 무언가를 눌렀다 → 프레임 안에 그대로 퍼뜨린다.
@@ -344,7 +354,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
         window.dispatchEvent(new Event(OURS.userGestureEvent));
         break;
     }
-    post(readState(slot));
+    post({ ...readState(slot), autoVolumeState: autoVolume.state() });
   };
 
   window.addEventListener('message', onMessage);
@@ -358,7 +368,10 @@ export function startSlotController(slot: SlotIndex): Disposer {
     channelName: document.title || null,
   });
 
-  const stateTimer = setInterval(() => post(readState(slot)), STATE_REPORT_MS);
+  const stateTimer = setInterval(
+    () => post({ ...readState(slot), autoVolumeState: autoVolume.state() }),
+    STATE_REPORT_MS,
+  );
 
   const chatRoot = qs(ID.asideChatting);
   const stopChatObserve = chatRoot
@@ -385,6 +398,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
     stopChatObserve?.();
     stopStyleGuard();
     audio.dispose();
+    autoVolume.dispose();
     removeStyle(SLOT_STYLE_ID);
   };
 }

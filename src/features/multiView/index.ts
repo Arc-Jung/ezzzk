@@ -109,6 +109,7 @@ export const multiViewFeature: Feature = {
         onRequestConfig: openSheet,
         onExit: (channelId) => exitStage(channelId),
         onActiveSlotChange: (slot) => void updateSection('multiView', { activeSlot: slot }),
+        onAutoVolumeChange: (enabled) => void updateSection('multiView', { autoVolume: enabled }),
         /**
          * 전체 화면에서만 0 이 아닌 값이 온다. 폭 적용은 여기 한 곳에서만 한다 —
          * 스테이지가 직접 스타일을 쓰면 FR-05·FR-10 과 경합한다.

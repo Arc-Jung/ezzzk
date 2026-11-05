@@ -151,10 +151,12 @@ export const chatSubtitleFeature: Feature = {
         mounted = null;
         mutation.disconnect();
         observedAside = null;
+        source.reset();
         overlay.remove();
         return;
       }
       if (player !== mounted) {
+        source.reset();
         resize?.disconnect();
         playerMutation.disconnect();
         mounted = player;
@@ -165,8 +167,10 @@ export const chatSubtitleFeature: Feature = {
         }
       }
       if (overlay.parentElement !== player) player.appendChild(overlay);
+      if (lines.parentElement !== overlay) overlay.replaceChildren(lines);
       const aside = document.querySelector(ID.asideChatting);
       if (aside !== observedAside) {
+        source.reset();
         mutation.disconnect();
         observedAside = aside;
         if (aside) mutation.observe(aside, { childList: true, subtree: true, characterData: true });
@@ -199,7 +203,7 @@ export const chatSubtitleFeature: Feature = {
       lines.style.maxHeight = `${geometry.lines * geometry.lineHeight}px`;
       overlay.dataset['lines'] = String(geometry.lines);
       const next = JSON.stringify(messages);
-      if (next !== previous) {
+      if (next !== previous || lines.childElementCount !== messages.length) {
         previous = next;
         lines.replaceChildren(
           ...messages.map((message) => {
@@ -256,6 +260,18 @@ export const chatSubtitleFeature: Feature = {
       }, 200);
     });
     const playerMutation = new MutationObserver(sync);
+    // 미디어 이벤트는 버블링하지 않는다. 캡처로 교체된 video의 재생 이벤트도 받는다.
+    const onPlaybackResume = (event: Event) => {
+      if (
+        !(event.target instanceof HTMLVideoElement) ||
+        !event.target.closest(`${ID.livePlayerLayout} ${PLAYER.rootPc}`)
+      )
+        return;
+      source.reset();
+      sync();
+    };
+    const resumeEvents = ['play', 'playing', 'loadedmetadata', 'canplay'] as const;
+    for (const type of resumeEvents) document.addEventListener(type, onPlaybackResume, true);
     const timer = setInterval(sync, 1000);
     document.addEventListener('fullscreenchange', sync);
     sync();
@@ -267,6 +283,7 @@ export const chatSubtitleFeature: Feature = {
       playerMutation.disconnect();
       resize?.disconnect();
       document.removeEventListener('fullscreenchange', sync);
+      for (const type of resumeEvents) document.removeEventListener(type, onPlaybackResume, true);
       overlay.remove();
       removeStyle(STYLE_ID);
     };

@@ -87,3 +87,14 @@ node scripts/verify-subtitle-emoticons.mjs
 yarn build
 node scripts/verify-subtitle-order.mjs
 ```
+
+## 일시정지·중단 후 복구 (2026-11-05)
+
+재생 재개(`play`·`playing`·`loadedmetadata`·`canplay`)를 캡처 단계에서 감지해 채팅 소스를 다시 읽는다. 플레이어·채팅창 교체 시에도 이전 스냅샷을 초기화한다. 중단 중 표시 DOM이 제거되면 채팅 내용이 이전과 같더라도 표시 요소를 복구한다.
+
+Chromium의 canvas 영상 스트림과 모의 채팅으로 수정 전 빈 오버레이 잔류를 재현했다. 수정 후 일반·슬롯 모드에서 같은 영상 일시정지→재개, 플레이어 제거→새 영상·채팅 클라이언트 생성, 새 메시지 갱신, 오버레이 중복 없음까지 검사했다. 이 검증은 실제 방송의 송출 장애를 발생시키거나 실제 채팅을 전송하지 않는다.
+
+```sh
+yarn build
+node scripts/verify-subtitle-resume.mjs
+```

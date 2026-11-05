@@ -12,6 +12,7 @@ import {
   applyBoost,
   boostToGain,
   ensureGraph,
+  ensureNormalization,
   CLIPPING_RISK_PERCENT,
   isBoosted,
   isClippingRisk,
@@ -148,6 +149,46 @@ describe('컴프레서 배선 — 멱등하고, 꺼도 소리 경로가 끊기�
 describe('ensureGraph — Web Audio 가 없는 환경', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('자동 보정은 기존 소스를 재사용하고 수동 게인 뒤에 한 번만 연결한다', () => {
+    const connections: string[] = [];
+    let sources = 0;
+    let gains = 0;
+    const node = (name: string) => ({
+      name,
+      connect: (to: { name: string }) => connections.push(`${name}→${to.name}`),
+      disconnect: (to?: { name: string }) => connections.push(`${name}✕${to?.name ?? ''}`),
+    });
+    class FakeContext {
+      destination = node('destination');
+      createMediaElementSource() {
+        sources++;
+        return node('source');
+      }
+      createGain() {
+        return { ...node(`gain${++gains}`), gain: { value: 1 } };
+      }
+      createDynamicsCompressor() {
+        return node('compressor');
+      }
+      createAnalyser() {
+        return { ...node('analyser'), fftSize: 0 };
+      }
+    }
+    vi.stubGlobal('AudioContext', FakeContext);
+    const graph = ensureGraph(document.createElement('video'))!;
+    const normal = ensureNormalization(graph);
+    expect(ensureNormalization(graph)).toBe(normal);
+    expect(sources).toBe(1);
+    expect(connections).toEqual([
+      'source→gain1',
+      'gain1→destination',
+      'analyser→gain2',
+      'gain2→destination',
+      'gain1→analyser',
+      'gain1✕destination',
+    ]);
   });
 
   /** 🔴 확장이 소리를 없애면 안 된다 — 그래프를 못 만들면 원래 경로 그대로 둔다. */

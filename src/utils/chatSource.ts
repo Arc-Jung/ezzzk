@@ -55,6 +55,12 @@ export function watchLatestChat(onChange: () => void) {
   ensureSourceScript();
   return {
     read: () => current,
+    /** 재접속·플레이어 교체 뒤 이전 클라이언트의 스냅샷을 재사용하지 않는다. */
+    reset() {
+      current = null;
+      previous = '';
+      lastRequest = -Infinity;
+    },
     refresh() {
       if (disposed || location.pathname !== path || performance.now() - lastRequest < 200) return;
       lastRequest = performance.now();

@@ -62,6 +62,7 @@ export type AudioGraph = {
   compressor: DynamicsCompressorNode;
   /** 지금 컴프레서를 거치고 있는가. 연결 변경을 멱등하게 하려고 들고 있는다. */
   compressorEnabled: boolean;
+  normalization?: { analyser: AnalyserNode; gain: GainNode };
 };
 
 /**
@@ -125,6 +126,37 @@ export function ensureGraph(video: HTMLMediaElement): AudioGraph | null {
 /** 컨텍스트를 깨운다. 사용자 제스처 전에는 실패하는 것이 정상이라 조용히 넘긴다. */
 export function resumeGraph(graph: AudioGraph): void {
   void graph.context.resume?.()?.catch?.(() => undefined);
+}
+
+/** 기존 소스를 재사용한다. 자동 보정은 수동 게인·컴프레서 뒤의 별도 게인이다. */
+export function ensureNormalization(
+  graph: AudioGraph,
+): NonNullable<AudioGraph['normalization']> | null {
+  if (graph.normalization) return graph.normalization;
+  let analyser: AnalyserNode | undefined;
+  let gain: GainNode | undefined;
+  try {
+    analyser = graph.context.createAnalyser();
+    analyser.fftSize = 4096;
+    gain = graph.context.createGain();
+    analyser.connect(gain);
+    gain.connect(graph.context.destination);
+    graph.gain.connect(analyser);
+    graph.gain.disconnect(graph.context.destination);
+    graph.normalization = { analyser, gain };
+    return graph.normalization;
+  } catch (e) {
+    // 연결 도중 실패해도 기존 출력과 새 출력이 겹쳐 두 배로 들리지 않게 정리한다.
+    try {
+      if (analyser) graph.gain.disconnect(analyser);
+      gain?.disconnect();
+      analyser?.disconnect();
+    } catch {
+      /* 기존 출력은 유지한다. */
+    }
+    warning('failed to attach automatic volume adjustment', e);
+    return null;
+  }
 }
 
 /**

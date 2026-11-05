@@ -192,6 +192,8 @@ export type Settings = {
     restoreLastLayout: boolean;
     /** 멀티뷰 시작·복원 시 전체화면 요청. 기본 끄기. */
     autoFullscreen: boolean;
+    /** 멀티뷰 방송별 실시간 자동 음량 보정. 기본 끄기. */
+    autoVolume: boolean;
     /**
      * 멀티뷰 스테이지의 **사이드 채팅 패널(BETA)** 을 쓸지. `'none'` 이면 만들지 않는다.
      *
@@ -323,6 +325,7 @@ export const DEFAULT_SETTINGS: Settings = {
     lowerInactiveQuality: false,
     restoreLastLayout: true,
     autoFullscreen: false,
+    autoVolume: false,
     chatMode: 'none',
     slotChatLines: 3,
     slotChatLinesActive: 5,
