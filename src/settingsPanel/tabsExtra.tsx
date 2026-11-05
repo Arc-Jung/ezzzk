@@ -90,9 +90,9 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         checked={multiView.autoFullscreen}
         onChange={(next) => patch({ autoFullscreen: next })}
       />
-      <p className="cm-sheet__hint">
-        브라우저에서 자동 진입을 제한하면 멀티뷰의 최대화 버튼을 눌러 주세요.
-      </p>
+      {multiView.autoFullscreen ? (
+        <p className="cm-sheet__note">자동으로 전환되지 않으면 최대화 버튼을 눌러 주세요.</p>
+      ) : null}
       <Toggle
         label="멀티뷰 자동 음량"
         checked={multiView.autoVolume}
@@ -157,9 +157,7 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
             </span>
           </div>
         </>
-      ) : (
-        <p className="cm-sheet__note">멀티뷰 채팅은 현재 사용할 수 없습니다.</p>
-      )}
+      ) : null}
 
       <h3>
         저장된 조합 ({multiView.sets.length}/{LIMITS.multiViewSets})
@@ -250,7 +248,6 @@ export function ChatTab({ settings, update }: TabProps & { scrollerHeightPx: num
 
   return (
     <>
-      <h3>클린봇</h3>
       <Toggle
         label="치지직 클린봇 사용"
         checked={cleanBotTarget(settings.chzzkCleanBot) ?? readCleanBotState() ?? true}
@@ -282,28 +279,27 @@ export function ChatTab({ settings, update }: TabProps & { scrollerHeightPx: num
         </span>
       </div>
 
-      <div className="cm-sheet__row">
-        <span>슬롯 채팅</span>
-        <span className="cm-sp__controls">
-          <Stepper
-            label="슬롯 채팅 글자 크기"
-            value={chatFont.slotPx}
-            min={CHAT_FONT_RANGE.slot.min}
-            max={CHAT_FONT_RANGE.slot.max}
-            unit=" px"
-            onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
-          />
-          <span className="cm-sheet__note">
-            ({CHAT_FONT_RANGE.slot.min}~{CHAT_FONT_RANGE.slot.max})
+      {MULTIVIEW_CHAT_ENABLED ? (
+        <div className="cm-sheet__row">
+          <span>슬롯 채팅</span>
+          <span className="cm-sp__controls">
+            <Stepper
+              label="슬롯 채팅 글자 크기"
+              value={chatFont.slotPx}
+              min={CHAT_FONT_RANGE.slot.min}
+              max={CHAT_FONT_RANGE.slot.max}
+              unit=" px"
+              onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
+            />
+            <RevertButton
+              label="슬롯 채팅 글자 크기"
+              onClick={() =>
+                update({ chatFont: { ...chatFont, slotPx: CHAT_FONT_RANGE.slot.default } })
+              }
+            />
           </span>
-          <RevertButton
-            label="슬롯 채팅 글자 크기"
-            onClick={() =>
-              update({ chatFont: { ...chatFont, slotPx: CHAT_FONT_RANGE.slot.default } })
-            }
-          />
-        </span>
-      </div>
+        </div>
+      ) : null}
 
       {/*
         채팅 프리셋은 임시로 꺼 두었다 (`features/chatPreset.ts`, 2026-08-23).

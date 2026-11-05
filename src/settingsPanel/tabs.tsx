@@ -255,7 +255,9 @@ export function PlaybackTab({ settings, update }: TabProps) {
           <option value="fullscreen">전체화면</option>
         </select>
       </div>
-      <p className="cm-sheet__note">전체화면으로 바뀌지 않으면 영상을 한 번 눌러 주세요.</p>
+      {playbackScreenMode(settings.wideScreen) === 'fullscreen' ? (
+        <p className="cm-sheet__note">전체화면으로 바뀌지 않으면 영상을 한 번 눌러 주세요.</p>
+      ) : null}
       <h3>방송 재개</h3>
       <Toggle
         label="방송이 다시 시작되면 자동으로 들어가기"
@@ -330,7 +332,7 @@ export function SoundTab({ settings, update }: TabProps) {
         `video.volume` 은 0~1 이라 100% 를 넘길 수 없어 Web Audio 로 증폭한다 — 실측으로
         200% 까지 정확히 곱해지는 것을 확인했다(`scripts/probe-volume-boost.mjs`).
       */}
-      <h3>소리 키우기 · 다듬기</h3>
+      <h3>음량 보정</h3>
       <p className="cm-sheet__note">
         볼륨은 최대 {MAX_BOOST_PERCENT}%까지 높일 수 있습니다. 증폭하면 소리가 왜곡될 수 있습니다.
       </p>
@@ -342,77 +344,80 @@ export function SoundTab({ settings, update }: TabProps) {
         }
       />
       <p className="cm-sheet__note">큰 소리와 작은 소리의 차이를 줄입니다.</p>
-      <div className="cm-sheet__row">
-        <span>누르기 시작하는 세기</span>
-        <span className="cm-sp__controls">
-          <input
-            type="range"
-            min={-100}
-            max={0}
-            step={1}
-            aria-label="컴프레서 threshold"
-            value={compressor.threshold}
-            disabled={!compressor.enabled}
-            onChange={(event) =>
-              update({
-                audio: {
-                  ...settings.audio,
-                  compressor: { ...compressor, threshold: Number(event.target.value) },
-                },
-              })
-            }
-          />
-          <output aria-label="컴프레서 threshold 현재 값">{compressor.threshold}dB</output>
-          <RevertButton
-            label="컴프레서 threshold"
-            onClick={() =>
-              update({
-                audio: {
-                  ...settings.audio,
-                  compressor: {
-                    ...compressor,
-                    threshold: DEFAULT_SETTINGS.audio.compressor.threshold,
+      <details className="cm-sp__advanced">
+        <summary>세부 음량 조정</summary>
+        <div className="cm-sheet__row">
+          <span>작동 기준</span>
+          <span className="cm-sp__controls">
+            <input
+              type="range"
+              min={-100}
+              max={0}
+              step={1}
+              aria-label="컴프레서 threshold"
+              value={compressor.threshold}
+              disabled={!compressor.enabled}
+              onChange={(event) =>
+                update({
+                  audio: {
+                    ...settings.audio,
+                    compressor: { ...compressor, threshold: Number(event.target.value) },
                   },
-                },
-              })
-            }
-          />
-        </span>
-      </div>
-      <div className="cm-sheet__row">
-        <span>누르는 비율</span>
-        <span className="cm-sp__controls">
-          <input
-            type="range"
-            min={1}
-            max={20}
-            step={1}
-            aria-label="컴프레서 ratio"
-            value={compressor.ratio}
-            disabled={!compressor.enabled}
-            onChange={(event) =>
-              update({
-                audio: {
-                  ...settings.audio,
-                  compressor: { ...compressor, ratio: Number(event.target.value) },
-                },
-              })
-            }
-          />
-          <output aria-label="컴프레서 ratio 현재 값">{compressor.ratio}:1</output>
-          <RevertButton
-            label="컴프레서 ratio"
-            onClick={() =>
-              update({
-                audio: {
-                  ...settings.audio,
-                  compressor: { ...compressor, ratio: DEFAULT_SETTINGS.audio.compressor.ratio },
-                },
-              })
-            }
-          />
-        </span>
-      </div>
+                })
+              }
+            />
+            <output aria-label="컴프레서 threshold 현재 값">{compressor.threshold}dB</output>
+            <RevertButton
+              label="컴프레서 threshold"
+              onClick={() =>
+                update({
+                  audio: {
+                    ...settings.audio,
+                    compressor: {
+                      ...compressor,
+                      threshold: DEFAULT_SETTINGS.audio.compressor.threshold,
+                    },
+                  },
+                })
+              }
+            />
+          </span>
+        </div>
+        <div className="cm-sheet__row">
+          <span>압축 비율</span>
+          <span className="cm-sp__controls">
+            <input
+              type="range"
+              min={1}
+              max={20}
+              step={1}
+              aria-label="컴프레서 ratio"
+              value={compressor.ratio}
+              disabled={!compressor.enabled}
+              onChange={(event) =>
+                update({
+                  audio: {
+                    ...settings.audio,
+                    compressor: { ...compressor, ratio: Number(event.target.value) },
+                  },
+                })
+              }
+            />
+            <output aria-label="컴프레서 ratio 현재 값">{compressor.ratio}:1</output>
+            <RevertButton
+              label="컴프레서 ratio"
+              onClick={() =>
+                update({
+                  audio: {
+                    ...settings.audio,
+                    compressor: { ...compressor, ratio: DEFAULT_SETTINGS.audio.compressor.ratio },
+                  },
+                })
+              }
+            />
+          </span>
+        </div>
+      </details>
     </>
   );
 }
@@ -470,9 +475,6 @@ export function LayoutTab({
               })
             }
           />
-          <span className="cm-sheet__note">
-            ({ratioRange.min}~{ratioRange.max})
-          </span>
           <RevertButton
             label="채팅창 점유율"
             onClick={() =>
@@ -575,7 +577,6 @@ export function MiscTab({ settings, update }: TabProps) {
         label="광고 SKIP 버튼 자동 누르기"
         checked={adSkip.enabled}
         onChange={(next) => update({ adSkip: { enabled: next } })}
-        hint={<p className="cm-sheet__note">건너뛰기 버튼이 나타나면 자동으로 누릅니다.</p>}
       />
       <Toggle
         label="치트키 배너 숨김"
@@ -595,28 +596,31 @@ export function MiscTab({ settings, update }: TabProps) {
         }
         hint={<p className="cm-sheet__note">진행바 위 치트키 안내를 눌러도 이동하지 않습니다.</p>}
       />
-      <div className="cm-sheet__row">
-        <span>기기 유형</span>
-        <select
-          aria-label="기기 유형"
-          value={settings.device.override}
-          onChange={(event) =>
-            update({ device: { override: event.target.value as Settings['device']['override'] } })
-          }
-        >
-          <option value="auto">자동</option>
-          {DEVICE_CLASSES.map((deviceClass) => (
-            <option key={deviceClass} value={deviceClass}>
-              {DEVICE_TITLES[deviceClass]}
-            </option>
-          ))}
-        </select>
-      </div>
-      <Toggle
-        label="디버그 로그"
-        checked={settings.debug}
-        onChange={(next) => update({ debug: next })}
-      />
+      <details className="cm-sp__advanced">
+        <summary>고급 설정</summary>
+        <div className="cm-sheet__row">
+          <span>기기 유형</span>
+          <select
+            aria-label="기기 유형"
+            value={settings.device.override}
+            onChange={(event) =>
+              update({ device: { override: event.target.value as Settings['device']['override'] } })
+            }
+          >
+            <option value="auto">자동</option>
+            {DEVICE_CLASSES.map((deviceClass) => (
+              <option key={deviceClass} value={deviceClass}>
+                {DEVICE_TITLES[deviceClass]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Toggle
+          label="디버그 로그"
+          checked={settings.debug}
+          onChange={(next) => update({ debug: next })}
+        />
+      </details>
     </>
   );
 }

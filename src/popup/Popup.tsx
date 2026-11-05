@@ -163,25 +163,28 @@ export function Popup() {
               onChange={(next) => update({ chatFont: { ...chatFont, sidePx: next } })}
             />
           </div>
-          <div className="cm-row">
-            <span>슬롯 채팅</span>
-            <Stepper
-              label="슬롯 채팅 글자 크기"
-              value={chatFont.slotPx}
-              min={CHAT_FONT_RANGE.slot.min}
-              max={CHAT_FONT_RANGE.slot.max}
-              unit=" px"
-              onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
-            />
-          </div>
+          {MULTIVIEW_CHAT_ENABLED ? (
+            <div className="cm-row">
+              <span>슬롯 채팅</span>
+              <Stepper
+                label="슬롯 채팅 글자 크기"
+                value={chatFont.slotPx}
+                min={CHAT_FONT_RANGE.slot.min}
+                max={CHAT_FONT_RANGE.slot.max}
+                unit=" px"
+                onChange={(next) => update({ chatFont: { ...chatFont, slotPx: next } })}
+              />
+            </div>
+          ) : null}
           <button
             type="button"
             className="cm-btn"
             onClick={() =>
               update({
                 chatFont: {
+                  ...chatFont,
                   sidePx: CHAT_FONT_RANGE.side.default,
-                  slotPx: CHAT_FONT_RANGE.slot.default,
+                  ...(MULTIVIEW_CHAT_ENABLED ? { slotPx: CHAT_FONT_RANGE.slot.default } : {}),
                 },
               })
             }

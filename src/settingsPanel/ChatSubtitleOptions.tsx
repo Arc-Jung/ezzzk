@@ -115,7 +115,9 @@ export function ChatSubtitleOptions({
         checked={value.useNicknameColor}
         onChange={(useNicknameColor) => patch({ useNicknameColor })}
       />
-      <p className="cm-sheet__note">끄면 닉네임도 위에서 선택한 글자색으로 표시합니다.</p>
+      {!value.useNicknameColor ? (
+        <p className="cm-sheet__note">닉네임에도 선택한 글자색을 사용합니다.</p>
+      ) : null}
       <div
         className="cm-subtitle-preview"
         data-position={value.position}
