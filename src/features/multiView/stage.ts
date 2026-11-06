@@ -11,6 +11,7 @@
  */
 
 import { createIconElement } from '../../ui/icons';
+import { averageVolumeTarget, AUTO_VOLUME_TARGET } from './autoVolume';
 import { ACCENT, FONT_FAMILY, RADIUS, UI_STATE } from '../../ui/tokens';
 import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
 import type { MultiViewSlot, Settings, SlotIndex, SlotLines } from '../../constants/storage';
@@ -143,6 +144,7 @@ type SlotRuntime = {
    */
   offlineSince: number | null;
   autoVolumeState?: 'off' | 'waiting' | 'active' | 'unavailable';
+  autoVolumeRms?: number | null;
 };
 
 /**
@@ -607,6 +609,7 @@ export class MultiViewStage {
   private bar: HTMLElement | null = null;
   private fullscreenButton: HTMLButtonElement | null = null;
   private autoVolumeButton: HTMLButtonElement | null = null;
+  private autoVolumeTarget = AUTO_VOLUME_TARGET;
   /**
    * 바가 영상 위로 겹칠 때 무대 위쪽에서 바가 덮는 높이(px). 겹치지 않으면 0.
    * 🔴 이 값만큼 슬롯 헤더를 아래로 밀어 2026-08-16 회귀(바가 헤더 버튼을 덮어 눌리지
@@ -818,6 +821,7 @@ export class MultiViewStage {
         kind: 'setAutoVolume',
         slot,
         enabled: this.settings.multiView.autoVolume,
+        targetRms: this.autoVolumeTarget,
       });
     }
     this.updateAutoVolumeButton();
@@ -1478,6 +1482,8 @@ export class MultiViewStage {
       if (message.kind === 'ready') {
         info(`slot ${message.slot} controller is ready; re-sending slot directives`);
         runtime.ready = true;
+        runtime.autoVolumeState = 'waiting';
+        runtime.autoVolumeRms = null;
         runtime.cell.querySelector('.cm-slot__retry')?.remove();
         this.post({ channel: MV_CHANNEL, dir: 'p2s', kind: 'enterSlotMode', slot: message.slot });
         this.registerFocus(message.slot);
@@ -1488,6 +1494,7 @@ export class MultiViewStage {
           kind: 'setAutoVolume',
           slot: message.slot,
           enabled: this.settings.multiView.autoVolume,
+          targetRms: this.autoVolumeTarget,
         });
         // 채팅 줄 수(`setChatLines`)도 여기서 다시 나간다.
         this.layout();
@@ -1520,6 +1527,19 @@ export class MultiViewStage {
       }
       if (message.kind === 'state') {
         runtime.autoVolumeState = message.autoVolumeState;
+        runtime.autoVolumeRms = message.autoVolumeRms;
+        const target = averageVolumeTarget(
+          [...this.runtimes.values()].map((r) =>
+            r.autoVolumeState === 'active' ? r.autoVolumeRms : null,
+          ),
+        );
+        if (
+          this.settings.multiView.autoVolume &&
+          Math.abs(target - this.autoVolumeTarget) > 0.001
+        ) {
+          this.autoVolumeTarget = target;
+          this.syncAutoVolume();
+        }
         this.updateAutoVolumeButton();
         if (message.advertising === true) this.showSlotAdNotice(runtime);
         else runtime.cell.querySelector('.cm-slot__ad-notice')?.remove();

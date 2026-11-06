@@ -1,0 +1,620 @@
+{
+  "states": [
+    {
+      "phase": "enabled",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.08010526151579887,
+          "gains": [
+            1,
+            0.1768164485692978,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.08013093949221489,
+          "gains": [
+            1,
+            0.7071539759635925,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.0798998359651417,
+          "gains": [
+            1,
+            1.411131739616394,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.0799502494455178,
+          "gains": [
+            1,
+            0.35357964038848877,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "average-of-quieter-streams",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.02661429530680617,
+          "gains": [
+            1,
+            0.47090116143226624,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.026215312692889313,
+          "gains": [
+            1,
+            1.8823339939117432,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.026216061637605547,
+          "gains": [
+            1,
+            3.7674455642700195,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.026634230810067827,
+          "gains": [
+            1,
+            0.9416564106941223,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "after-manual-attempt",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07976506515775712,
+          "gains": [
+            1,
+            0.17636339366436005,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.07991453826043898,
+          "gains": [
+            1,
+            0.705244243144989,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.07924601867706262,
+          "gains": [
+            1,
+            1.401833176612854,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.0797154176036736,
+          "gains": [
+            1,
+            0.35254842042922974,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "pause-resume",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07991090299818616,
+          "gains": [
+            1,
+            0.17636339366436005,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.07974992334684347,
+          "gains": [
+            1,
+            0.7054303288459778,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.07968439662051506,
+          "gains": [
+            1,
+            1.4103684425354004,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.07875158042196642,
+          "gains": [
+            1,
+            0.3537379205226898,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "disabled",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.6782285392085972,
+          "gains": [
+            1.5,
+            0.9996864795684814,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0,
+          "gains": [
+            1,
+            0.9998569488525391,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 0.5,
+          "muted": true
+        },
+        {
+          "slot": 1,
+          "rms": 0.016991272133004335,
+          "gains": [
+            1,
+            1.0002861022949219,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 0.3,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.18098880350907556,
+          "gains": [
+            1,
+            0.9997559785842896,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 0.8,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "video-replaced",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07995924742580102,
+          "gains": [
+            1,
+            0.17675258219242096,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.07994422311140288,
+          "gains": [
+            1,
+            0.7072784900665283,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.06811376536104985,
+          "gains": [
+            1,
+            1.209719181060791,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 2,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.08119183877311442,
+          "gains": [
+            1,
+            0.35834503173828125,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "compressor-while-locked",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07968685288891937,
+          "gains": [
+            1,
+            0.2992219030857086,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.07992681197202385,
+          "gains": [
+            1,
+            0.3665374517440796,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.07998236168638052,
+          "gains": [
+            1,
+            0.5060954689979553,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 2,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.08000969092759268,
+          "gains": [
+            1,
+            0.3194631040096283,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "silence",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07970253395970163,
+          "gains": [
+            1,
+            0.2992219030857086,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0,
+          "gains": [
+            1,
+            0.9998569488525391,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.0800881812383979,
+          "gains": [
+            1,
+            0.5060609579086304,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 2,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.08005205257850928,
+          "gains": [
+            1,
+            0.3193892240524292,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    },
+    {
+      "phase": "after-silence",
+      "slots": [
+        {
+          "slot": 4,
+          "rms": 0.07982856170116874,
+          "gains": [
+            1,
+            0.2992609739303589,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 2,
+          "rms": 0.08012473325660463,
+          "gains": [
+            1,
+            0.36652764678001404,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 1,
+          "rms": 0.08008815717227219,
+          "gains": [
+            1,
+            0.5060216784477234,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 2,
+          "volume": 1,
+          "muted": false
+        },
+        {
+          "slot": 3,
+          "rms": 0.08003484543039145,
+          "gains": [
+            1,
+            0.3193831741809845,
+            2,
+            0.5
+          ],
+          "outputs": 2,
+          "contextState": "running",
+          "sources": 1,
+          "volume": 1,
+          "muted": false
+        }
+      ]
+    }
+  ],
+  "initialVolumes": [
+    30,
+    50,
+    80,
+    150
+  ],
+  "enabledSpreadDb": 0.025086938694294895,
+  "averageTarget": 0.026516504294495535,
+  "transient": {
+    "peak": 0.6151569485664368,
+    "count": 600
+  },
+  "manualControlsLocked": true,
+  "mobileBar": {
+    "left": 0,
+    "right": 411,
+    "width": 411
+  },
+  "disabledSpreadDb": 32.023003297990456,
+  "previousVolumesRestored": true,
+  "compressedSpreadDb": 0.035118347934358654,
+  "reloaded": {
+    "volume": 1,
+    "muted": false,
+    "saved": {
+      "percent": 30,
+      "muted": false
+    }
+  },
+  "reloadedRestored": true,
+  "success": true
+}

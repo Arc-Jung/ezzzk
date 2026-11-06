@@ -47,6 +47,8 @@ const AUTO_HIDE_STYLE_ID = 'cm-controlbar-autohide-style';
  * 줄을 바꿔 **모든 버튼이 화면 안에 남게** 한다. 잘라내지 않는다 — 조작 요소는 도달 가능해야 한다.
  */
 export const CONTROL_BAR_AUTO_HIDE_CSS = `
+html[data-cm-auto-volume-lock] .cm-volume-button:disabled { opacity: 0.4; cursor: default; }
+html[data-cm-auto-volume-lock] :is(.pzp-pc__volume-button, .pzp-pc__volume-slider, .pzp-mobile__volume-button, .pzp-mobile__volume-slider) { pointer-events: none; opacity: 0.4; }
 .${CONTROL_ITEM_CLASS} { transition: opacity 200ms, background-color 140ms ease; border-radius: ${RADIUS.sm}; }
 .${CONTROL_ITEM_CLASS}[aria-pressed='true'] { background: ${UI_STATE.selected} !important; }
 .${CONTROL_ITEM_CLASS}:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 2px; }

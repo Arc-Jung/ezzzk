@@ -56,6 +56,7 @@ import {
   volumeGaugeColor,
 } from './audioPipeline';
 import { createIconElement, type IconName } from '../ui/icons';
+import { autoVolumeLock, enforceAutoVolume } from './multiView/volumeLock';
 import { CONTROL_ITEM_CLASS, ensureControlBarAutoHideCss } from './controlBar';
 import type { Feature, FeatureContext } from './types';
 
@@ -475,6 +476,7 @@ export const volumeFeature: Feature = {
     let userMuted = remembered?.userMuted === true;
     /** 초기 적용값은 기억하지 않는다 — 넣으면 설정 변경(`defaultLevel`)이 먹지 않는다. */
     const rememberUserChoice = () => {
+      if (autoVolumeLock.isLocked()) return;
       sessionLevel = { pageKey, percent, userMuted };
     };
     /**
@@ -482,6 +484,7 @@ export const volumeFeature: Feature = {
      * `player-volume`)까지 저장하면 그 값이 다음 진입마다 채널 값으로 굳는다.
      */
     const saveChannel = () => {
+      if (autoVolumeLock.isLocked()) return;
       if (channelId) saveChannelVolume(channelId, percent);
     };
 
@@ -515,7 +518,7 @@ export const volumeFeature: Feature = {
      * (기본값이 `restoreLast: false` 라서 설치 직후 치지직 볼륨 슬라이더가 먹지 않는 증상이었다.)
      */
     const persist = debounce((value: number) => {
-      if (!ctx.settings.volume.restoreLast) return;
+      if (autoVolumeLock.isLocked() || !ctx.settings.volume.restoreLast) return;
       // origin 을 붙이면 이 쓰기로 볼륨 기능이 재시작되지 않는다 (자기 값을 되돌리는 것을 막는다).
       void updateSection('volume', { lastLevel: value }, { origin: 'volume' }).catch((e: unknown) =>
         warning('failed to persist volume level', e),
@@ -557,6 +560,18 @@ export const volumeFeature: Feature = {
 
     const render = () => {
       if (!node || !valueEl) return;
+      node
+        .querySelectorAll<HTMLButtonElement>(
+          '[aria-label="볼륨 낮추기"], [aria-label="볼륨 높이기"]',
+        )
+        .forEach((button) => {
+          button.disabled = autoVolumeLock.isLocked();
+          button.title = autoVolumeLock.isLocked() ? '자동 음량 사용 중' : '';
+        });
+      document.documentElement.toggleAttribute(
+        'data-cm-auto-volume-lock',
+        autoVolumeLock.isLocked(),
+      );
       const label = formatVolumeLabel(percent, isMuted());
       if (valueEl.textContent !== label) valueEl.textContent = label;
       node.setAttribute('aria-label', `볼륨 조절, 현재 ${label}`);
@@ -643,6 +658,12 @@ export const volumeFeature: Feature = {
      * 저장은 **사용자가 실제로 볼륨을 바꿨을 때만** 한다.
      */
     const setPercent = (next: number, persistToSettings = true) => {
+      if (autoVolumeLock.isLocked()) {
+        next = 100;
+        persistToSettings = false;
+        userMuted = false;
+        if (video) video.muted = false;
+      }
       percent = clampVolumePercent(next);
       // `video` 가 아직(또는 잠시) 없어도 표시값은 갱신한다 — 붙는 순간 그대로 적용된다.
       if (video) {
@@ -686,6 +707,7 @@ export const volumeFeature: Feature = {
 
     /** `−`/`+` 와 단축키가 공유하는 조절 경로. 음소거 해제 → 증감 순서를 지킨다. */
     const nudgeVolume = (direction: 1 | -1) => {
+      if (autoVolumeLock.isLocked()) return;
       unmuteForAdjust();
       setPercent(stepVolume(percent, direction, step));
     };
@@ -1218,6 +1240,11 @@ export const volumeFeature: Feature = {
     const onVolumeChange = (e: Event) => {
       const el = e.currentTarget as HTMLVideoElement | null;
       if (!el) return;
+      if (autoVolumeLock.isLocked()) {
+        enforceAutoVolume(el);
+        render();
+        return;
+      }
       const observed = unitToPercent(el.volume);
       // 100% 초과는 요소에 100 까지만 들어간다 — 그 이벤트를 "100 으로 내렸다"로 읽지 않는다.
       if (!el.muted && observed !== Math.min(100, percent)) {
@@ -1403,6 +1430,65 @@ export const volumeFeature: Feature = {
       }),
     );
     ensureAttached();
+    if (ctx.page.isSlotFrame) {
+      disposers.push(
+        autoVolumeLock.register({
+          read: () => ({ percent, muted: video?.muted ?? userMuted }),
+          apply: (value) => {
+            persist.cancel();
+            userMuted = value.muted;
+            setPercent(value.percent, false);
+            if (video) video.muted = value.muted;
+            for (const other of document.querySelectorAll<HTMLVideoElement>(
+              '#live_player_layout video, .vod_player_wrap video',
+            )) {
+              if (other === video) continue;
+              other.volume = percentToElementUnit(value.percent);
+              other.muted = value.muted;
+              const graph = existingGraph(other);
+              if (graph) applyBoost(graph, Math.max(100, value.percent));
+            }
+            render();
+          },
+        }),
+      );
+      const nativeVolumeSelector =
+        '.pzp-pc__volume-button, .pzp-pc__volume-slider, .pzp-mobile__volume-button, .pzp-mobile__volume-slider';
+      const blockVolume = (event: Event) => {
+        if (!autoVolumeLock.isLocked()) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (event.type === 'volumechange' && target instanceof HTMLVideoElement) {
+          enforceAutoVolume(target);
+          event.stopImmediatePropagation();
+          render();
+          return;
+        }
+        const key = event instanceof KeyboardEvent ? event : null;
+        if (
+          key &&
+          !isTextEntry(event.target) &&
+          (key.key.toLowerCase() === 'm' || key.key === 'ArrowUp' || key.key === 'ArrowDown')
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        } else if (target?.closest(nativeVolumeSelector)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      };
+      for (const type of [
+        'click',
+        'pointerdown',
+        'mousedown',
+        'touchstart',
+        'wheel',
+        'keydown',
+        'volumechange',
+      ]) {
+        window.addEventListener(type, blockVolume, { capture: true, passive: false });
+        disposers.push(() => window.removeEventListener(type, blockVolume, true));
+      }
+    }
     if (!video && !gaveUp) {
       // 여기서 끝내지 않는다 — 콘텐츠 스크립트는 플레이어보다 먼저 뜬다. 상한 안에서 기다린다.
       readyTimer = setTimeout(() => giveUp('ready window elapsed'), READY_WINDOW_MS);

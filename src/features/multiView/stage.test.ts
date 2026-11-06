@@ -340,6 +340,47 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     stage.close();
   });
 
+  it('재생 중인 방송의 평균 음량을 모든 슬롯에 전달하고 대기 중 방송은 제외한다', () => {
+    const { stage } = openStage();
+    const posts = [...document.querySelectorAll<HTMLIFrameElement>('iframe')].map((frame) =>
+      vi.spyOn(frame.contentWindow!, 'postMessage'),
+    );
+    document.getElementById('cm-multiview-auto-volume')!.click();
+    const state = (slot: number, rms: number | null, active = true) =>
+      sendFromSlot({
+        channel: MV_CHANNEL,
+        dir: 's2p',
+        kind: 'state',
+        slot,
+        online: true,
+        autoVolumeState: active ? 'active' : 'waiting',
+        autoVolumeRms: rms,
+      });
+    state(1, 0.02);
+    state(2, 0.04);
+    posts.forEach((post) =>
+      expect(post).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          kind: 'setAutoVolume',
+          enabled: true,
+          targetRms: expect.closeTo(0.03),
+        }),
+        'https://chzzk.naver.com',
+      ),
+    );
+    state(2, null, false);
+    posts.forEach((post) =>
+      expect(post).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          kind: 'setAutoVolume',
+          targetRms: expect.closeTo(0.02),
+        }),
+        'https://chzzk.naver.com',
+      ),
+    );
+    stage.close();
+  });
+
   const audioShortcut = (slot: number) => ({
     channel: MV_CHANNEL,
     dir: 's2p' as const,

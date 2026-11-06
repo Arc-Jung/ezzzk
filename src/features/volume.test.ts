@@ -6,6 +6,7 @@ import { resetAllSettings } from '../storage';
 import { auditIconButtons } from '../ui/iconButtonAudit.test-utils';
 import { resetInputTrackingForTests } from './multiView/userIntent';
 import { existingGraph } from './audioPipeline';
+import { autoVolumeLock } from './multiView/volumeLock';
 import type { FeatureContext } from './types';
 import {
   CHANNEL_VOLUME_STORAGE_KEY,
@@ -523,6 +524,68 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
       document.querySelector<HTMLButtonElement>('[aria-label="음량 평탄화 켜기"]')!.click();
       expect(existingGraph(video)?.gain.gain.value).toBe(1);
     } finally {
+      dispose?.();
+    }
+  });
+
+  it('자동 음량은 버튼·네이티브 볼륨·단축키를 잠그고 원래 음소거와 볼륨을 복원한다', async () => {
+    vi.useFakeTimers();
+    const root = mountPlayer();
+    const video = addVideo(root);
+    const native = document.createElement('button');
+    native.className = 'pzp-pc__volume-button';
+    root.append(native);
+    const dispose = volumeFeature.start({
+      ...ctx,
+      page: { ...ctx.page, isSlotFrame: true },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        volume: {
+          ...DEFAULT_SETTINGS.volume,
+          defaultLevel: 30,
+          restoreLast: false,
+          autoUnmute: false,
+        },
+        audio: {
+          ...DEFAULT_SETTINGS.audio,
+          compressor: { ...DEFAULT_SETTINGS.audio.compressor, enabled: false },
+        },
+      },
+    });
+    try {
+      await vi.advanceTimersByTimeAsync(200);
+      video.muted = true;
+      video.dispatchEvent(new Event('volumechange'));
+      autoVolumeLock.setEnabled(true);
+      const plus = document.querySelector<HTMLButtonElement>('[aria-label="볼륨 높이기"]')!;
+      expect(plus.disabled).toBe(true);
+      plus.click();
+      expect(video.volume).toBe(1);
+      expect(video.muted).toBe(false);
+      video.volume = 0.2;
+      video.muted = true;
+      video.dispatchEvent(new Event('volumechange'));
+      expect(video.volume).toBe(1);
+      expect(video.muted).toBe(false);
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+      native.dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(true);
+      const key = new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        bubbles: true,
+        cancelable: true,
+      });
+      root.dispatchEvent(key);
+      expect(key.defaultPrevented).toBe(true);
+      autoVolumeLock.setEnabled(false);
+      expect(video.volume).toBe(0.3);
+      expect(video.muted).toBe(true);
+      expect(plus.disabled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(video.volume).toBe(0.3);
+      expect(video.muted).toBe(true);
+    } finally {
+      autoVolumeLock.setEnabled(false);
       dispose?.();
     }
   });
