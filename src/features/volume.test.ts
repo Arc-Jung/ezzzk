@@ -559,6 +559,8 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
       autoVolumeLock.setEnabled(true);
       const plus = document.querySelector<HTMLButtonElement>('[aria-label="볼륨 높이기"]')!;
       expect(plus.disabled).toBe(true);
+      expect(shownLabel()).toBe('자동 음량');
+      expect(control()?.getAttribute('aria-label')).toBe('자동 음량 사용 중');
       plus.click();
       expect(video.volume).toBe(1);
       expect(video.muted).toBe(false);
@@ -581,6 +583,12 @@ describe('volumeFeature — video 가 늦게 나타나거나 교체돼도 붙는
       expect(video.volume).toBe(0.3);
       expect(video.muted).toBe(true);
       expect(plus.disabled).toBe(false);
+      expect(shownLabel()).toBe('음소거');
+      video.muted = false;
+      video.dispatchEvent(new Event('volumechange'));
+      expect(shownLabel()).toBe('30%');
+      video.muted = true;
+      video.dispatchEvent(new Event('volumechange'));
       await vi.advanceTimersByTimeAsync(1000);
       expect(video.volume).toBe(0.3);
       expect(video.muted).toBe(true);

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-07T10:58:03.082Z",
+  "capturedAt": "2026-11-07T12:09:51.439Z",
   "skill": "agent-browser",
   "profile": "~/chrome-agent",
   "browser": "156.0.8078.80",
@@ -10,7 +10,7 @@
         {
           "slot": 1,
           "ready": 4,
-          "time": 46.430954,
+          "time": 47.195776,
           "width": 1920,
           "paused": false,
           "volume": 0.3,
@@ -23,7 +23,7 @@
         {
           "slot": 2,
           "ready": 4,
-          "time": 44.23538,
+          "time": 36.185783,
           "width": 1920,
           "paused": false,
           "volume": 0.5,
@@ -36,7 +36,7 @@
         {
           "slot": 3,
           "ready": 4,
-          "time": 31.963053,
+          "time": 31.513362,
           "width": 1920,
           "paused": false,
           "volume": 0.8,
@@ -49,7 +49,7 @@
         {
           "slot": 4,
           "ready": 4,
-          "time": 45.800938,
+          "time": 30.722574,
           "width": 1920,
           "paused": false,
           "volume": 1,
@@ -67,12 +67,12 @@
         {
           "slot": 1,
           "ready": 4,
-          "time": 54.558176,
+          "time": 55.325335,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
@@ -80,12 +80,12 @@
         {
           "slot": 2,
           "ready": 4,
-          "time": 52.387498,
+          "time": 44.319281,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
@@ -93,12 +93,12 @@
         {
           "slot": 3,
           "ready": 4,
-          "time": 40.111666,
+          "time": 39.642332,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
@@ -106,12 +106,12 @@
         {
           "slot": 4,
           "ready": 4,
-          "time": 53.882811,
+          "time": 38.786089,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
@@ -124,12 +124,12 @@
         {
           "slot": 1,
           "ready": 4,
-          "time": 57.080054,
+          "time": 57.302721,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
@@ -137,12 +137,12 @@
         {
           "slot": 2,
           "ready": 4,
-          "time": 54.906602,
+          "time": 46.296909,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
@@ -150,12 +150,12 @@
         {
           "slot": 3,
           "ready": 4,
-          "time": 42.63369,
+          "time": 41.620999,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
@@ -163,15 +163,102 @@
         {
           "slot": 4,
           "ready": 4,
-          "time": 56.404501,
+          "time": 40.763585,
           "width": 1920,
           "paused": false,
           "volume": 1,
           "muted": false,
-          "label": "100%",
+          "label": "자동 음량",
           "locked": true,
           "ad": false,
           "error": null
+        }
+      ]
+    },
+    {
+      "phase": "cover-label",
+      "slots": [
+        {
+          "slot": 1,
+          "ready": 4,
+          "time": 58.428362,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "자동 음량",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 2,
+          "ready": 4,
+          "time": 47.422547,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "자동 음량",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 3,
+          "ready": 4,
+          "time": 42.746332,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "자동 음량",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 4,
+          "ready": 4,
+          "time": 41.889181,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "자동 음량",
+          "locked": true,
+          "ad": false,
+          "error": null
+        }
+      ],
+      "labelBounds": [
+        {
+          "height": 15,
+          "left": 52,
+          "right": 96.8984375,
+          "width": 396,
+          "font": 12
+        },
+        {
+          "height": 15,
+          "left": 52,
+          "right": 96.8984375,
+          "width": 396,
+          "font": 12
+        },
+        {
+          "height": 15,
+          "left": 52,
+          "right": 96.8984375,
+          "width": 396,
+          "font": 12
+        },
+        {
+          "height": 15,
+          "left": 52,
+          "right": 96.8984375,
+          "width": 396,
+          "font": 12
         }
       ]
     },
@@ -181,7 +268,7 @@
         {
           "slot": 1,
           "ready": 4,
-          "time": 59.172334,
+          "time": 60.305642,
           "width": 1920,
           "paused": false,
           "volume": 0.3,
@@ -194,7 +281,7 @@
         {
           "slot": 2,
           "ready": 4,
-          "time": 57.000793,
+          "time": 49.296335,
           "width": 1920,
           "paused": false,
           "volume": 0.5,
@@ -207,7 +294,7 @@
         {
           "slot": 3,
           "ready": 4,
-          "time": 44.724999,
+          "time": 44.623666,
           "width": 1920,
           "paused": false,
           "volume": 0.8,
@@ -220,7 +307,7 @@
         {
           "slot": 4,
           "ready": 4,
-          "time": 58.496689,
+          "time": 43.765493,
           "width": 1920,
           "paused": false,
           "volume": 1,
@@ -243,16 +330,16 @@
       "channelName": "시즈키 토아"
     },
     {
-      "channelId": "3497a9a7221cc3ee5d3f95991d9f95e9",
-      "channelName": "랄로"
+      "channelId": "c7ded8ea6b0605d3c78e18650d2df83b",
+      "channelName": "괴물쥐"
     },
     {
-      "channelId": "a6c4ddb09cdb160478996007bff35296",
-      "channelName": "아라하시 타비"
+      "channelId": "7ce8032370ac5121dcabce7bad375ced",
+      "channelName": "풍월량"
     }
   ],
   "success": true,
-  "sourceCommit": "18e5b5ecd0764fed530270e17fea7fb9388ae41f",
+  "sourceCommit": "dd63f3a4180d2033699edaf11b13f8d8e389acca",
   "viewports": {
     "desktop": {
       "width": 1440,
@@ -261,7 +348,11 @@
     "foldReference": {
       "width": 859,
       "height": 798
+    },
+    "coverReference": {
+      "width": 411,
+      "height": 900
     }
   },
-  "scope": "실제 방송 4개 재생과 수동 볼륨 잠금/복원 확인. 음량 정량 비교는 별도 WAV 측정 기록 참조. 실물 폴드 기기 검증 제외."
+  "scope": "실제 방송 4개에서 자동 음량 문구, 수동 볼륨 잠금과 OFF 후 퍼센트 표시 복원 확인. 411px에서 문구 잘림·줄바꿈 확인. 실물 기기 검증 제외."
 }
