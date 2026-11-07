@@ -572,9 +572,12 @@ export const volumeFeature: Feature = {
         'data-cm-auto-volume-lock',
         autoVolumeLock.isLocked(),
       );
-      const label = formatVolumeLabel(percent, isMuted());
+      const label = autoVolumeLock.isLocked() ? '자동 음량' : formatVolumeLabel(percent, isMuted());
       if (valueEl.textContent !== label) valueEl.textContent = label;
-      node.setAttribute('aria-label', `볼륨 조절, 현재 ${label}`);
+      node.setAttribute(
+        'aria-label',
+        autoVolumeLock.isLocked() ? '자동 음량 사용 중' : `볼륨 조절, 현재 ${label}`,
+      );
       /*
        * 게이지 색은 세 단계다 (2026-08-20 요청으로 빨강 단계 추가).
        *   ~100%  흰색   기본
@@ -791,6 +794,8 @@ export const volumeFeature: Feature = {
       value.setAttribute('aria-live', 'polite');
       value.style.cssText = [
         'min-width:44px',
+        'flex-shrink:0',
+        'white-space:nowrap',
         'text-align:center',
         'color:#fff',
         'font-size:12px',
