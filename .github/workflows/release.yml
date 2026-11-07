@@ -83,7 +83,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.next.outputs.proceed == 'true'
         with:
-          node-version: '24.18.0'
+          node-version: '24.22.2'
           cache: yarn
 
       - name: 의존성 설치

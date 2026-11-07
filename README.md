@@ -117,10 +117,11 @@
 
 ## 개발
 
-Node.js **24.18.0** 고정(`.nvmrc`), 패키지 매니저는 **yarn**.
+Node.js **24.22.2** 고정(`.nvmrc`), 패키지 매니저는 **yarn**.
 
 ```bash
-nvm use            # 24.18.0
+nvm install        # .nvmrc에 지정된 버전 설치
+nvm use            # 24.22.2
 yarn install
 yarn dev           # 개발 빌드 (watch)
 yarn build         # 프로덕션 빌드 → dist/
