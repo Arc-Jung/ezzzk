@@ -72,6 +72,9 @@ describe('자동 음량', () => {
     expect(audio.setNormalizationEnabled).toHaveBeenLastCalledWith(expect.anything(), false);
     expect(parameter.setTargetAtTime).toHaveBeenLastCalledWith(1, 0, 0.1);
     expect(controller.state()).toBe('off');
+    // jsdom의 sessionStorage 변경은 0ms storage 이벤트를 예약한다.
+    // 이벤트를 전달한 뒤에도 남는 반복 타이머가 없는지 확인한다.
+    vi.runOnlyPendingTimers();
     expect(vi.getTimerCount()).toBe(0);
   });
   it('무음을 증폭하지 않고 자동 음량 동안 음소거 변경을 되돌린다', () => {
@@ -105,6 +108,7 @@ describe('자동 음량', () => {
     expect(controller.state()).toBe('unavailable');
     expect(audio.ensureGraph).toHaveBeenCalledTimes(1);
     controller.dispose();
+    vi.runOnlyPendingTimers();
     expect(vi.getTimerCount()).toBe(0);
   });
   it('재생 정책으로 컨텍스트가 정지돼 있으면 대기하며 재개를 시도한다', () => {
