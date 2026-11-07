@@ -1,0 +1,267 @@
+{
+  "capturedAt": "2026-11-07T10:58:03.082Z",
+  "skill": "agent-browser",
+  "profile": "~/chrome-agent",
+  "browser": "156.0.8078.80",
+  "states": [
+    {
+      "phase": "before",
+      "slots": [
+        {
+          "slot": 1,
+          "ready": 4,
+          "time": 46.430954,
+          "width": 1920,
+          "paused": false,
+          "volume": 0.3,
+          "muted": false,
+          "label": "30%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 2,
+          "ready": 4,
+          "time": 44.23538,
+          "width": 1920,
+          "paused": false,
+          "volume": 0.5,
+          "muted": false,
+          "label": "50%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 3,
+          "ready": 4,
+          "time": 31.963053,
+          "width": 1920,
+          "paused": false,
+          "volume": 0.8,
+          "muted": false,
+          "label": "80%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 4,
+          "ready": 4,
+          "time": 45.800938,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "150%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        }
+      ]
+    },
+    {
+      "phase": "on",
+      "slots": [
+        {
+          "slot": 1,
+          "ready": 4,
+          "time": 54.558176,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 2,
+          "ready": 4,
+          "time": 52.387498,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 3,
+          "ready": 4,
+          "time": 40.111666,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 4,
+          "ready": 4,
+          "time": 53.882811,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        }
+      ]
+    },
+    {
+      "phase": "fold-on",
+      "slots": [
+        {
+          "slot": 1,
+          "ready": 4,
+          "time": 57.080054,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 2,
+          "ready": 4,
+          "time": 54.906602,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 3,
+          "ready": 4,
+          "time": 42.63369,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 4,
+          "ready": 4,
+          "time": 56.404501,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "100%",
+          "locked": true,
+          "ad": false,
+          "error": null
+        }
+      ]
+    },
+    {
+      "phase": "restored",
+      "slots": [
+        {
+          "slot": 1,
+          "ready": 4,
+          "time": 59.172334,
+          "width": 1920,
+          "paused": false,
+          "volume": 0.3,
+          "muted": false,
+          "label": "30%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 2,
+          "ready": 4,
+          "time": 57.000793,
+          "width": 1920,
+          "paused": false,
+          "volume": 0.5,
+          "muted": false,
+          "label": "50%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 3,
+          "ready": 4,
+          "time": 44.724999,
+          "width": 1920,
+          "paused": false,
+          "volume": 0.8,
+          "muted": false,
+          "label": "80%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        },
+        {
+          "slot": 4,
+          "ready": 4,
+          "time": 58.496689,
+          "width": 1920,
+          "paused": false,
+          "volume": 1,
+          "muted": false,
+          "label": "150%",
+          "locked": false,
+          "ad": false,
+          "error": null
+        }
+      ]
+    }
+  ],
+  "channels": [
+    {
+      "channelId": "792acf9ca28b42918710327e14b06b68",
+      "channelName": "토키노 메리"
+    },
+    {
+      "channelId": "2299fad4bebb504b0978e1ec08b2f7d3",
+      "channelName": "시즈키 토아"
+    },
+    {
+      "channelId": "3497a9a7221cc3ee5d3f95991d9f95e9",
+      "channelName": "랄로"
+    },
+    {
+      "channelId": "a6c4ddb09cdb160478996007bff35296",
+      "channelName": "아라하시 타비"
+    }
+  ],
+  "success": true,
+  "sourceCommit": "18e5b5ecd0764fed530270e17fea7fb9388ae41f",
+  "viewports": {
+    "desktop": {
+      "width": 1440,
+      "height": 900
+    },
+    "foldReference": {
+      "width": 859,
+      "height": 798
+    }
+  },
+  "scope": "실제 방송 4개 재생과 수동 볼륨 잠금/복원 확인. 음량 정량 비교는 별도 WAV 측정 기록 참조. 실물 폴드 기기 검증 제외."
+}
