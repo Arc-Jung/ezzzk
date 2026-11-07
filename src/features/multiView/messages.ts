@@ -23,6 +23,7 @@ export type ParentToSlot =
       kind: 'setAutoVolume';
       slot: SlotIndex;
       enabled: boolean;
+      targetRms?: number;
     }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'enterSlotMode'; slot: SlotIndex }
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'exitSlotMode'; slot: SlotIndex }
@@ -89,6 +90,7 @@ export type SlotToParent =
       advertising?: boolean;
       viewerCount: number | null;
       autoVolumeState?: 'off' | 'waiting' | 'active' | 'unavailable';
+      autoVolumeRms?: number | null;
     }
   | {
       channel: typeof MV_CHANNEL;

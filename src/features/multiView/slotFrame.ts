@@ -343,6 +343,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
         sendChat();
         break;
       case 'setAutoVolume':
+        if (typeof message.targetRms === 'number') autoVolume.setTarget(message.targetRms);
         autoVolume.setEnabled(message.enabled);
         break;
       /*
@@ -354,7 +355,11 @@ export function startSlotController(slot: SlotIndex): Disposer {
         window.dispatchEvent(new Event(OURS.userGestureEvent));
         break;
     }
-    post({ ...readState(slot), autoVolumeState: autoVolume.state() });
+    post({
+      ...readState(slot),
+      autoVolumeState: autoVolume.state(),
+      autoVolumeRms: autoVolume.level(),
+    });
   };
 
   window.addEventListener('message', onMessage);
@@ -369,7 +374,12 @@ export function startSlotController(slot: SlotIndex): Disposer {
   });
 
   const stateTimer = setInterval(
-    () => post({ ...readState(slot), autoVolumeState: autoVolume.state() }),
+    () =>
+      post({
+        ...readState(slot),
+        autoVolumeState: autoVolume.state(),
+        autoVolumeRms: autoVolume.level(),
+      }),
     STATE_REPORT_MS,
   );
 

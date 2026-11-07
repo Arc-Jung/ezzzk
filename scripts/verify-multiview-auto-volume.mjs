@@ -40,11 +40,17 @@ function wav(amplitude, frequency, transient = false) {
 }
 try {
   await context.route('https://chzzk.naver.com/audio-*.wav', (route) => {
-    const slot = Number(/audio-(\d)/.exec(route.request().url())[1]);
+    const slot = Number(/audio-(\d+)/.exec(route.request().url())[1]);
     return route.fulfill({
       contentType: 'audio/wav',
       body: wav(
-        slot === 0 ? 0 : slot === 5 ? 0.005 : 0.08 * 2 ** (slot - 1),
+        slot === 0
+          ? 0
+          : slot === 5
+            ? 0.005
+            : slot >= 7
+              ? 0.01 * 2 ** (slot - 7)
+              : 0.08 * 2 ** (slot - 1),
         400 + slot * 50,
         slot === 5,
       ),
@@ -54,13 +60,15 @@ try {
     const slot = Number(new URL(route.request().url()).searchParams.get('cmSlot') ?? 1);
     return route.fulfill({
       contentType: 'text/html; charset=utf-8',
-      body: `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#13212b;color:white}.pzp-pc,#live_player_layout{position:relative;width:100%;height:100vh}video{width:100%;height:100%;background:#13212b}#play{position:absolute;top:45%;left:40%;font-size:18px}p{position:absolute;top:30%;left:20%}</style></head><body><div id="root"><div id="live_player_layout"><div class="pzp-pc pzp-pc--onlive pzp-pc--controls"><video playsinline loop src="/audio-${slot}.wav"></video><div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div><div class="pzp-pc__bottom-buttons-right"></div></div></div><p>자동 음량 검증 신호 ${slot}</p><button id="play" onclick="document.querySelector('video').play()">재생</button></div></div><aside id="aside-chatting"></aside></div></body></html>`,
+      body: `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#13212b;color:white}.pzp-pc,#live_player_layout{position:relative;width:100%;height:100vh}video{width:100%;height:100%;background:#13212b}.pzp-pc__bottom{position:absolute;bottom:12px;left:12px;right:12px}.pzp-pc__bottom-buttons{display:flex;justify-content:space-between}#play{position:absolute;top:45%;left:40%;font-size:18px}p{position:absolute;top:30%;left:20%}</style></head><body><div id="root"><div id="live_player_layout"><div class="pzp-pc pzp-pc--onlive pzp-pc--controls"><video playsinline loop src="/audio-${slot}.wav"></video><div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div><div class="pzp-pc__bottom-buttons-right"></div></div></div><p>자동 음량 검증 신호 ${slot}</p><button id="play" onclick="document.querySelector('video').play()">재생</button></div></div><aside id="aside-chatting"></aside></div></body></html>`,
     });
   });
   await warmUp(context, '11111111111111111111111111111111');
   await seedSettings(context, {
-    audio: { compressor: { enabled: false } },
-    volume: { defaultLevel: 100, restoreLast: false },
+    audio: {
+      compressor: { enabled: false, threshold: -50, knee: 40, ratio: 12, attack: 0, release: 0.25 },
+    },
+    volume: { defaultLevel: 100, restoreLast: false, autoUnmute: false },
     wideScreen: { enabled: false, mode: 'default' },
     multiView: {
       enabled: true,
@@ -76,6 +84,11 @@ try {
     },
   });
   const page = await context.newPage();
+  page.on('console', (message) => {
+    if (message.text().includes('failed to') && message.text().includes('audio'))
+      console.log(message.type(), message.text());
+  });
+  page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
   await page.goto('https://chzzk.naver.com/live/11111111111111111111111111111111');
   await page.waitForFunction(() => document.querySelectorAll('.cm-slot iframe').length === 4);
   const frames = [];
@@ -116,10 +129,10 @@ try {
       contextId: world.id,
       expression: `(()=>{
   const Native=AudioContext;globalThis.__levelProbe={contexts:[],sources:0};
-  globalThis.AudioContext=class extends Native{constructor(...args){super(...args);const record={context:this,outputs:[],lastOutput:null};__levelProbe.contexts.push(record);
+  globalThis.AudioContext=class extends Native{constructor(...args){super(...args);const record={context:this,outputs:[],gains:[],lastOutput:null};__levelProbe.contexts.push(record);
     const source=this.createMediaElementSource.bind(this);this.createMediaElementSource=(...a)=>{__levelProbe.sources++;return source(...a)};
     const instrument=node=>{const connect=node.connect.bind(node);node.connect=(target,...a)=>{const result=connect(target,...a);if(target===this.destination){const analyser=this.createAnalyser();analyser.fftSize=4096;connect(analyser);record.lastOutput=analyser;record.outputs.push(analyser)}return result};return node};
-    const gain=this.createGain.bind(this);this.createGain=()=>instrument(gain());
+    const gain=this.createGain.bind(this);this.createGain=()=>{const n=instrument(gain());record.gains.push(n);return n};
     const compressor=this.createDynamicsCompressor.bind(this);this.createDynamicsCompressor=()=>instrument(compressor());
   }};
  })()`,
@@ -130,12 +143,25 @@ try {
         const { result, exceptionDetails } = await session.send('Runtime.evaluate', {
           contextId: world.id,
           returnByValue: true,
-          expression: `(()=>{const probe=globalThis.__levelProbe;const r=probe.contexts.at(-1);const a=r?.lastOutput;const samples=new Float32Array(4096);a?.getFloatTimeDomainData(samples);return {rms:Math.sqrt(samples.reduce((sum,x)=>sum+x*x,0)/samples.length),contextState:r?.context.state,sources:probe.sources,volume:document.querySelector('video').volume,muted:document.querySelector('video').muted}})()`,
+          expression: `(()=>{const probe=globalThis.__levelProbe;const r=probe.contexts.at(-1);const a=r?.lastOutput;const samples=new Float32Array(4096);a?.getFloatTimeDomainData(samples);return {rms:Math.sqrt(samples.reduce((sum,x)=>sum+x*x,0)/samples.length),gains:r?.gains.map(g=>g.gain.value),outputs:r?.outputs.length,contextState:r?.context.state,sources:probe.sources,volume:document.querySelector('video').volume,muted:document.querySelector('video').muted}})()`,
         });
         if (exceptionDetails) throw new Error(JSON.stringify(exceptionDetails));
         return { slot: slots.get(world.auxData.frameId), ...result.value };
       }),
     );
+  const initialVolumes = [30, 50, 80, 150];
+  for (let i = 0; i < frames.length; i++) {
+    await frames[i].evaluate((percent) => {
+      const label = percent < 100 ? '볼륨 낮추기' : '볼륨 높이기';
+      for (let n = 0; n < Math.abs(percent - 100) / 10; n++)
+        document.querySelector(`[aria-label="${label}"]`).click();
+    }, initialVolumes[i]);
+  }
+  await frames[1].evaluate(() => {
+    document.querySelector('video').muted = true;
+  });
+  await page.waitForTimeout(500);
+  report.initialVolumes = initialVolumes;
   const button = page.locator('#cm-multiview-auto-volume');
   await button.click();
   await page.waitForTimeout(8000);
@@ -149,6 +175,26 @@ try {
     report.enabledSpreadDb > 2
   )
     throw new Error('자동 보정 출력이 수렴하지 않았습니다: ' + JSON.stringify(enabled));
+  for (let i = 0; i < frames.length; i++)
+    await frames[i].evaluate(async (index) => {
+      const v = document.querySelector('video');
+      v.src = `/audio-${index + 7}.wav`;
+      await v.play();
+    }, i);
+  await page.waitForTimeout(12000);
+  const quieter = await read();
+  report.states.push({ phase: 'average-of-quieter-streams', slots: quieter });
+  const average = (0.01 + 0.02 + 0.04 + 0.08) / 4 / Math.sqrt(2);
+  if (spread(quieter) > 2 || quieter.some((s) => Math.abs(s.rms - average) > average * 0.2))
+    throw new Error('방송 평균 음량 적용 실패: ' + JSON.stringify(quieter));
+  report.averageTarget = average;
+  for (let i = 0; i < frames.length; i++)
+    await frames[i].evaluate(async (index) => {
+      const v = document.querySelector('video');
+      v.src = `/audio-${index + 1}.wav`;
+      await v.play();
+    }, i);
+  await page.waitForTimeout(8000);
   // 작은 소리 직후 큰 소리가 나올 때의 피크. 일정 진폭 검사에서 놓치는 클리핑을 측정한다.
   const stressWorld = worlds.find((w) => slots.get(w.auxData.frameId) === 1);
   const transient = async () => {
@@ -169,13 +215,36 @@ try {
     return result.value;
   };
   report.transient = await transient();
-  await frames[0].evaluate(() => {
-    for (let n = 0; n < 10; n++) document.querySelector('[aria-label="볼륨 높이기"]').click();
-  });
-  report.transientBoosted = await transient();
-  await frames[0].evaluate(() => {
-    for (let n = 0; n < 10; n++) document.querySelector('[aria-label="볼륨 낮추기"]').click();
-  });
+  for (const frame of frames) {
+    const locked = await frame.evaluate(() => {
+      const plus = document.querySelector('[aria-label="볼륨 높이기"]');
+      const minus = document.querySelector('[aria-label="볼륨 낮추기"]');
+      plus.click();
+      minus.click();
+      const video = document.querySelector('video');
+      video.volume = 0.23;
+      video.muted = true;
+      video.dispatchEvent(new Event('volumechange'));
+      const key = new KeyboardEvent('keydown', { key: 'm', bubbles: true, cancelable: true });
+      document.body.dispatchEvent(key);
+      return {
+        plusDisabled: plus.disabled,
+        minusDisabled: minus.disabled,
+        volume: video.volume,
+        muted: video.muted,
+        keyBlocked: key.defaultPrevented,
+      };
+    });
+    if (
+      !locked.plusDisabled ||
+      !locked.minusDisabled ||
+      locked.volume !== 1 ||
+      locked.muted ||
+      !locked.keyBlocked
+    )
+      throw new Error('수동 음량 잠금 실패: ' + JSON.stringify(locked));
+  }
+  report.manualControlsLocked = true;
   await frames[0].evaluate(async () => {
     const video = document.querySelector('video');
     video.src = '/audio-1.wav';
@@ -184,8 +253,8 @@ try {
   await page.waitForTimeout(8000);
   const restored = await read();
   if (restored.some((s) => s.volume !== 1) || spread(restored) > 2)
-    throw new Error('200% 증폭에서 100% 복귀 실패');
-  report.states.push({ phase: 'after-boost', slots: restored });
+    throw new Error('수동 변경 시도 후 100% 잠금 실패');
+  report.states.push({ phase: 'after-manual-attempt', slots: restored });
   await frames[2].evaluate(() => document.querySelector('video').pause());
   await page.waitForTimeout(800);
   const paused = await read();
@@ -197,10 +266,13 @@ try {
   if (spread(resumedPlayback) > 2 || resumedPlayback.some((s) => s.sources !== 1))
     throw new Error('일시정지 후 보정 재개 실패');
   report.states.push({ phase: 'pause-resume', slots: resumedPlayback });
-  console.log(
-    'transient',
-    JSON.stringify({ normal: report.transient, boosted: report.transientBoosted }),
-  );
+  console.log('transient', JSON.stringify({ normal: report.transient }));
+  for (const frame of frames)
+    await frame.evaluate(() =>
+      document
+        .querySelector('.pzp-pc')
+        .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })),
+    );
   await page.screenshot({ path: resolve(out, 'enabled.png') });
   await page.setViewportSize({ width: 411, height: 900 });
   await page.waitForFunction(
@@ -224,12 +296,17 @@ try {
   await page.waitForTimeout(800);
   const disabled = await read();
   report.states.push({ phase: 'disabled', slots: disabled });
-  report.disabledSpreadDb = spread(disabled);
+  report.disabledSpreadDb = spread(disabled.filter((s) => !s.muted));
   if (
-    report.disabledSpreadDb < 16 ||
-    disabled.some((s) => s.sources !== 1 || s.volume !== 1 || s.muted)
+    disabled.some(
+      (s) =>
+        s.volume !== Math.min(1, initialVolumes[s.slot - 1] / 100) ||
+        s.muted !== (s.slot === 2) ||
+        s.gains?.[0] !== (s.slot === 4 ? 1.5 : 1),
+    )
   )
     throw new Error('끄기 후 원본 음량 복원 실패: ' + JSON.stringify(disabled));
+  report.previousVolumesRestored = true;
   await button.click();
   await page.waitForTimeout(1000);
   const repeated = await read();
@@ -256,13 +333,13 @@ try {
     });
   await page.waitForTimeout(10000);
   const compressed = await read();
-  report.states.push({ phase: 'compressor-and-manual-volume', slots: compressed });
+  report.states.push({ phase: 'compressor-while-locked', slots: compressed });
   report.compressedSpreadDb = spread(compressed);
   if (
-    compressed.some((s) => s.rms < 0.035 || s.rms > 0.045 || s.volume !== 0.5) ||
+    compressed.some((s) => s.rms < 0.06 || s.rms > 0.1 || s.volume !== 1) ||
     report.compressedSpreadDb > 3
   )
-    throw new Error('컴프레서·수동 음량과 함께 보정되지 않습니다: ' + JSON.stringify(compressed));
+    throw new Error('컴프레서 사용 중 보정되지 않습니다: ' + JSON.stringify(compressed));
   await frames[1].evaluate(async () => {
     const video = document.querySelector('video');
     video.src = '/audio-0.wav';
@@ -281,8 +358,37 @@ try {
   const resumed = await read();
   report.states.push({ phase: 'after-silence', slots: resumed });
   if (spread(resumed) > 3) throw new Error('무음 후 보정이 복구되지 않았습니다');
+  await frames[0].goto(frames[0].url());
+  await frames[0].waitForSelector('#play');
+  await frames[0].click('#play');
+  await frames[0].waitForFunction(
+    () => document.querySelector('[aria-label="볼륨 높이기"]')?.disabled,
+  );
+  const reloaded = await frames[0].evaluate(() => ({
+    volume: document.querySelector('video').volume,
+    muted: document.querySelector('video').muted,
+    saved: JSON.parse(sessionStorage.getItem(`cm-auto-volume:${location.pathname}`)),
+  }));
+  if (reloaded.volume !== 1 || reloaded.muted || reloaded.saved?.percent !== 30)
+    throw new Error('프레임 재접속 시 잠금/원래 설정 유지 실패: ' + JSON.stringify(reloaded));
+  report.reloaded = reloaded;
   await button.click();
-  for (const frame of frames)
+  await page.waitForTimeout(500);
+  for (let i = 0; i < frames.length; i++) {
+    const restored = await frames[i].evaluate(() => ({
+      volume: document.querySelector('video').volume,
+      muted: document.querySelector('video').muted,
+      disabled: document.querySelector('[aria-label="볼륨 높이기"]').disabled,
+    }));
+    if (
+      restored.volume !== Math.min(1, initialVolumes[i] / 100) ||
+      restored.muted !== (i === 1) ||
+      restored.disabled
+    )
+      throw new Error('재접속 후 원래 음량 복원 실패: ' + JSON.stringify(restored));
+  }
+  report.reloadedRestored = true;
+  for (const frame of frames.slice(1))
     if ((await frame.locator('[aria-label="음량 평탄화 끄기"]').count()) !== 1)
       throw new Error('자동 보정 해제가 기존 컴프레서 상태를 바꿨습니다');
   report.success = true;
