@@ -219,6 +219,9 @@ function shutdown(): void {
   stopViewport?.();
 }
 
-window.addEventListener('pagehide', shutdown, { once: true });
+window.addEventListener('pagehide', (event) => {
+  // BFCache에 보관되는 문서는 pageshow로 돌아온다. 재생·복귀 리스너도 함께 유지한다.
+  if (!event.persisted) shutdown();
+});
 
 bootstrap().catch((e) => error('bootstrap failed', e));
