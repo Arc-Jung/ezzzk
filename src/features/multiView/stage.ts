@@ -1326,6 +1326,7 @@ export class MultiViewStage {
      */
     const fullscreenButton = document.createElement('button');
     fullscreenButton.type = 'button';
+    fullscreenButton.dataset.cmFullscreenToggle = '';
     this.fullscreenButton = fullscreenButton;
     this.updateFullscreenButton();
     fullscreenButton.addEventListener('click', () => {

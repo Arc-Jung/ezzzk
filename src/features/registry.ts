@@ -21,6 +21,7 @@ import { chatFontFeature } from './chatFont';
 import { chatSubtitleButtonFeature } from './chatSubtitleButton';
 import { chatSubtitleFeature } from './chatSubtitle';
 import { fullscreenChatFeature } from './fullscreenChat';
+import { fullscreenRestoreFeature } from './fullscreenRestore';
 import { chatPresetFeature } from './chatPreset';
 import { chatUserFilterFeature } from './chatUserFilter';
 import { chatWidthFeature } from './chatWidth';
@@ -48,6 +49,7 @@ export const FEATURES: Feature[] = [
   chatSubtitleFeature,
   chatSubtitleButtonFeature,
   fullscreenChatFeature,
+  fullscreenRestoreFeature,
   qualityFeature, // FR-01
   volumeFeature, // FR-02, FR-03
   playbackStallFeature, // 검은 화면 재생 실패 재시도

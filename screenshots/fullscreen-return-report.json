@@ -1,0 +1,190 @@
+{
+  "node": "v24.22.2",
+  "browser": "151.0.7922.34",
+  "viewport": {
+    "width": 859,
+    "height": 798
+  },
+  "fixture": "canvas captureStream video on routed Chzzk URLs",
+  "lifecycle": "pagehide/pageshow replay",
+  "permissionCase": "first automatic restore request rejection (fault injection)",
+  "cases": [
+    {
+      "name": "single-auto-return",
+      "multiView": false,
+      "leaf": false,
+      "blocked": false,
+      "states": [
+        {
+          "phase": "entered",
+          "sameVideo": true,
+          "paused": false,
+          "time": 0.059823,
+          "fullscreen": true
+        },
+        {
+          "phase": "returned",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.359928,
+          "fullscreen": true
+        },
+        {
+          "phase": "restored",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.409883,
+          "fullscreen": true
+        },
+        {
+          "phase": "minimized",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.859064,
+          "fullscreen": false
+        },
+        {
+          "phase": "escape",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.609946,
+          "fullscreen": false
+        }
+      ],
+      "success": true
+    },
+    {
+      "name": "single-gesture-return",
+      "multiView": false,
+      "leaf": false,
+      "blocked": true,
+      "states": [
+        {
+          "phase": "entered",
+          "sameVideo": true,
+          "paused": false,
+          "time": 0.062628,
+          "fullscreen": true
+        },
+        {
+          "phase": "returned",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.364642,
+          "fullscreen": false
+        },
+        {
+          "phase": "restored",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.364642,
+          "fullscreen": true
+        },
+        {
+          "phase": "minimized",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.862699,
+          "fullscreen": false
+        },
+        {
+          "phase": "escape",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.612788,
+          "fullscreen": false
+        }
+      ],
+      "success": true
+    },
+    {
+      "name": "multiview-gesture-return",
+      "multiView": true,
+      "leaf": false,
+      "blocked": true,
+      "states": [
+        {
+          "phase": "entered",
+          "sameVideo": true,
+          "paused": false,
+          "time": 0.317465,
+          "fullscreen": true
+        },
+        {
+          "phase": "returned",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.567148,
+          "fullscreen": false
+        },
+        {
+          "phase": "restored",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.634044,
+          "fullscreen": true
+        },
+        {
+          "phase": "minimized",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.167005,
+          "fullscreen": false
+        },
+        {
+          "phase": "escape",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.867032,
+          "fullscreen": false
+        }
+      ],
+      "success": true
+    },
+    {
+      "name": "slot-gesture-return",
+      "multiView": true,
+      "leaf": true,
+      "blocked": true,
+      "states": [
+        {
+          "phase": "entered",
+          "sameVideo": true,
+          "paused": false,
+          "time": 0.323086,
+          "fullscreen": true
+        },
+        {
+          "phase": "returned",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.624582,
+          "fullscreen": false
+        },
+        {
+          "phase": "restored",
+          "sameVideo": true,
+          "paused": false,
+          "time": 6.624582,
+          "fullscreen": true
+        },
+        {
+          "phase": "minimized",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.005885,
+          "fullscreen": false
+        },
+        {
+          "phase": "escape",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.755951,
+          "fullscreen": false
+        }
+      ],
+      "success": true
+    }
+  ],
+  "success": true
+}
