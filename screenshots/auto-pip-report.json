@@ -1,0 +1,19 @@
+{
+  "node": "v24.22.2",
+  "browser": "151.0.7922.34",
+  "action": "extension callback invoked via CDP with userGesture=true",
+  "androidHomeVerified": false,
+  "checks": [
+    "기본 꺼짐",
+    "켜기에서 자동 액션 등록",
+    "설정 켜기 저장",
+    "팝업과 설정 값 동기화",
+    "실제 영상 PiP API 진입",
+    "PiP 중 전체화면 추가 요청 없음",
+    "팝업 끄기 저장",
+    "끄기에서 자동 액션 해제",
+    "이미 열린 PiP 유지",
+    "끄기에서도 수동 PiP 허용"
+  ],
+  "success": true
+}

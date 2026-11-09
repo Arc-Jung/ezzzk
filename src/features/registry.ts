@@ -16,6 +16,7 @@
 import { adBlockNoticeFeature } from './adBlockNotice';
 import { adSkipFeature } from './adSkip';
 import { autoFullscreenFeature } from './autoFullscreen';
+import { autoPipFeature } from './autoPip';
 import { chatClutterHideFeature } from './chatClutterHide';
 import { chatFontFeature } from './chatFont';
 import { chatSubtitleButtonFeature } from './chatSubtitleButton';
@@ -50,6 +51,7 @@ export const FEATURES: Feature[] = [
   chatSubtitleButtonFeature,
   fullscreenChatFeature,
   fullscreenRestoreFeature,
+  autoPipFeature,
   qualityFeature, // FR-01
   volumeFeature, // FR-02, FR-03
   playbackStallFeature, // 검은 화면 재생 실패 재시도

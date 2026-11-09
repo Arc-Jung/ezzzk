@@ -77,6 +77,15 @@ export function Popup() {
             <label className="cm-label">
               <input
                 type="checkbox"
+                aria-label="자동 PiP"
+                checked={settings.autoPip.enabled}
+                onChange={(e) => update({ autoPip: { enabled: e.target.checked } })}
+              />
+              자동 PiP
+            </label>
+            <label className="cm-label">
+              <input
+                type="checkbox"
                 checked={adSkip.enabled}
                 onChange={(e) => update({ adSkip: { enabled: e.target.checked } })}
               />
@@ -91,6 +100,10 @@ export function Popup() {
               통나무 자동 수집
             </label>
           </div>
+          <p className="cm-hint">
+            자동 PiP는 지원 브라우저의 싱글뷰에서 사용합니다. 브라우저 자체의 전체화면 PiP는 별도로
+            동작합니다.
+          </p>
         </section>
 
         <section className="cm-section">

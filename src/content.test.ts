@@ -223,6 +223,7 @@ describe('폴드 기기 전환 정책', () => {
         .sort(),
     ).toEqual([
       'autoFullscreen',
+      'autoPip',
       'chatSubtitle',
       'chatWidth',
       'fullscreenChat',
