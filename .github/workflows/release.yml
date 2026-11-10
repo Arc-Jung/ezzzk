@@ -163,7 +163,7 @@ jobs:
           2. `ezzzk-<version>.crx`를 받으세요. 압축은 풀지 않습니다.
           3. Edge Canary의 **설정 → Microsoft Edge 정보**에서 **빌드 번호를 여러 번 눌러** 개발자 옵션을 켜세요.
           4. **설정 → 개발자 옵션 → Extension install by crx**를 누르세요.
-          5. 받은 `.crx` 파일을 선택해 설치하세요.
+          5. **Choose .crx file**을 누르고 **내 파일**에서 받은 `.crx`를 고른 뒤 **확인**을 누르세요.
 
           치지직에서 채팅·넓은 화면 기능을 쓰려면 **데스크톱 사이트**를 켜세요.
 
@@ -191,6 +191,23 @@ jobs:
           5. 개발자 옵션에서 Extension install by crx 선택
 
           <img src="https://raw.githubusercontent.com/Arc-Jung/ezzzk/main/screenshots/android-install/05-install-crx-highlighted.png" alt="CRX 설치 메뉴" width="320" />
+
+          6. Choose .crx file 누르기
+
+          <img src="https://raw.githubusercontent.com/Arc-Jung/ezzzk/main/screenshots/android-install/06-choose-file-highlighted.png" alt="CRX 파일 선택 버튼" width="320" />
+
+          7. 내 파일 열기
+
+          <img src="https://raw.githubusercontent.com/Arc-Jung/ezzzk/main/screenshots/android-install/07-file-picker-highlighted.png" alt="파일 선택 화면의 내 파일" width="320" />
+          <img src="https://raw.githubusercontent.com/Arc-Jung/ezzzk/main/screenshots/android-install/08-my-files-highlighted.png" alt="내 파일 선택" width="320" />
+
+          8. 받은 `.crx` 파일 선택
+
+          <img src="https://raw.githubusercontent.com/Arc-Jung/ezzzk/main/screenshots/android-install/09-select-crx-highlighted.png" alt="다운로드한 CRX 파일 선택" width="320" />
+
+          9. 확인 눌러 설치
+
+          <img src="https://raw.githubusercontent.com/Arc-Jung/ezzzk/main/screenshots/android-install/10-confirm-highlighted.png" alt="CRX 파일을 고른 뒤 확인 버튼" width="320" />
 
           </details>
 
