@@ -168,29 +168,28 @@ yarn test          # 유닛·통합 테스트 (vitest)
 
 ---
 
-### 수동 설치 — Edge Canary for Android (모바일)
+### 수동 설치 — `.crx` 선택 후 설치 (Edge Canary, Android 권장)
 
-> 🔴 **안드로이드에서 확장을 쓸 수 있는 브라우저는 Edge Canary 하나뿐이다** (2026-09-08 확인).
-> **Dev 채널은 확장을 지원하지 않는다** — 예전에는 됐지만 지금은 안 된다. 정식(Stable)·Beta 도
-> 마찬가지다. iOS 는 크롬·엣지 모두 확장을 지원하지 않아 **대상이 아니다.**
+Android에서는 **Edge Canary의 개발자 옵션에서 `.crx` 파일을 선택해 설치하는 방법**을 권장한다.
 
 **절차**
 
 1. Play 스토어에서 **Microsoft Edge Canary** 설치
    - https://play.google.com/store/apps/details?id=com.microsoft.emmx.canary
 2. **기기에서 바로** [최신 릴리스](https://github.com/Arc-Jung/ezzzk/releases/latest) 를 열어
-   `ezzzk-<version>.zip` 을 받는다. 이 zip 이 곧 빌드 산출물이라 **직접 빌드할 필요가 없다.**
+   `ezzzk-<version>.crx` 를 받는다. **압축 해제나 직접 빌드할 필요가 없다.**
    - 안드로이드 Edge Canary 로 위 링크를 열고 자산을 탭하면 `Download/` 에 저장된다
    - PC 에서 받아 옮기려면 USB 파일 전송·클라우드 드라이브, 또는
      ```bash
-     adb push ~/Downloads/ezzzk-*.zip /sdcard/Download/
+     adb push ~/Downloads/ezzzk-*.crx /sdcard/Download/
      ```
 3. Edge Canary 에서 `⋯` 메뉴 → **설정** → **정보**(About) 에서 빌드 번호를 여러 번 탭해
-   **개발자 옵션**을 활성화한다 (안드로이드 개발자 모드와 같은 방식)
-4. `⋯` 메뉴 → **확장** → **개발자 모드** 켜기 →
-   **압축 파일에서 설치**(또는 `Install from folder` / `Load unpacked`) 선택
-5. `Download/ezzzk-<version>.zip` (또는 압축을 푼 폴더) 선택
+   **개발자 모드(개발자 옵션)**를 활성화한다
+4. **설정 → 개발자 옵션 → Extension install by crx** 선택
+5. `Download/ezzzk-<version>.crx` 파일을 선택하고 설치를 확인한다
 6. `https://chzzk.naver.com` 접속
+
+메뉴 이름과 위치는 Edge Canary 버전에 따라 다를 수 있다.
 
 **모바일에서 반드시 함께 할 설정**
 

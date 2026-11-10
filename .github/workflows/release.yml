@@ -145,8 +145,8 @@ jobs:
           cat > release-notes.md <<'NOTES'
           ## 설치 방법
 
-          > ⭐ **`.zip` 설치를 권장한다.** 크롬·엣지는 보안 정책상 **스토어 밖에서 배포된 `.crx`
-          > 설치를 차단**하는 경우가 많다 — `.zip` 은 이 차단이 없어 항상 동작한다.
+          > ⭐ **Windows · Mac은 `.zip` 압축해제 후 로드, Android는 Edge Canary에서 `.crx` 설치를 권장한다.**
+          > 데스크톱 Chrome · Edge는 스토어 밖에서 배포된 `.crx` 설치를 차단하는 경우가 많다.
 
           ### 방법 1 — `.zip` 압축해제 후 로드 (Chrome · Edge 공통, Windows · Mac 권장)
 
@@ -160,15 +160,16 @@ jobs:
           압축 해제 위치는 아무 곳이나 되지만, **폴더를 지우거나 옮기면 확장이 비활성화**된다.
           지워지지 않는 경로에 둔다. `.zip` 설치는 서명 키를 쓰지 않아 **확장 ID 가 다르게 잡히는 것이 정상**이다.
 
-          ### 방법 2 — `.crx` 드래그앤드롭
+          ### 방법 2 — `.crx` 선택 후 설치 (Edge Canary, Android 권장)
 
-          1. 위 Assets 에서 `ezzzk-<version>.crx` 를 내려받는다
-          2. 주소창에 `chrome://extensions` (엣지는 `edge://extensions`) 를 열고 **개발자 모드** 켜기
-          3. 파일 관리자(macOS Finder / Windows 탐색기)에서 `.crx` 파일을 **확장 관리 페이지 위로 끌어다 놓기**
-             - ⚠️ 주소창에 파일 경로를 입력하는 방식으로는 설치되지 않는다
-          4. 확인 대화상자에서 **확장 프로그램 추가**
-          5. `"Chrome 웹 스토어에서 제공되지 않는 확장 프로그램은 추가할 수 없습니다"` 또는
-             `CRX_REQUIRED_PROOF_MISSING` 이 뜨면 → 방법 1(`.zip`) 로 진행한다
+          1. Android에 **Microsoft Edge Canary**를 설치한다
+          2. 위 Assets 에서 `ezzzk-<version>.crx` 를 내려받는다 (압축 해제 불필요)
+          3. Edge Canary의 **설정 → Microsoft Edge 정보**에서 빌드 번호를 여러 번 탭해 **개발자 모드(개발자 옵션)**를 활성화한다
+          4. **설정 → 개발자 옵션 → Extension install by crx**를 선택한다
+          5. 다운로드한 `ezzzk-<version>.crx` 파일을 선택하고 설치를 확인한다
+          6. `https://chzzk.naver.com` 접속
+
+          메뉴 이름과 위치는 Edge Canary 버전에 따라 다를 수 있다.
 
           `.crx` 는 고정된 서명 키로 서명한다. 확장 ID 는 항상 `fbejfdmjjaakniijpphfckapfdobaggk` 이며,
           같은 ID 를 유지하므로 다음 버전을 같은 방식으로 덮어 설치하면 설정이 그대로 이어진다.
