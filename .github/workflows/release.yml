@@ -148,7 +148,7 @@ jobs:
           > ⭐ **`.zip` 설치를 권장한다.** 크롬·엣지는 보안 정책상 **스토어 밖에서 배포된 `.crx`
           > 설치를 차단**하는 경우가 많다 — `.zip` 은 이 차단이 없어 항상 동작한다.
 
-          ### 방법 1 — `.zip` 압축해제 후 로드 (Chrome · Edge 공통, 권장)
+          ### 방법 1 — `.zip` 압축해제 후 로드 (Chrome · Edge 공통, Windows · Mac 권장)
 
           1. 위 Assets 에서 `ezzzk-<version>.zip` 을 내려받아 **압축을 푼다**
           2. 주소창에 `chrome://extensions` (엣지는 `edge://extensions`)
