@@ -163,23 +163,23 @@ yarn test          # 유닛·통합 테스트 (vitest)
 
 1. 릴리스에서 `.crx` 받기
 
-<img src="screenshots/android-install/01-download.jpg" alt="릴리스의 CRX 파일" width="320" />
+<img src="screenshots/android-install/01-download-highlighted.png" alt="릴리스의 CRX 파일" width="320" />
 
 2. Edge 메뉴에서 설정 열기
 
-<img src="screenshots/android-install/02-settings.jpg" alt="Edge 메뉴의 설정" width="320" />
+<img src="screenshots/android-install/02-settings-highlighted.png" alt="Edge 메뉴의 설정" width="320" />
 
 3. Microsoft Edge 정보에서 버전 번호 여러 번 누르기
 
-<img src="screenshots/android-install/03-version.jpg" alt="버전 번호를 눌러 개발자 옵션 켜기" width="320" />
+<img src="screenshots/android-install/03-version-highlighted.png" alt="버전 번호를 눌러 개발자 옵션 켜기" width="320" />
 
 4. 개발자 옵션이 켜졌는지 확인
 
-<img src="screenshots/android-install/04-developer-enabled.jpg" alt="개발자 옵션 활성화 완료" width="320" />
+<img src="screenshots/android-install/04-developer-enabled-highlighted.png" alt="개발자 옵션 활성화 완료" width="320" />
 
 5. 개발자 옵션에서 Extension install by crx 선택
 
-<img src="screenshots/android-install/05-install-crx.jpg" alt="CRX 설치 메뉴" width="320" />
+<img src="screenshots/android-install/05-install-crx-highlighted.png" alt="CRX 설치 메뉴" width="320" />
 
 </details>
 
