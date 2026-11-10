@@ -54,6 +54,8 @@ export type Settings = {
    * 켜지 않은 사용자에게 나가는 요청은 0건이다.
    */
   liveResume: { enabled: boolean };
+  /** 지원 브라우저의 싱글뷰 자동 PiP 요청에 응답한다. 브라우저 자체 PiP와는 별개. */
+  autoPip: { enabled: boolean };
   /**
    * FR-19 오디오 처리 (2026-08-20). 구현 참조: chzzk-plus (kyechan99/chzzk-plus, MIT).
    * 컴프레서는 방송마다 들쭉날쭉한 음량을 눌러 균일하게 만든다. 기본은 켜짐(2026-08-22 변경) —
@@ -265,6 +267,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: { enabled: true, target: '1080p', applyToVod: true },
   // 🔴 기본 끄기 (요청 2026-09-06) — 자동 새로고침은 원해서 켠 사람만 겪어야 한다.
   liveResume: { enabled: false },
+  autoPip: { enabled: false },
   audio: {
     compressor: { enabled: true, threshold: -50, knee: 40, ratio: 12, attack: 0, release: 0.25 },
   },

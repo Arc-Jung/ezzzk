@@ -35,7 +35,15 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
     return target?.isConnected ? target : document.querySelector<HTMLElement>(selector);
   };
   const request = (gesture: boolean) => {
-    if (disposed || !wanted || !restore || pending || !visible() || document.fullscreenElement)
+    if (
+      disposed ||
+      !wanted ||
+      !restore ||
+      pending ||
+      !visible() ||
+      document.fullscreenElement ||
+      document.pictureInPictureElement
+    )
       return;
     if (!gesture && attempted) return;
     const element = resolveTarget();
@@ -64,7 +72,7 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
     restore = !document.fullscreenElement;
   };
   const resume = () => {
-    if (!wanted || !visible()) return;
+    if (!wanted || !visible() || document.pictureInPictureElement) return;
     if (document.fullscreenElement) {
       away = restore = false;
       return;
@@ -108,7 +116,7 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
       return;
     }
     if (!wanted) return;
-    if (away || !visible()) {
+    if (away || !visible() || document.pictureInPictureElement) {
       away = restore = true;
       resume();
     } else {
@@ -166,6 +174,14 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
     // 브라우저가 전체화면 Esc의 keydown을 먼저 처리하는 경우도 있다.
     if (event.key === 'Escape') onInput(event);
   };
+  const onPipEnter = () => {
+    if (!wanted) return;
+    clearTimer();
+    away = restore = true;
+  };
+  const onPipLeave = () => resume();
+  document.addEventListener('enterpictureinpicture', onPipEnter, true);
+  document.addEventListener('leavepictureinpicture', onPipLeave, true);
   document.addEventListener('fullscreenchange', onFullscreen, true);
   document.addEventListener('visibilitychange', onVisibility);
   document.addEventListener('playing', resume, true);
@@ -182,6 +198,8 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
   return () => {
     disposed = true;
     forget();
+    document.removeEventListener('enterpictureinpicture', onPipEnter, true);
+    document.removeEventListener('leavepictureinpicture', onPipLeave, true);
     document.removeEventListener('fullscreenchange', onFullscreen, true);
     document.removeEventListener('visibilitychange', onVisibility);
     document.removeEventListener('playing', resume, true);

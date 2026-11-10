@@ -84,6 +84,20 @@ afterEach(() => {
 });
 
 describe('Popup — 마운트', () => {
+  it('자동 PiP 설정을 켜고 끄면 저장소에 반영한다', async () => {
+    const { store } = installFakeChrome({ [STORAGE_KEY]: DEFAULT_SETTINGS });
+    const el = await mountPopup();
+    const toggle = el.querySelector<HTMLInputElement>('[aria-label="자동 PiP"]')!;
+    expect(toggle.checked).toBe(false);
+    await act(async () => {
+      toggle.click();
+    });
+    expect((store[STORAGE_KEY] as typeof DEFAULT_SETTINGS).autoPip.enabled).toBe(true);
+    await act(async () => {
+      toggle.click();
+    });
+    expect((store[STORAGE_KEY] as typeof DEFAULT_SETTINGS).autoPip.enabled).toBe(false);
+  });
   it('설정을 읽기 전에는 안내 문구를 보여 준다 (빈 화면이 아니다)', async () => {
     // `get` 이 영원히 답하지 않게 두어 로딩 상태를 고정한다.
     (globalThis as unknown as { chrome: unknown }).chrome = {

@@ -3,6 +3,7 @@ import { keepFullscreenOnReturn } from './fullscreenRestore';
 
 let fullscreen: Element | null;
 let hidden: boolean;
+let pip: Element | null;
 let focused: boolean;
 let stop: (() => void) | undefined;
 let player: HTMLElement;
@@ -42,6 +43,11 @@ beforeEach(() => {
   vi.useFakeTimers();
   fullscreen = null;
   hidden = false;
+  pip = null;
+  Object.defineProperty(document, 'pictureInPictureElement', {
+    configurable: true,
+    get: () => pip,
+  });
   focused = true;
   document.body.innerHTML =
     '<div class="pzp-pc"><video></video><button class="pzp-pc__fullscreen-button">전체화면</button><button>설정</button><textarea></textarea></div>';
@@ -78,11 +84,34 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  for (const key of ['fullscreenElement', 'visibilityState', 'fullscreenEnabled', 'exitFullscreen'])
+  for (const key of [
+    'fullscreenElement',
+    'visibilityState',
+    'fullscreenEnabled',
+    'exitFullscreen',
+    'pictureInPictureElement',
+  ])
     Reflect.deleteProperty(document, key);
 });
 
 describe('전체화면 복귀', () => {
+  it('PiP가 열리면 종료 판정을 보류하고 닫기 전까지 전체화면을 요청하지 않는다', async () => {
+    change(player);
+    change(null);
+    pip = video;
+    video.dispatchEvent(new Event('enterpictureinpicture'));
+    await vi.advanceTimersByTimeAsync(400);
+    visibility(true);
+    visibility(false);
+    window.dispatchEvent(new Event('focus'));
+    input(video);
+    video.dispatchEvent(new Event('playing'));
+    expect(request).not.toHaveBeenCalled();
+    pip = null;
+    video.dispatchEvent(new Event('leavepictureinpicture'));
+    await flush();
+    expect(request).toHaveBeenCalledOnce();
+  });
   it('전체화면에 들어간 적이 없으면 앱 복귀로 요청하지 않는다', () => {
     visibility(true);
     visibility(false);

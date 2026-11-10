@@ -37,7 +37,12 @@ export const autoFullscreenFeature: Feature = {
       if (disposed || current.completed || current.pending) return;
       const video = playingVideo();
       // 멀티뷰의 숨겨진 원본이나 슬롯 하나가 무대 전체를 가로채지 않게 한다.
-      if (!video || document.getElementById(OURS.multiViewStageId)) return;
+      if (
+        !video ||
+        document.getElementById(OURS.multiViewStageId) ||
+        document.pictureInPictureElement
+      )
+        return;
       if (document.fullscreenElement) {
         current.completed = true;
         return;

@@ -89,6 +89,28 @@ describe('채팅 설정의 치지직 클린봇', () => {
 });
 
 describe('재생 시작 화면 선택', () => {
+  it('자동 PiP를 기본 끄기에서 켜고 끄며 브라우저 지원 범위를 안내한다', () => {
+    let latest = DEFAULT_SETTINGS;
+    function Harness() {
+      const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+      latest = settings;
+      return (
+        <PlaybackTab
+          settings={settings}
+          device={decideDevice('auto')}
+          update={(patch) => setSettings((old) => ({ ...old, ...patch }))}
+        />
+      );
+    }
+    mount(<Harness />);
+    const toggle = host!.querySelector<HTMLButtonElement>('[aria-label^="자동 PiP"]')!;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    act(() => toggle.click());
+    expect(latest.autoPip.enabled).toBe(true);
+    act(() => toggle.click());
+    expect(latest.autoPip.enabled).toBe(false);
+    expect(host!.textContent).toContain('기본 PiP는 별도로 동작합니다');
+  });
   it('멀티뷰 자동 전체화면은 기본 꺼짐이고 토글을 양방향으로 저장한다', () => {
     let latest = DEFAULT_SETTINGS;
     function Harness() {
@@ -208,7 +230,7 @@ describe('탭 구성', () => {
 
   it('탭 → 초기화 섹션 매핑이 FR-09.2 표와 일치한다', () => {
     // 방송 재개 감시(2026-09-06)도 재생 탭에서 초기화된다.
-    expect(sectionsForTab('playback')).toEqual(['quality', 'liveResume', 'wideScreen']);
+    expect(sectionsForTab('playback')).toEqual(['quality', 'liveResume', 'wideScreen', 'autoPip']);
     expect(sectionsForTab('sound')).toEqual(['volume']);
     expect(sectionsForTab('layout')).toEqual(['chatWidth', 'ultraWide']);
     expect(sectionsForTab('multiView')).toEqual(['multiView']);

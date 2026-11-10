@@ -24,6 +24,7 @@ export const PRESET_FIELDS = [
   'volume',
   'chatWidth',
   'wideScreen',
+  'autoPip',
   'powerCollect',
   'chatFont',
   'chatSubtitle',

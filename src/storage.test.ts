@@ -8,6 +8,14 @@ import {
 } from './constants/storage';
 import { mergeSettings, migrate } from './storage';
 
+describe('자동 PiP 설정 병합', () => {
+  it('기존 설정은 꺼짐을 유지하고 명시한 켜기·끄기를 보존한다', () => {
+    expect(mergeSettings({ wideScreen: { enabled: true } }).autoPip.enabled).toBe(false);
+    expect(mergeSettings({ autoPip: { enabled: true } }).autoPip.enabled).toBe(true);
+    expect(mergeSettings({ autoPip: { enabled: false } }).autoPip.enabled).toBe(false);
+  });
+});
+
 describe('재생 시작 화면', () => {
   it('기존 멀티뷰 설정의 자동 음량은 꺼짐으로 보완하고 명시한 켜짐은 유지한다', () => {
     expect(mergeSettings({ multiView: { enabled: true } }).multiView.autoVolume).toBe(false);

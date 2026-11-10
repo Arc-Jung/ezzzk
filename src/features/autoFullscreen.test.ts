@@ -47,6 +47,20 @@ afterEach(() => {
 });
 
 describe('autoFullscreen', () => {
+  it('PiP로 보고 있는 영상은 전체화면으로 덮지 않는다', async () => {
+    const { autoFullscreenFeature: feature } = await import('./autoFullscreen');
+    const { video, request } = player();
+    Object.defineProperty(document, 'pictureInPictureElement', {
+      configurable: true,
+      value: video,
+    });
+    try {
+      dispose = feature.start(ctx);
+      expect(request).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, 'pictureInPictureElement');
+    }
+  });
   it('전체화면을 선택해야 켜지며 슬롯·홈에서는 실행하지 않는다', async () => {
     const { autoFullscreenFeature: feature } = await import('./autoFullscreen');
     const { request } = player();

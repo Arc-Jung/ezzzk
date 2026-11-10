@@ -67,7 +67,7 @@ export const TABS: readonly { id: TabId; title: string }[] = [
 export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
   switch (tab) {
     case 'playback':
-      return ['quality', 'liveResume', 'wideScreen'];
+      return ['quality', 'liveResume', 'wideScreen', 'autoPip'];
     case 'sound':
       return ['volume'];
     case 'layout':
@@ -258,6 +258,15 @@ export function PlaybackTab({ settings, update }: TabProps) {
       {playbackScreenMode(settings.wideScreen) === 'fullscreen' ? (
         <p className="cm-sheet__note">전체화면으로 바뀌지 않으면 영상을 한 번 눌러 주세요.</p>
       ) : null}
+      <Toggle
+        label="자동 PiP"
+        checked={settings.autoPip.enabled}
+        onChange={(next) => update({ autoPip: { enabled: next } })}
+      />
+      <p className="cm-sheet__note">
+        지원 브라우저의 싱글뷰에서 자동으로 PiP로 전환합니다. 브라우저의 허용이 필요하며,
+        전체화면에서 홈으로 나갈 때의 기본 PiP는 별도로 동작합니다.
+      </p>
       <h3>방송 재개</h3>
       <Toggle
         label="방송이 다시 시작되면 자동으로 들어가기"
