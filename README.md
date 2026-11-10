@@ -132,70 +132,80 @@ yarn format:check  # Prettier 검사 (CI 가 돌린다 — 커밋 전에 함께 
 yarn test          # 유닛·통합 테스트 (vitest)
 ```
 
-### 설치 (스토어 등록 전 · 개발자 모드)
+### 설치
 
-확장 폴더를 만드는 방법이 둘이고, **로드하는 절차는 같다.**
+[최신 릴리스](https://github.com/Arc-Jung/ezzzk/releases/latest)에서 기기에 맞는 파일을 받으세요.
 
-**1단계 — 폴더 만들기 (둘 중 하나)**
+#### 방법 1 — Windows · Mac 권장 (`.zip`, Chrome · Edge)
 
-| 방법 | 절차 | 확장 폴더 |
-| --- | --- | --- |
-| 릴리스 ⭐ | [Releases](https://github.com/Arc-Jung/ezzzk/releases) 에서 `ezzzk-<version>.zip` 을 받아 압축을 푼다 | 압축을 푼 폴더 |
-| 직접 빌드 | `nvm use && yarn install && yarn build` | `dist/` |
+1. `ezzzk-<version>.zip`을 받아 압축을 푸세요.
+2. Chrome은 `chrome://extensions`, Edge는 `edge://extensions`를 여세요.
+3. **개발자 모드**를 켜세요.
+4. **압축해제된 확장 프로그램을 로드**(Edge: **압축을 풀린 항목 로드**)를 누르세요.
+5. 압축을 푼 폴더를 선택하세요. 폴더 안에 `manifest.json`이 있어야 합니다.
 
-> 릴리스에는 `.crx` 도 올라가지만 크롬·엣지가 스토어 밖 `.crx` 설치를 차단하는 경우가 많다.
-> `.zip` 에는 그 차단이 없다.
+설치 후에도 이 폴더를 지우거나 옮기지 마세요.
 
-**2단계 — 로드하기**
+#### 방법 2 — Android 권장 (`.crx`, Edge Canary)
 
-| 단계 | Chrome | Edge |
-| --- | --- | --- |
-| 1 | 주소창에 `chrome://extensions` | `edge://extensions` |
-| 2 | 우측 상단 **개발자 모드** 켜기 | 좌측 하단 **개발자 모드** 켜기 |
-| 3 | **압축해제된 확장 프로그램을 로드** | **압축을 풀린 항목 로드**(Load unpacked) |
-| 4 | 1단계에서 만든 폴더 선택 (`manifest.json` 이 **바로 안에** 있어야 한다) | 동일 |
-| 5 | `https://chzzk.naver.com` 접속 | 동일 |
+1. [Microsoft Edge Canary](https://play.google.com/store/apps/details?id=com.microsoft.emmx.canary)를 설치하세요.
+2. `ezzzk-<version>.crx`를 받으세요. 압축은 풀지 않습니다.
+3. Edge Canary의 **설정 → Microsoft Edge 정보**에서 **빌드 번호를 여러 번 눌러** 개발자 옵션을 켜세요.
+4. **설정 → 개발자 옵션 → Extension install by crx**를 누르세요.
+5. **Choose .crx file**을 누르고 **내 파일**에서 받은 `.crx`를 고른 뒤 **확인**을 누르세요.
 
-🔴 **폴더를 지우거나 옮기면 확장이 비활성된다.** 지워지지 않는 경로에 둔다.
+치지직에서 채팅·넓은 화면 기능을 쓰려면 **데스크톱 사이트**를 켜세요.
 
-**확인** — 확장 목록에 `이지직` 과 버전이 보이고, 치지직 라이브 페이지 컨트롤바 우측에
-`멀티` · `⚙*` 버튼이 뜬다. 툴바에 아이콘이 없으면 퍼즐 조각(확장) 아이콘 → `이지직` 핀 고정.
+<details>
+<summary>설치 화면 보기</summary>
 
-> 릴리스는 자동이다 — `main` 에 머지되어 CI 가 통과하면 패치 버전이 `0.0.1` 오르고
-> 태그·릴리스가 만들어진다.
+사진은 Edge Dev 157 기준입니다.
 
----
+1. 릴리스에서 `.crx` 받기
 
-### 수동 설치 — Edge Canary for Android (모바일)
+<img src="screenshots/android-install/01-download-highlighted.png" alt="릴리스의 CRX 파일" width="320" />
 
-> 🔴 **안드로이드에서 확장을 쓸 수 있는 브라우저는 Edge Canary 하나뿐이다** (2026-09-08 확인).
-> **Dev 채널은 확장을 지원하지 않는다** — 예전에는 됐지만 지금은 안 된다. 정식(Stable)·Beta 도
-> 마찬가지다. iOS 는 크롬·엣지 모두 확장을 지원하지 않아 **대상이 아니다.**
+2. Edge 메뉴에서 설정 열기
 
-**절차**
+<img src="screenshots/android-install/02-settings-highlighted.png" alt="Edge 메뉴의 설정" width="320" />
 
-1. Play 스토어에서 **Microsoft Edge Canary** 설치
-   - https://play.google.com/store/apps/details?id=com.microsoft.emmx.canary
-2. **기기에서 바로** [최신 릴리스](https://github.com/Arc-Jung/ezzzk/releases/latest) 를 열어
-   `ezzzk-<version>.zip` 을 받는다. 이 zip 이 곧 빌드 산출물이라 **직접 빌드할 필요가 없다.**
-   - 안드로이드 Edge Canary 로 위 링크를 열고 자산을 탭하면 `Download/` 에 저장된다
-   - PC 에서 받아 옮기려면 USB 파일 전송·클라우드 드라이브, 또는
-     ```bash
-     adb push ~/Downloads/ezzzk-*.zip /sdcard/Download/
-     ```
-3. Edge Canary 에서 `⋯` 메뉴 → **설정** → **정보**(About) 에서 빌드 번호를 여러 번 탭해
-   **개발자 옵션**을 활성화한다 (안드로이드 개발자 모드와 같은 방식)
-4. `⋯` 메뉴 → **확장** → **개발자 모드** 켜기 →
-   **압축 파일에서 설치**(또는 `Install from folder` / `Load unpacked`) 선택
-5. `Download/ezzzk-<version>.zip` (또는 압축을 푼 폴더) 선택
-6. `https://chzzk.naver.com` 접속
+3. Microsoft Edge 정보에서 버전 번호 여러 번 누르기
 
-**모바일에서 반드시 함께 할 설정**
+<img src="screenshots/android-install/03-version-highlighted.png" alt="버전 번호를 눌러 개발자 옵션 켜기" width="320" />
 
-- ⭐ **"데스크톱 사이트 요청"을 켠다.** 켜지 않으면 `m.chzzk.naver.com` 으로 리다이렉트되는데,
-  그 사이트에는 **채팅 UI·넓은 화면 버튼이 아예 없어** 화질·볼륨만 동작한다.
-  켜고 가로로 돌리면 FR-10 초광폭 레이아웃이 자동 적용된다.
-- 태블릿도 마찬가지로 켜야 한다 (태블릿 UA 도 `m.chzzk` 로 리다이렉트된다).
+4. 개발자 옵션이 켜졌는지 확인
+
+<img src="screenshots/android-install/04-developer-enabled-highlighted.png" alt="개발자 옵션 활성화 완료" width="320" />
+
+5. 개발자 옵션에서 Extension install by crx 선택
+
+<img src="screenshots/android-install/05-install-crx-highlighted.png" alt="CRX 설치 메뉴" width="320" />
+
+6. Choose .crx file 누르기
+
+<img src="screenshots/android-install/06-choose-file-highlighted.png" alt="CRX 파일 선택 버튼" width="320" />
+
+7. 내 파일 열기
+
+<img src="screenshots/android-install/07-file-picker-highlighted.png" alt="파일 선택 화면의 내 파일" width="320" />
+<img src="screenshots/android-install/08-my-files-highlighted.png" alt="내 파일 선택" width="320" />
+
+8. 받은 `.crx` 파일 선택
+
+<img src="screenshots/android-install/09-select-crx-highlighted.png" alt="다운로드한 CRX 파일 선택" width="320" />
+
+9. 확인 눌러 설치
+
+<img src="screenshots/android-install/10-confirm-highlighted.png" alt="CRX 파일을 고른 뒤 확인 버튼" width="320" />
+
+</details>
+
+설치가 끝나면 [치지직](https://chzzk.naver.com)에 접속하세요.
+
+#### 업데이트
+
+- **Windows · Mac:** 새 `.zip`을 기존 폴더에 덮어 푼 뒤, 확장 관리 페이지에서 **새로 고침**을 누르세요.
+- **Android:** 새 `.crx`를 받아 같은 방법으로 설치하세요.
 
 ---
 
