@@ -1,0 +1,43 @@
+{
+  "node": "v24.22.2",
+  "fixture": "canvas captureStream on routed Chzzk URLs",
+  "input": "trusted Playwright touchscreen taps and mouse double-clicks",
+  "cases": [
+    {
+      "name": "fold8-mobile-browser: single view",
+      "entered": {
+        "fullscreen": true,
+        "tag": "DIV",
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 3
+      },
+      "exited": {
+        "fullscreen": false,
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 12
+      },
+      "errors": []
+    },
+    {
+      "name": "multiview four slots: enter in first, exit in second",
+      "fullscreen": false,
+      "sameFrames": true
+    },
+    {
+      "name": "mobile web player",
+      "fullscreen": false,
+      "sameVideo": true,
+      "paused": false,
+      "scale": 1,
+      "doubles": 0,
+      "touchInputs": 6
+    }
+  ],
+  "browser": "151.0.7922.34"
+}
