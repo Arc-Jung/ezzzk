@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OURS } from '../constants/class';
+import { DEFAULT_SETTINGS } from '../constants/storage';
+import { decideDevice } from '../device';
 import { keepFullscreenOnReturn } from './fullscreenRestore';
-import { registerTripleTapFullscreen } from './tripleTapFullscreen';
+import { registerTripleTapFullscreen, tripleTapFullscreenFeature } from './tripleTapFullscreen';
 
 let add: ReturnType<typeof vi.spyOn>;
 let stop: () => void;
@@ -95,6 +97,24 @@ afterEach(() => {
 });
 
 describe('영상 세 번 터치 전체화면', () => {
+  it.each(['live', 'vod', 'mobile-web'] as const)(
+    '%s에서 설정을 껐을 때는 시작하지 않는다',
+    (type) => {
+      const context = {
+        device: decideDevice('auto'),
+        page: { type, isSlotFrame: false, channelId: null, videoNo: null },
+        settings: DEFAULT_SETTINGS,
+      };
+      expect(tripleTapFullscreenFeature.supports(context)).toBe(true);
+      expect(
+        tripleTapFullscreenFeature.supports({
+          ...context,
+          settings: { ...DEFAULT_SETTINGS, tripleTapFullscreen: { enabled: false } },
+        }),
+      ).toBe(false);
+      expect(tripleTapFullscreenFeature.watches).toContain('tripleTapFullscreen');
+    },
+  );
   it('세 번째 터치에서만 진입하고 다음 세 번 터치로 종료한다', async () => {
     tap();
     tap();

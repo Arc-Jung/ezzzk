@@ -183,8 +183,10 @@ export function registerTripleTapFullscreen(isSlotFrame = false): Disposer {
 
 export const tripleTapFullscreenFeature: Feature = {
   id: 'tripleTapFullscreen',
-  watches: [],
+  watches: ['tripleTapFullscreen'],
   preserveOnDeviceChange: true,
-  supports: (ctx) => ['live', 'vod', 'mobile-web'].includes(ctx.page.type),
+  supports: (ctx) =>
+    ctx.settings.tripleTapFullscreen.enabled &&
+    ['live', 'vod', 'mobile-web'].includes(ctx.page.type),
   start: (ctx) => registerTripleTapFullscreen(ctx.page.isSlotFrame),
 };

@@ -17,7 +17,7 @@ const html = (
 ) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{margin:0;background:#111820;color:white;font:16px Arial}.pzp-pc,.pzp-mobile{position:relative;width:90vw;height:65vh;margin:70px auto;background:#173541}.pzp-pc:fullscreen,.pzp-mobile:fullscreen{width:100%;height:100%;margin:0}video{width:100%;height:100%;object-fit:contain}.pzp-pc__bottom{position:absolute;bottom:12px;left:12px;right:12px}.pzp-pc__bottom-buttons{display:flex;justify-content:space-between}.pzp-pc__bottom-buttons-right{display:flex;gap:8px}button{padding:12px;color:white;background:#183140;border:1px solid #6b8290}#fixture-title{text-align:center;padding-top:12px}#outside{position:fixed;left:0;top:0}
 </style><div id="fixture-title">세 번 터치 · 재현용 영상</div><div id="root"><div id="live_player_layout"><div class="${mobile ? 'pzp-mobile' : 'pzp-pc pzp-pc--controls'}"><video muted autoplay playsinline></video><div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div><div class="pzp-pc__bottom-buttons-right"><button id="test-control">설정</button><button class="pzp-pc__fullscreen-button" onclick="document.fullscreenElement?document.exitFullscreen():document.querySelector('video').parentElement.requestFullscreen()">전체화면</button></div></div></div></div></div><aside id="aside-chatting"></aside></div><script>
-const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const c=canvas.getContext('2d');let n=0;function draw(){c.fillStyle='#173541';c.fillRect(0,0,1280,720);c.fillStyle='#00ffa3';c.fillRect(n++%1000,550,180,10);c.fillStyle='white';c.font='44px sans-serif';c.fillText('세 번 터치로 전체화면',80,210);c.font='28px sans-serif';c.fillText('재현용 영상 · 프레임 '+n,80,290);requestAnimationFrame(draw)}draw();const v=document.querySelector('video');v.srcObject=canvas.captureStream(20);v.play();window.originalVideo=v;window.nativeDoubles=0;v.parentElement.addEventListener('dblclick',event=>{if(event.target.closest('button'))return;window.nativeDoubles++;document.fullscreenElement?document.exitFullscreen():v.parentElement.requestFullscreen()});window.touchInputs=0;document.addEventListener('pointerdown',e=>{if(e.isTrusted&&e.pointerType==='touch')window.touchInputs++},true);
+const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const c=canvas.getContext('2d');let n=0;function draw(){c.fillStyle='#173541';c.fillRect(0,0,1280,720);c.fillStyle='#00ffa3';c.fillRect(n++%1000,550,180,10);c.fillStyle='white';c.font='44px sans-serif';c.fillText('세 번 터치로 전체화면',80,210);c.font='28px sans-serif';c.fillText('재현용 영상 · 프레임 '+n,80,290);requestAnimationFrame(draw)}draw();const v=document.querySelector('video');v.srcObject=canvas.captureStream(20);v.play();window.originalVideo=v;window.nativeDoubles=0;v.parentElement.addEventListener('dblclick',event=>{if(event.target.closest('button')||window.nativeDoubleEnabled===false)return;window.nativeDoubles++;document.fullscreenElement?document.exitFullscreen():v.parentElement.requestFullscreen()});window.touchInputs=0;document.addEventListener('pointerdown',e=>{if(e.isTrusted&&e.pointerType==='touch')window.touchInputs++},true);
 </script>`;
 const ensure = (ok, message) => {
   if (!ok) throw Error(message);
@@ -48,6 +48,7 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
       wideScreen: { enabled: false, mode: 'default' },
       multiView: { enabled: false, restoreLastLayout: false, autoFullscreen: false },
       autoPip: { enabled: false },
+      tripleTapFullscreen: { enabled: true },
     });
     const page = await context.newPage();
     const errors = [];
@@ -94,8 +95,8 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
     await touchVideo(page, 3);
     await page.waitForFunction(() => !document.fullscreenElement);
     await page.evaluate(() => {
-      window.dispatchEvent(new PageTransitionEvent('pagehide'));
-      window.dispatchEvent(new PageTransitionEvent('pageshow'));
+      window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     });
     await page.waitForTimeout(400);
     ensure(!(await state()).fullscreen, key + ': fullscreen restored after intentional exit');
@@ -111,6 +112,30 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
     report.cases.push({ name: key + ': single view', entered, exited: await state(), errors });
     console.log(key + ': touch passed');
     if (key !== 'fold8-mobile-browser') continue;
+
+    // 설정 변경은 새로고침 없이 입력 리스너에 반영되어야 한다.
+    await page.evaluate(() => {
+      window.nativeDoubleEnabled = false;
+    });
+    await page.locator('#cm-settings-button').click();
+    const option = page.getByRole('switch', { name: '세 번 터치로 전체화면 켜짐', exact: true });
+    await option.click();
+    await page.getByRole('switch', { name: '세 번 터치로 전체화면 꺼짐', exact: true }).waitFor();
+    await page.screenshot({ path: resolve(out, 'option-off.png'), animations: 'disabled' });
+    await page.locator('.cm-sheet__close').click();
+    await page.waitForTimeout(150);
+    await touchVideo(page, 3);
+    ensure(!(await state()).fullscreen, 'OFF: triple tap still toggled fullscreen');
+    await page.locator('#cm-settings-button').click();
+    await page.getByRole('switch', { name: '세 번 터치로 전체화면 꺼짐', exact: true }).click();
+    await page.locator('.cm-sheet__close').click();
+    await page.waitForTimeout(150);
+    await touchVideo(page, 3);
+    await page.waitForFunction(() => !!document.fullscreenElement);
+    await touchVideo(page, 3);
+    await page.waitForFunction(() => !document.fullscreenElement);
+    report.cases.push({ name: 'settings OFF / ON without reload', ...(await state()) });
+    console.log('settings option: passed');
 
     // 실제 슬롯 iframe에서 입력하고 부모 문서의 전체화면 상태와 기존 프레임을 확인한다.
     await seedSettings(context, {
@@ -168,6 +193,23 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
       sameFrames: true,
     });
     console.log('multiview: touch passed');
+    await seedSettings(context, { tripleTapFullscreen: { enabled: false } });
+    for (const owner of owners)
+      await owner.evaluate(() => {
+        window.nativeDoubleEnabled = false;
+      });
+    await page.waitForTimeout(150);
+    await touchVideo(owners[0], 3);
+    ensure(!(await state()).fullscreen, 'multiview OFF: still toggled fullscreen');
+    await seedSettings(context, { tripleTapFullscreen: { enabled: true } });
+    await page.waitForTimeout(150);
+    await touchVideo(owners[2], 3);
+    await page.waitForFunction(() => document.fullscreenElement === document.documentElement);
+    await touchVideo(owners[0], 3);
+    await page.waitForFunction(() => !document.fullscreenElement);
+    report.cases.push({ name: 'multiview option OFF / ON propagates to slots', fullscreen: false });
+    console.log('multiview option: passed');
+
     await seedSettings(context, { multiView: { enabled: false, restoreLastLayout: false } });
     await page.goto('https://m.chzzk.naver.com/live/' + channels[0]);
     await page.waitForSelector('.pzp-mobile');

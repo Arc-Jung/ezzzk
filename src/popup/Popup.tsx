@@ -77,6 +77,15 @@ export function Popup() {
             <label className="cm-label">
               <input
                 type="checkbox"
+                aria-label="세 번 터치로 전체화면"
+                checked={settings.tripleTapFullscreen.enabled}
+                onChange={(e) => update({ tripleTapFullscreen: { enabled: e.target.checked } })}
+              />
+              세 번 터치로 전체화면
+            </label>
+            <label className="cm-label">
+              <input
+                type="checkbox"
                 aria-label="자동 PiP"
                 checked={settings.autoPip.enabled}
                 onChange={(e) => update({ autoPip: { enabled: e.target.checked } })}
