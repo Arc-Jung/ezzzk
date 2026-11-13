@@ -1,6 +1,7 @@
 /** 앱 전환으로 잃은 전체화면을 복원한다. 직접 종료한 경우에는 복원하지 않는다. */
 import { OURS, PLAYER } from '../constants/class';
 import type { Disposer, Feature } from './types';
+import { FULLSCREEN_EXIT_INTENT } from './tripleTapFullscreen';
 
 const PLAYER_SELECTOR = `${PLAYER.rootPc}, ${PLAYER.rootMobile}`;
 const EXIT_BUTTON = `${PLAYER.fullscreenButton}, .pzp-mobile__fullscreen-button, [data-cm-fullscreen-toggle]`;
@@ -181,6 +182,7 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
   };
   const onPipLeave = () => resume();
   document.addEventListener('enterpictureinpicture', onPipEnter, true);
+  document.addEventListener(FULLSCREEN_EXIT_INTENT, forget);
   document.addEventListener('leavepictureinpicture', onPipLeave, true);
   document.addEventListener('fullscreenchange', onFullscreen, true);
   document.addEventListener('visibilitychange', onVisibility);
@@ -199,6 +201,7 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
     disposed = true;
     forget();
     document.removeEventListener('enterpictureinpicture', onPipEnter, true);
+    document.removeEventListener(FULLSCREEN_EXIT_INTENT, forget);
     document.removeEventListener('leavepictureinpicture', onPipLeave, true);
     document.removeEventListener('fullscreenchange', onFullscreen, true);
     document.removeEventListener('visibilitychange', onVisibility);

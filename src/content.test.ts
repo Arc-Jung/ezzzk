@@ -232,6 +232,7 @@ describe('폴드 기기 전환 정책', () => {
       'playbackStall',
       'quality',
       'settingsPanel',
+      'tripleTapFullscreen',
       'volume',
       'wideScreen',
     ]);

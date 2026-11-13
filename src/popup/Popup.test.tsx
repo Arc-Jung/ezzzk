@@ -84,6 +84,20 @@ afterEach(() => {
 });
 
 describe('Popup — 마운트', () => {
+  it('세 번 터치 설정을 켜짐에서 끄고 다시 켜면 저장한다', async () => {
+    const { store } = installFakeChrome({ [STORAGE_KEY]: DEFAULT_SETTINGS });
+    const el = await mountPopup();
+    const toggle = el.querySelector<HTMLInputElement>('[aria-label="세 번 터치로 전체화면"]')!;
+    expect(toggle.checked).toBe(true);
+    await act(async () => {
+      toggle.click();
+    });
+    expect((store[STORAGE_KEY] as typeof DEFAULT_SETTINGS).tripleTapFullscreen.enabled).toBe(false);
+    await act(async () => {
+      toggle.click();
+    });
+    expect((store[STORAGE_KEY] as typeof DEFAULT_SETTINGS).tripleTapFullscreen.enabled).toBe(true);
+  });
   it('자동 PiP 설정을 켜고 끄면 저장소에 반영한다', async () => {
     const { store } = installFakeChrome({ [STORAGE_KEY]: DEFAULT_SETTINGS });
     const el = await mountPopup();

@@ -67,7 +67,7 @@ export const TABS: readonly { id: TabId; title: string }[] = [
 export function sectionsForTab(tab: TabId): readonly (keyof Settings)[] {
   switch (tab) {
     case 'playback':
-      return ['quality', 'liveResume', 'wideScreen', 'autoPip'];
+      return ['quality', 'liveResume', 'wideScreen', 'autoPip', 'tripleTapFullscreen'];
     case 'sound':
       return ['volume'];
     case 'layout':
@@ -258,6 +258,11 @@ export function PlaybackTab({ settings, update }: TabProps) {
       {playbackScreenMode(settings.wideScreen) === 'fullscreen' ? (
         <p className="cm-sheet__note">전체화면으로 바뀌지 않으면 영상을 한 번 눌러 주세요.</p>
       ) : null}
+      <Toggle
+        label="세 번 터치로 전체화면"
+        checked={settings.tripleTapFullscreen.enabled}
+        onChange={(next) => update({ tripleTapFullscreen: { enabled: next } })}
+      />
       <Toggle
         label="자동 PiP"
         checked={settings.autoPip.enabled}

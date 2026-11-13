@@ -1,0 +1,149 @@
+{
+  "node": "v24.22.2",
+  "fixture": "canvas captureStream on routed Chzzk URLs",
+  "input": "trusted Playwright touchscreen taps and mouse double-clicks",
+  "cases": [
+    {
+      "name": "mobile-portrait: single view",
+      "entered": {
+        "fullscreen": true,
+        "tag": "DIV",
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 3
+      },
+      "exited": {
+        "fullscreen": false,
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 12
+      },
+      "errors": []
+    },
+    {
+      "name": "mobile-landscape: single view",
+      "entered": {
+        "fullscreen": true,
+        "tag": "DIV",
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 3
+      },
+      "exited": {
+        "fullscreen": false,
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 12
+      },
+      "errors": []
+    },
+    {
+      "name": "tablet10-portrait: single view",
+      "entered": {
+        "fullscreen": true,
+        "tag": "DIV",
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 3
+      },
+      "exited": {
+        "fullscreen": false,
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 12
+      },
+      "errors": []
+    },
+    {
+      "name": "tablet10-landscape: single view",
+      "entered": {
+        "fullscreen": true,
+        "tag": "DIV",
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 3
+      },
+      "exited": {
+        "fullscreen": false,
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 12
+      },
+      "errors": []
+    },
+    {
+      "name": "laptop13: native mouse double-click",
+      "fullscreen": false,
+      "sameVideo": true,
+      "paused": false,
+      "scale": 1,
+      "doubles": 1,
+      "touchInputs": 0
+    },
+    {
+      "name": "fold8-mobile-browser: single view",
+      "entered": {
+        "fullscreen": true,
+        "tag": "DIV",
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 3
+      },
+      "exited": {
+        "fullscreen": false,
+        "sameVideo": true,
+        "paused": false,
+        "scale": 1,
+        "doubles": 0,
+        "touchInputs": 12
+      },
+      "errors": []
+    },
+    {
+      "name": "settings OFF / ON without reload",
+      "fullscreen": false,
+      "sameVideo": true,
+      "paused": false,
+      "scale": 1,
+      "doubles": 0,
+      "touchInputs": 21
+    },
+    {
+      "name": "multiview four slots: enter in first, exit in second",
+      "fullscreen": false,
+      "sameFrames": true
+    },
+    {
+      "name": "multiview option OFF / ON propagates to slots",
+      "fullscreen": false
+    },
+    {
+      "name": "mobile web player",
+      "fullscreen": false,
+      "sameVideo": true,
+      "paused": false,
+      "scale": 1,
+      "doubles": 0,
+      "touchInputs": 6
+    }
+  ],
+  "browser": "151.0.7922.34"
+}
