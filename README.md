@@ -188,7 +188,6 @@ yarn test          # 유닛·통합 테스트 (vitest)
 7. 내 파일 열기
 
 <img src="screenshots/android-install/07-file-picker-highlighted.png" alt="파일 선택 화면의 내 파일" width="320" />
-<img src="screenshots/android-install/08-my-files-highlighted.png" alt="내 파일 선택" width="320" />
 
 8. 받은 `.crx` 파일 선택
 
