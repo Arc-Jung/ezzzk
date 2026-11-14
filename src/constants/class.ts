@@ -226,13 +226,6 @@ export const OURS = {
    * 클래스를 쓰고 `data-side="left" | "right"` 로 좌/우 정렬만 구분한다 (2026-08-15).
    */
   toolsSlotClass: 'cm-tools-slot',
-  /**
-   * FR-14 멀티뷰 BETA 뱃지 (2026-08-16).
-   *
-   * 멀티뷰는 아직 불안정하므로 **컨트롤바 멀티 버튼 · 구성 시트 제목 · 스테이지 조작 바**
-   * 세 지점에 같은 문구로 붙인다. 문구·클래스를 한 곳에 모아 세 지점이 어긋나지 않게 한다.
-   */
-  betaBadgeClass: 'cm-beta-badge',
   /** 스크린 리더 전용(화면에는 보이지 않는) 보조 설명 노드 */
   srOnlyClass: 'cm-sr-only',
   /**
@@ -256,12 +249,6 @@ export const OURS = {
   /** 최상위 z-index (목업 실측값) */
   topZIndex: 2147483647,
 } as const;
-
-/**
- * BETA 뱃지 문구. 세 지점(컨트롤바 버튼 · 구성 시트 제목 · 스테이지 조작 바)이 공유한다.
- * `OURS` 는 값이 전부 `cm-` 접두어여야 하는 식별자 묶음이라 표시 문구는 여기 따로 둔다.
- */
-export const BETA_BADGE_TEXT = 'BETA';
 
 /** 치지직 도메인 — postMessage origin 검증에 쓴다 (FR-14) */
 export const CHZZK_ORIGINS = ['https://chzzk.naver.com', 'https://m.chzzk.naver.com'] as const;

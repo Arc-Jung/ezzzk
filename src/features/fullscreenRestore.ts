@@ -1,13 +1,15 @@
 /** 앱 전환으로 잃은 전체화면을 복원한다. 직접 종료한 경우에는 복원하지 않는다. */
 import { OURS, PLAYER } from '../constants/class';
 import type { Disposer, Feature } from './types';
-import { FULLSCREEN_EXIT_INTENT } from './doubleTapFullscreen';
+import {
+  FULLSCREEN_EXIT_INTENT,
+  SLOT_FULLSCREEN_RESTORE_GESTURE as SLOT_GESTURE,
+} from './fullscreenProtocol';
 
 const PLAYER_SELECTOR = `${PLAYER.rootPc}, ${PLAYER.rootMobile}`;
 const EXIT_BUTTON = `${PLAYER.fullscreenButton}, .pzp-mobile__fullscreen-button, [data-cm-fullscreen-toggle]`;
 const INTERACTIVE =
-  'button, input, textarea, select, a, [role="button"], [role="slider"], [contenteditable="true"]';
-const SLOT_GESTURE = 'cm-fullscreen-restore-gesture';
+  'button, input, textarea, select, a, [role="button"], [role="slider"], [role="dialog"], [role="menu"], [contenteditable="true"]';
 
 export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
   let target: HTMLElement | null = null;
@@ -142,7 +144,13 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
     if (!event.isTrusted || !(event.target instanceof Element)) return;
     const key = event instanceof KeyboardEvent ? event : null;
     const editing = event.target.closest('input, textarea, select, [contenteditable="true"]');
+    const doubleClickExit =
+      event.type === 'dblclick' &&
+      !!document.fullscreenElement &&
+      !event.target.closest(INTERACTIVE) &&
+      !!event.target.closest(PLAYER_SELECTOR);
     if (
+      doubleClickExit ||
       (!editing && (key?.key === 'Escape' || key?.key.toLowerCase() === 'f')) ||
       (!key && event.target.closest(EXIT_BUTTON))
     ) {
@@ -188,6 +196,7 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
   document.addEventListener('playing', resume, true);
   document.addEventListener('pointerup', onInput, true);
   document.addEventListener('click', onInput, true);
+  document.addEventListener('dblclick', onInput, true);
   document.addEventListener('keydown', onInput, true);
   document.addEventListener('keyup', onKeyUp, true);
   window.addEventListener('blur', onBlur);
@@ -207,6 +216,7 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
     document.removeEventListener('playing', resume, true);
     document.removeEventListener('pointerup', onInput, true);
     document.removeEventListener('click', onInput, true);
+    document.removeEventListener('dblclick', onInput, true);
     document.removeEventListener('keydown', onInput, true);
     document.removeEventListener('keyup', onKeyUp, true);
     window.removeEventListener('blur', onBlur);

@@ -53,7 +53,7 @@ describe('Sheet — Esc 닫기', () => {
   it('포커스가 시트 안일 때 닫힌다', () => {
     const onClose = vi.fn();
     mount(
-      <Sheet title="멀티뷰 구성" beta onClose={onClose}>
+      <Sheet title="멀티뷰 구성" onClose={onClose}>
         <p>본문</p>
       </Sheet>,
     );
@@ -66,7 +66,7 @@ describe('Sheet — Esc 닫기', () => {
   it('포커스가 시트 밖(body)으로 빠져도 닫힌다 — 2026-08-16 회귀', () => {
     const onClose = vi.fn();
     mount(
-      <Sheet title="멀티뷰 구성" beta onClose={onClose}>
+      <Sheet title="멀티뷰 구성" onClose={onClose}>
         <p>본문</p>
       </Sheet>,
     );

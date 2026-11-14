@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { BETA_BADGE_TEXT, OURS } from '../constants/class';
+import { OURS } from '../constants/class';
 import { BG, BORDER, FG, RADIUS, ACCENT, FONT_FAMILY, UI_STATE } from './tokens';
 import { CloseIcon } from './icons';
 
@@ -32,8 +32,6 @@ type Props = {
   footer?: ReactNode;
   /** 터치 타겟 최소 크기 — 기기 프로필의 touchTargetPx */
   touchTargetPx?: number;
-  /** 제목 옆 BETA 뱃지 — 아직 불안정한 기능임을 알린다 (FR-14 멀티뷰) */
-  beta?: boolean;
   /**
    * 제목 왼쪽 로고 이미지 URL. **넣는 쪽에서만 지정한다**(기본은 로고 없음) —
    * 이 컴포넌트는 멀티뷰 구성 시트도 함께 쓰므로 기본값을 바꾸면 그쪽 모양까지 바뀐다.
@@ -43,15 +41,7 @@ type Props = {
   logoSrc?: string;
 };
 
-export function Sheet({
-  title,
-  onClose,
-  children,
-  footer,
-  touchTargetPx = 32,
-  beta,
-  logoSrc,
-}: Props) {
+export function Sheet({ title, onClose, children, footer, touchTargetPx = 32, logoSrc }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -131,12 +121,6 @@ export function Sheet({
         style={{ ['--cm-target' as string]: `${touchTargetPx}px` }}
       >
         <header className="cm-sheet__head">
-          {/*
-            BETA 뱃지는 제목 안의 **정적 텍스트**다.
-            대화상자 이름은 위 `aria-label={title}` 이라 뱃지가 이름에 섞이지 않는다 —
-            스크린 리더는 제목을 훑을 때 한 번만 읽고 조작마다 반복하지 않는다.
-            그래서 여기서는 `aria-hidden` 을 쓰지 않는다 (버튼 안의 뱃지와 다른 이유다).
-          */}
           <h2>
             {/*
               로고는 **장식**이다. 바로 옆 텍스트가 같은 이름을 이미 말하고 대화상자 이름은
@@ -149,7 +133,6 @@ export function Sheet({
               <img className="cm-sheet__logo" src={logoSrc} alt="" aria-hidden="true" />
             ) : null}
             {title}
-            {beta ? <span className={OURS.betaBadgeClass}>{BETA_BADGE_TEXT}</span> : null}
           </h2>
           <button type="button" className="cm-sheet__close" aria-label="닫기" onClick={onClose}>
             <CloseIcon />
@@ -238,18 +221,6 @@ export const SHEET_CSS = `
   margin-right: 6px;
   flex: 0 0 auto;
   display: block;
-}
-.cm-sheet__head h2 .${OURS.betaBadgeClass} {
-  margin-left: 6px;
-  padding: 1px 5px;
-  border: 1px solid ${ACCENT};
-  border-radius: ${RADIUS.xs};
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: 0.04em;
-  color: ${ACCENT};
-  vertical-align: middle;
 }
 .cm-sheet__close {
   min-width: var(--cm-target, 32px);

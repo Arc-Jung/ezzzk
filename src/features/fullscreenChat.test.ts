@@ -6,12 +6,12 @@ import { createElement, useState, act, type ChangeEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DEFAULT_SETTINGS } from '../constants/storage';
 import { decideDevice } from '../device';
+import { fullscreenChatFeature } from './fullscreenChat';
 import {
-  fullscreenChatFeature,
   FULLSCREEN_CHAT_BUTTON_ID,
   FULLSCREEN_CHAT_POPUP_ID,
   CHAT_SUBTITLE_COMPOSE_BUTTON_ID,
-} from './fullscreenChat';
+} from './chatInputProtocol';
 import { chatSubtitleFeature } from './chatSubtitle';
 import type { FeatureContext } from './types';
 

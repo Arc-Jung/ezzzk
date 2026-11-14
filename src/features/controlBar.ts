@@ -15,7 +15,7 @@
  * - 버튼은 36×36, 피치 44px. 이 값은 뷰포트와 무관한 고정값이다.
  */
 
-import { BETA_BADGE_TEXT, OURS, PLAYER } from '../constants/class';
+import { OURS, PLAYER } from '../constants/class';
 import { qs, upsertStyle } from '../utils/dom';
 import { keepMounted, type Disposer } from '../utils/observe';
 import { createIconElement, type IconName } from '../ui/icons';
@@ -68,24 +68,6 @@ div.pzp-pc__bottom-buttons-left {
   flex-wrap: wrap !important;
 }
 div.pzp-pc__bottom-buttons-right { justify-content: flex-end !important; }
-/*
-  BETA 뱃지 (FR-14 멀티뷰).
-  🔴 position: absolute 로 띄워 **버튼의 레이아웃 상자를 전혀 늘리지 않는다.**
-  버튼이 커지면 터치 타겟 피치(44px)가 어긋나고 좁은 화면에서 우측 그룹이 줄바꿈된다
-  (위 flex-wrap 주석의 실측 사고와 같은 부류). 문구는 아래쪽 여백에 얹는다.
-*/
-.${CONTROL_ITEM_CLASS} .${OURS.betaBadgeClass} {
-  position: absolute;
-  left: 50%;
-  bottom: 1px;
-  transform: translateX(-50%);
-  font-size: 7px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  color: #00ffa3;
-  pointer-events: none;
-}
 .${OURS.srOnlyClass} {
   position: absolute;
   width: 1px;
@@ -129,8 +111,6 @@ export type ControlBarButtonOptions = {
   minTargetPx?: number;
   /** 확장 배지 표시 — 네이티브 설정 버튼과 혼동을 막는다 (§11 미결정 8) */
   badge?: boolean;
-  /** BETA 뱃지 표시 — 아직 불안정한 기능임을 알린다 (FR-14 멀티뷰, 2026-08-16) */
-  betaBadge?: boolean;
 };
 
 function buildButton(options: ControlBarButtonOptions): HTMLButtonElement {
@@ -188,31 +168,6 @@ function buildButton(options: ControlBarButtonOptions): HTMLButtonElement {
       'pointer-events: none',
     ].join('; ');
     button.appendChild(badge);
-  }
-
-  /**
-   * BETA 뱃지.
-   *
-   * 접근성 — **`aria-label` 은 그대로 두고 `aria-describedby` 로 알린다.**
-   * ① 이름에 "베타"를 넣으면 스크린 리더가 포커스·낭독마다 조작 문구와 함께 읽어 방해가 되고,
-   *    설명(description)은 스크린 리더의 상세도 설정으로 사용자가 끌 수 있다.
-   * ② 하네스·테스트(`verify-ui-profiles`·`explore-ui`·`capture-demo`)가 `aria-label` 로 요소를
-   *    찾으므로 이름을 바꾸면 조용히 깨진다. 뱃지는 **덧붙이는** 것이지 대체가 아니다.
-   * 시각 뱃지 자체는 `aria-hidden` 으로 이중 낭독을 막는다.
-   */
-  if (options.betaBadge) {
-    const beta = document.createElement('span');
-    beta.className = OURS.betaBadgeClass;
-    beta.setAttribute('aria-hidden', 'true');
-    beta.textContent = BETA_BADGE_TEXT;
-    button.appendChild(beta);
-
-    const note = document.createElement('span');
-    note.id = `${options.id}-beta-desc`;
-    note.className = OURS.srOnlyClass;
-    note.textContent = '베타 기능';
-    button.appendChild(note);
-    button.setAttribute('aria-describedby', note.id);
   }
 
   button.addEventListener('click', (event) => {

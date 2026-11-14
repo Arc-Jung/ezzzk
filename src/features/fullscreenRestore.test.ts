@@ -31,7 +31,11 @@ const input = (
   const listener = add.mock.calls.find((call) => call[0] === phase)![1] as EventListener;
   const event = Object.create(key ? KeyboardEvent.prototype : Event.prototype) as Event;
   if (key) Object.defineProperty(event, 'key', { value: key });
-  Object.defineProperties(event, { isTrusted: { value: trusted }, target: { value: target } });
+  Object.defineProperties(event, {
+    isTrusted: { value: trusted },
+    target: { value: target },
+    type: { value: phase },
+  });
   listener(event);
 };
 const flush = async () => {
@@ -206,6 +210,15 @@ describe('전체화면 복귀', () => {
       expect(request).not.toHaveBeenCalled();
     },
   );
+  it('마우스 더블클릭으로 직접 종료하면 앱 복귀 때도 다시 진입하지 않는다', async () => {
+    change(player);
+    input(video, undefined, true, 'dblclick');
+    change(null);
+    await vi.advanceTimersByTimeAsync(300);
+    visibility(true);
+    visibility(false);
+    expect(request).not.toHaveBeenCalled();
+  });
   it('차단된 자동 요청을 반복하지 않고 다음 신뢰된 영상 입력에서 복원한다', async () => {
     request.mockRejectedValueOnce(new TypeError('User activation required'));
     change(player);
