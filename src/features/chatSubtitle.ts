@@ -159,10 +159,6 @@ export const CHAT_SUBTITLE_CSS = `
   background: transparent; color: #fff; cursor: pointer; pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
-#${CHAT_SUBTITLE_COMPOSE_BUTTON_ID}::before {
-  content: ''; position: absolute; inset: 6px; border-radius: 50%;
-  background: #141517cc; border: 1px solid #ffffff55;
-}
 #${CHAT_SUBTITLE_COMPOSE_BUTTON_ID} svg { position: relative; width: 16px; height: 16px; }
 #${CHAT_SUBTITLE_COMPOSE_BUTTON_ID}:focus-visible { outline: 2px solid #00ffa3; outline-offset: -2px; }
 #${CHAT_SUBTITLE_ID} .cm-subtitle-emoticon {

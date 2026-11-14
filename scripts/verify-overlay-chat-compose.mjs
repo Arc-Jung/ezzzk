@@ -73,6 +73,9 @@ for (const key of [
               .paddingRight,
           ),
         buttonLeft: b.left,
+        background: getComputedStyle(e).backgroundColor,
+        border: getComputedStyle(e).borderWidth,
+        backdrop: getComputedStyle(e, '::before').content,
       };
     });
     ensure(
@@ -82,6 +85,12 @@ for (const key of [
         geometry.bottom <= 9 &&
         geometry.textRight <= geometry.buttonLeft + 1,
       key + ': overlay button layout',
+    );
+    ensure(
+      geometry.background === 'rgba(0, 0, 0, 0)' &&
+        geometry.border === '0px' &&
+        ['none', 'normal'].includes(geometry.backdrop),
+      key + ': compose background is not transparent',
     );
     await page.screenshot({ path: resolve(out, key + '-button.png') });
     if (profile.hasTouch) await compose.tap();
@@ -97,7 +106,7 @@ for (const key of [
         box.y + box.height <= profile.viewport.height + 1,
       key + ': popup outside viewport',
     );
-    const editor = popup.locator('textarea');
+    const editor = popup.getByRole('textbox', { name: '전체화면 채팅 내용' });
     const text = '오버레이 한글 전송 ' + key;
     await editor.fill(text);
     await page.screenshot({ path: resolve(out, key + '-popup.png') });
@@ -126,12 +135,60 @@ for (const key of [
     report.cases.push({ name: key, geometry, popup: box, sent, ...state });
     console.log(key + ': passed');
     if (key !== 'fold8-mobile-browser') continue;
+    await page.waitForTimeout(1300);
+    await compose.tap();
+    await editor.evaluate((e) => {
+      window.imeEvents = [];
+      for (const type of ['keydown', 'compositionstart', 'compositionend', 'beforeinput', 'input'])
+        e.addEventListener(type, (event) =>
+          window.imeEvents.push({
+            type,
+            inputType: event.inputType,
+            data: event.data,
+            key: event.key,
+            isComposing: event.isComposing,
+          }),
+        );
+    });
+    ensure((await editor.getAttribute('enterkeyhint')) === 'send', 'missing send keyboard hint');
+    const ime = await context.newCDPSession(page);
+    await ime.send('Input.imeSetComposition', {
+      text: '아옹아오',
+      selectionStart: 4,
+      selectionEnd: 4,
+    });
+    await ime.send('Input.insertText', { text: '아옹아옹' });
+    await ime.send('Input.insertText', { text: '\n' });
+    await page.waitForFunction(() => window.sent.length === 2);
+    const imeResult = await page.evaluate(() => ({ sent: window.sent, events: window.imeEvents }));
+    ensure(
+      imeResult.sent[1].text === '아옹아옹',
+      'IME final Korean text missing or includes a newline',
+    );
+    ensure(
+      !imeResult.events.some((e) => e.type === 'keydown'),
+      'IME test unexpectedly used keydown',
+    );
+    ensure((await editor.inputValue()) === '', 'IME send did not clear the input');
+    await page.waitForTimeout(1300);
+    await editor.fill('Shift');
+    await editor.press('Shift+Enter');
+    ensure((await editor.inputValue()) === '', 'Shift+Enter inserted a newline');
+    ensure((await page.evaluate(() => window.sent.length)) === 3, 'Shift+Enter did not send');
+    await editor.fill('');
+    await popup.getByRole('button', { name: '채팅 입력 닫기' }).click();
+    report.cases.push({
+      name: 'IME composition + Enter without keydown; Shift+Enter also sends',
+      ...imeResult,
+    });
+    console.log('IME Enter: passed');
+    await ime.detach();
     await page.evaluate(() =>
       document.querySelectorAll('._chatting_message_test').forEach((e) => e.remove()),
     );
     await page.waitForTimeout(1100);
     await compose.tap();
-    ensure(await popup.locator('textarea').isEnabled(), 'empty chat cannot be composed');
+    ensure(await editor.isEnabled(), 'empty chat cannot be composed');
     await popup.getByRole('button', { name: '채팅 입력 닫기' }).click();
     report.cases.push({ name: 'empty chat can compose', passed: true });
     await page.evaluate(() => document.querySelector('.pzp-pc').classList.add('pzp-pc--controls'));
@@ -161,7 +218,9 @@ for (const key of [
     await page.waitForFunction(() => document.fullscreenElement === document.documentElement);
     await owners[1].locator('#cm-chat-subtitle-compose').tap();
     const slotPopup = owners[1].locator('#cm-fullscreen-chat-popup');
-    await slotPopup.locator('textarea').fill('두 번째 방송으로 전송');
+    await slotPopup
+      .getByRole('textbox', { name: '전체화면 채팅 내용' })
+      .fill('두 번째 방송으로 전송');
     await page.screenshot({ path: resolve(out, 'multiview-popup.png') });
     await slotPopup.locator('.cm-fullscreen-chat-send').click();
     const allSent = await Promise.all(owners.map((o) => o.evaluate(() => window.sent)));

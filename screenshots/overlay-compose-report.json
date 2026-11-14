@@ -10,13 +10,16 @@
         "right": 4,
         "bottom": 2,
         "textRight": 335,
-        "buttonLeft": 341
+        "buttonLeft": 341,
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "backdrop": "none"
       },
       "popup": {
         "x": 60,
-        "y": 653,
+        "y": 673,
         "width": 340,
-        "height": 186
+        "height": 166
       },
       "sent": [
         {
@@ -37,13 +40,16 @@
         "right": 4,
         "bottom": 2,
         "textRight": 507.265625,
-        "buttonLeft": 513.265625
+        "buttonLeft": 513.265625,
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "backdrop": "none"
       },
       "popup": {
         "x": 563,
-        "y": 150,
+        "y": 170,
         "width": 340,
-        "height": 186
+        "height": 166
       },
       "sent": [
         {
@@ -64,13 +70,16 @@
         "right": 4,
         "bottom": 2,
         "textRight": 470,
-        "buttonLeft": 476
+        "buttonLeft": 476,
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "backdrop": "none"
       },
       "popup": {
         "x": 468,
-        "y": 918,
+        "y": 938,
         "width": 340,
-        "height": 186
+        "height": 166
       },
       "sent": [
         {
@@ -91,13 +100,16 @@
         "right": 4,
         "bottom": 2,
         "textRight": 682,
-        "buttonLeft": 688
+        "buttonLeft": 688,
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "backdrop": "none"
       },
       "popup": {
         "x": 828,
-        "y": 558,
+        "y": 578,
         "width": 340,
-        "height": 186
+        "height": 166
       },
       "sent": [
         {
@@ -118,13 +130,16 @@
         "right": 4,
         "bottom": 2,
         "textRight": 682,
-        "buttonLeft": 688
+        "buttonLeft": 688,
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "backdrop": "none"
       },
       "popup": {
         "x": 1088,
-        "y": 638,
+        "y": 658,
         "width": 340,
-        "height": 186
+        "height": 166
       },
       "sent": [
         {
@@ -145,13 +160,16 @@
         "right": 4,
         "bottom": 2,
         "textRight": 494,
-        "buttonLeft": 500
+        "buttonLeft": 500,
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "backdrop": "none"
       },
       "popup": {
         "x": 507,
-        "y": 536,
+        "y": 556,
         "width": 340,
-        "height": 186
+        "height": 166
       },
       "sent": [
         {
@@ -163,6 +181,59 @@
       "sameVideo": true,
       "paused": false,
       "surfaceClicks": 0
+    },
+    {
+      "name": "IME composition + Enter without keydown; Shift+Enter also sends",
+      "sent": [
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "오버레이 한글 전송 fold8-mobile-browser"
+        },
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "아옹아옹"
+        }
+      ],
+      "events": [
+        {
+          "type": "compositionstart",
+          "data": ""
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertCompositionText",
+          "data": "아옹아오",
+          "isComposing": true
+        },
+        {
+          "type": "input",
+          "inputType": "insertCompositionText",
+          "data": "아옹아오",
+          "isComposing": true
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertCompositionText",
+          "data": "아옹아옹",
+          "isComposing": true
+        },
+        {
+          "type": "input",
+          "inputType": "insertCompositionText",
+          "data": "아옹아옹",
+          "isComposing": true
+        },
+        {
+          "type": "compositionend",
+          "data": "아옹아옹"
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertText",
+          "data": "\n",
+          "isComposing": false
+        }
+      ]
     },
     {
       "name": "empty chat can compose",

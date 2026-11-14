@@ -25,7 +25,7 @@ const context = (): FeatureContext => ({
 });
 const button = () => document.getElementById(FULLSCREEN_CHAT_BUTTON_ID) as HTMLButtonElement;
 const popup = () => document.getElementById(FULLSCREEN_CHAT_POPUP_ID);
-const editor = () => popup()!.querySelector('textarea')!;
+const editor = () => popup()!.querySelector('input')!;
 const input = () => document.querySelector('#aside-chatting textarea') as HTMLTextAreaElement;
 const send = () => popup()!.querySelector('.cm-fullscreen-chat-send') as HTMLButtonElement;
 const nativeSend = () => document.querySelector('#aside-chatting button') as HTMLButtonElement;
@@ -165,7 +165,7 @@ describe('전체화면 채팅 입력', () => {
     expect(button().hidden).toBe(true);
     expect(input().value).toBe('한글 초안');
   });
-  it('Enter는 원본 버튼을 한 번 누르고 Shift+Enter·한글 조합·빈 입력은 전송하지 않는다', async () => {
+  it('Enter는 원본 버튼을 한 번 누르고 한글 조합·빈 입력은 전송하지 않는다', async () => {
     const clicked = vi.fn();
     nativeSend().addEventListener('click', () => {
       clicked();
@@ -174,9 +174,6 @@ describe('전체화면 채팅 입력', () => {
     enterFullscreen();
     button().click();
     edit('테스트');
-    editor().dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }),
-    );
     editor().dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }),
     );
@@ -204,11 +201,193 @@ describe('전체화면 채팅 입력', () => {
     await vi.advanceTimersByTimeAsync(250);
     expect(send().disabled).toBe(true);
     editor().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    editor().dispatchEvent(
+      new InputEvent('beforeinput', {
+        inputType: 'insertLineBreak',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
     expect(clicked).not.toHaveBeenCalled();
     input().remove();
     await vi.advanceTimersByTimeAsync(250);
     expect(editor().disabled).toBe(true);
     expect(send().disabled).toBe(true);
+  });
+  it.each(['insertLineBreak', 'insertParagraph', 'insertText'])(
+    'Android의 keydown 없는 %s 입력으로 마지막 한글까지 한 번만 전송한다',
+    async (inputType) => {
+      const sent: string[] = [];
+      nativeSend().addEventListener('click', () => {
+        sent.push(input().value);
+        input().value = '';
+      });
+      enterFullscreen();
+      button().click();
+      expect(editor().getAttribute('enterkeyhint')).toBe('send');
+      editor().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      edit('아옹아오');
+      editor().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+      // Android IME가 Enter keydown을 보내지 않고 최종 글자와 줄바꿈 의도만 전달한다.
+      editor().value = '아옹아옹';
+      const newline = new InputEvent('beforeinput', {
+        inputType,
+        data: inputType === 'insertText' ? '\n' : null,
+        bubbles: true,
+        cancelable: true,
+      });
+      editor().dispatchEvent(newline);
+      expect(newline.defaultPrevented).toBe(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sent).toEqual(['아옹아옹']);
+      expect(editor().value).toBe('');
+    },
+  );
+  it('줄바꿈 직후 도착한 조합 완료와 마지막 input을 기다리고 조합 확정만으로는 전송하지 않는다', async () => {
+    const sent: string[] = [];
+    nativeSend().addEventListener('click', () => {
+      sent.push(input().value);
+      input().value = '';
+    });
+    enterFullscreen();
+    button().click();
+    editor().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    edit('마지막 한그');
+    editor().dispatchEvent(
+      new InputEvent('beforeinput', {
+        inputType: 'insertLineBreak',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(sent).toEqual([]);
+    editor().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    edit('마지막 한글');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sent).toEqual(['마지막 한글']);
+    await vi.advanceTimersByTimeAsync(1250);
+    editor().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    edit('확정만');
+    editor().dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        keyCode: 229,
+        isComposing: true,
+        bubbles: true,
+      }),
+    );
+    editor().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sent).toEqual(['마지막 한글']);
+  });
+  it('229 keydown 뒤 취소 불가능한 줄바꿈 input도 개행 없이 한 번 전송한다', async () => {
+    const sent: string[] = [];
+    nativeSend().addEventListener('click', () => {
+      sent.push(input().value);
+      input().value = '';
+    });
+    enterFullscreen();
+    button().click();
+    edit('마지막 한글');
+    editor().dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Unidentified', keyCode: 229, bubbles: true }),
+    );
+    editor().dispatchEvent(
+      new InputEvent('beforeinput', { inputType: 'insertLineBreak', bubbles: true }),
+    );
+    editor().value = '마지막\n 한글';
+    editor().dispatchEvent(
+      new InputEvent('input', { inputType: 'insertLineBreak', bubbles: true }),
+    );
+    editor().dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sent).toEqual(['마지막 한글']);
+    expect(editor().value).toBe('');
+  });
+  it('조합 중 입력과 붙여넣기로 자동 전송하지 않고 한 줄 입력만 유지한다', async () => {
+    const clicked = vi.fn();
+    nativeSend().addEventListener('click', clicked);
+    enterFullscreen();
+    button().click();
+    edit('한글');
+    editor().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    const composing = new InputEvent('beforeinput', {
+      inputType: 'insertLineBreak',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    editor().dispatchEvent(composing);
+    expect(composing.defaultPrevented).toBe(false);
+    editor().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    editor().value = '붙여넣은\n여러 줄';
+    editor().dispatchEvent(
+      new InputEvent('input', {
+        inputType: 'insertFromPaste',
+        data: '붙여넣은\n여러 줄',
+        bubbles: true,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clicked).not.toHaveBeenCalled();
+    expect(editor().type).toBe('text');
+    expect(input().value).toBe('붙여넣은여러 줄');
+  });
+  it.each(['Enter', 'Shift+Enter', 'form'])('%s는 줄바꿈 대신 한 번 전송한다', (method) => {
+    const sent: string[] = [];
+    nativeSend().addEventListener('click', () => {
+      sent.push(input().value);
+      input().value = '';
+    });
+    enterFullscreen();
+    button().click();
+    edit('한 줄 채팅');
+    expect(send().textContent).toBe('전송');
+    expect(popup()!.textContent).not.toContain('줄바꿈');
+    if (method === 'form')
+      popup()!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    else
+      editor().dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          shiftKey: method === 'Shift+Enter',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    expect(sent).toEqual(['한 줄 채팅']);
+    expect(editor().value).toBe('');
+  });
+  it('Enter keydown과 beforeinput이 모두 와도 중복 전송하지 않고 닫힌 팝업의 예약 전송을 취소한다', async () => {
+    const clicked = vi.fn();
+    nativeSend().addEventListener('click', clicked);
+    enterFullscreen();
+    button().click();
+    edit('한 번');
+    editor().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    editor().dispatchEvent(
+      new InputEvent('beforeinput', {
+        inputType: 'insertLineBreak',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clicked).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1250);
+    edit('닫기 전 초안');
+    editor().dispatchEvent(
+      new InputEvent('beforeinput', {
+        inputType: 'insertLineBreak',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    popup()!.querySelector<HTMLButtonElement>('[aria-label="채팅 입력 닫기"]')!.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clicked).toHaveBeenCalledTimes(1);
+    expect(input().value).toBe('닫기 전 초안');
   });
   it('팝업 클릭·타이핑이 플레이어로 전파되지 않고 해제 시 노드·구독을 정리한다', async () => {
     const clicked = vi.fn();
@@ -228,68 +407,83 @@ describe('전체화면 채팅 입력', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(vi.getTimerCount()).toBe(0);
   });
-  it('React 제어 입력에서도 최신 값을 전송하고 원본의 초기화를 반영한다', async () => {
-    stop?.();
-    document.body.replaceChildren();
-    const mount = document.createElement('div');
-    document.body.append(mount);
-    const received: string[] = [];
-    function Fixture() {
-      const [value, setValue] = useState('원본 초안');
-      return createElement(
-        'div',
-        null,
-        createElement(
+  it.each(['button', 'ime'])(
+    'React 제어 입력에서도 %s 전송이 최신 값과 원본의 초기화를 반영한다',
+    async (method) => {
+      stop?.();
+      document.body.replaceChildren();
+      const mount = document.createElement('div');
+      document.body.append(mount);
+      const received: string[] = [];
+      function Fixture() {
+        const [value, setValue] = useState('원본 초안');
+        return createElement(
           'div',
-          { id: 'live_player_layout' },
+          null,
           createElement(
             'div',
-            { className: 'pzp-pc pzp-pc--controls' },
+            { id: 'live_player_layout' },
             createElement(
               'div',
-              { className: 'pzp-pc__bottom-buttons-right' },
-              createElement('button', { 'aria-label': '클립 만들기' }),
+              { className: 'pzp-pc pzp-pc--controls' },
+              createElement(
+                'div',
+                { className: 'pzp-pc__bottom-buttons-right' },
+                createElement('button', { 'aria-label': '클립 만들기' }),
+              ),
             ),
           ),
-        ),
-        createElement(
-          'aside',
-          { id: 'aside-chatting' },
-          createElement('textarea', {
-            className: '_input_test',
-            value,
-            onChange: (event: ChangeEvent<HTMLTextAreaElement>) => setValue(event.target.value),
-          }),
           createElement(
-            'button',
-            {
-              className: '_send_button_test',
-              disabled: !value.trim(),
-              onClick: () => {
-                received.push(value);
-                setValue('');
+            'aside',
+            { id: 'aside-chatting' },
+            createElement('textarea', {
+              className: '_input_test',
+              value,
+              onChange: (event: ChangeEvent<HTMLTextAreaElement>) => setValue(event.target.value),
+            }),
+            createElement(
+              'button',
+              {
+                className: '_send_button_test',
+                disabled: !value.trim(),
+                onClick: () => {
+                  received.push(value);
+                  setValue('');
+                },
               },
-            },
-            '채팅',
+              '채팅',
+            ),
           ),
-        ),
-      );
-    }
-    const root = createRoot(mount);
-    await act(async () => root.render(createElement(Fixture)));
-    stop = fullscreenChatFeature.start(context());
-    enterFullscreen();
-    button().click();
-    await act(async () => edit('React 최신 입력'));
-    expect(input().value).toBe('React 최신 입력');
-    await act(async () => send().click());
-    await vi.advanceTimersByTimeAsync(250);
-    expect(received).toEqual(['React 최신 입력']);
-    expect(editor().value).toBe('');
-    stop?.();
-    stop = undefined;
-    await act(async () => root.unmount());
-  });
+        );
+      }
+      const root = createRoot(mount);
+      await act(async () => root.render(createElement(Fixture)));
+      stop = fullscreenChatFeature.start(context());
+      enterFullscreen();
+      button().click();
+      await act(async () => edit('React 최신 입력'));
+      expect(input().value).toBe('React 최신 입력');
+      await act(async () => {
+        if (method === 'button') send().click();
+        else {
+          editor().dispatchEvent(
+            new InputEvent('beforeinput', {
+              inputType: 'insertLineBreak',
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+          await vi.advanceTimersByTimeAsync(0);
+        }
+      });
+      await vi.advanceTimersByTimeAsync(250);
+      expect(received).toEqual(['React 최신 입력']);
+      expect(editor().value).toBe('');
+      stop?.();
+      stop = undefined;
+      await act(async () => root.unmount());
+    },
+  );
   it('라이브와 슬롯의 개별 플레이어 전체화면을 지원하고 VOD는 제외한다', () => {
     expect(fullscreenChatFeature.supports(context())).toBe(true);
     expect(

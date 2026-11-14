@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-14T02:34:51.575Z",
+  "android": "16",
+  "browser": "157.0.8103.51",
+  "keyboard": "Gboard 18.5.10.993608717",
+  "input": "actual Gboard Send key tapped through adb; draft inserted using CDP; local test page with bundled fullscreenChat source",
+  "sent": [
+    "아옹아옹",
+    "네이티브 전송"
+  ],
+  "editor": "",
+  "enterKeyHint": "send",
+  "inputType": "text",
+  "events": [
+    {
+      "type": "beforeinput",
+      "inputType": "insertText",
+      "data": "아옹아옹",
+      "isComposing": false,
+      "defaultPrevented": false,
+      "value": ""
+    },
+    {
+      "type": "input",
+      "inputType": "insertText",
+      "data": "아옹아옹",
+      "isComposing": false,
+      "defaultPrevented": false,
+      "value": "아옹아옹"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertText",
+      "data": "\n",
+      "isComposing": false,
+      "defaultPrevented": false,
+      "value": "아옹아옹"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertText",
+      "data": "네이티브 전송",
+      "isComposing": false,
+      "defaultPrevented": false,
+      "value": ""
+    },
+    {
+      "type": "input",
+      "inputType": "insertText",
+      "data": "네이티브 전송",
+      "isComposing": false,
+      "defaultPrevented": false,
+      "value": "네이티브 전송"
+    },
+    {
+      "type": "keydown",
+      "key": "Enter",
+      "keyCode": 13,
+      "isComposing": false,
+      "defaultPrevented": false,
+      "value": "네이티브 전송"
+    },
+    {
+      "type": "keyup",
+      "key": "Enter",
+      "keyCode": 13,
+      "isComposing": false,
+      "defaultPrevented": false,
+      "value": ""
+    }
+  ]
+}

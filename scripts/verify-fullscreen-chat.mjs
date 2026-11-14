@@ -118,10 +118,10 @@ try {
   report.nativeInputPresent = (await source.count()) > 0;
   if (!report.nativeInputPresent) throw new Error('원본 채팅 입력창 없음');
   const original = await source.inputValue();
-  if (!(await page.locator('#cm-fullscreen-chat-popup textarea').isDisabled())) {
-    await page.locator('#cm-fullscreen-chat-popup textarea').fill('초안 확인 — 전송하지 않음');
-    await page.locator('#cm-fullscreen-chat-popup textarea').press('Space');
-    await page.locator('#cm-fullscreen-chat-popup textarea').press('j');
+  if (!(await page.locator('#cm-fullscreen-chat-popup input').isDisabled())) {
+    await page.locator('#cm-fullscreen-chat-popup input').fill('초안 확인 — 전송하지 않음');
+    await page.locator('#cm-fullscreen-chat-popup input').press('Space');
+    await page.locator('#cm-fullscreen-chat-popup input').press('j');
     await page.waitForTimeout(300);
     if ((await source.inputValue()) !== '초안 확인 — 전송하지 않음 j')
       throw new Error('원본 입력 동기화 실패');
@@ -129,11 +129,11 @@ try {
     await page.mouse.move(520, 400);
     await page.locator('#cm-fullscreen-chat-button').click();
     if (
-      (await page.locator('#cm-fullscreen-chat-popup textarea').inputValue()) !==
+      (await page.locator('#cm-fullscreen-chat-popup input').inputValue()) !==
       '초안 확인 — 전송하지 않음 j'
     )
       throw new Error('다시 열기 후 초안 손실');
-    await page.locator('#cm-fullscreen-chat-popup textarea').fill(original);
+    await page.locator('#cm-fullscreen-chat-popup input').fill(original);
     report.draftPreserved = true;
   } else report.draftPreserved = '실제 비로그인 입력 제한. React 제어 입력 회귀 테스트로 별도 검증';
   await page.evaluate(() => document.exitFullscreen());
