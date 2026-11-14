@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../utils/chatSource', () => ({
+  watchLatestChat: () => ({ read: () => null, reset() {}, refresh() {}, dispose() {} }),
+}));
 import { createElement, useState, act, type ChangeEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DEFAULT_SETTINGS } from '../constants/storage';
@@ -7,10 +10,13 @@ import {
   fullscreenChatFeature,
   FULLSCREEN_CHAT_BUTTON_ID,
   FULLSCREEN_CHAT_POPUP_ID,
+  CHAT_SUBTITLE_COMPOSE_BUTTON_ID,
 } from './fullscreenChat';
+import { chatSubtitleFeature } from './chatSubtitle';
 import type { FeatureContext } from './types';
 
 let stop: (() => void) | void;
+let stopOverlay: (() => void) | void;
 let fullscreen: Element | null;
 const context = (): FeatureContext => ({
   settings: DEFAULT_SETTINGS,
@@ -50,6 +56,8 @@ beforeEach(() => {
   stop = fullscreenChatFeature.start(context());
 });
 afterEach(() => {
+  stopOverlay?.();
+  stopOverlay = undefined;
   stop?.();
   stop = undefined;
   document.body.replaceChildren();
@@ -57,6 +65,72 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('전체화면 채팅 입력', () => {
+  const mountOverlay = () => {
+    const player = document.querySelector<HTMLElement>('.pzp-pc')!;
+    vi.spyOn(player, 'getBoundingClientRect').mockReturnValue({
+      width: 640,
+      height: 360,
+    } as DOMRect);
+    document
+      .querySelector('#aside-chatting')!
+      .insertAdjacentHTML(
+        'afterbegin',
+        '<div class="_chatting_message_test"><span class="_nickname_test">시청자</span><span class="_text_test">안녕하세요</span></div>',
+      );
+    stopOverlay = chatSubtitleFeature.start({
+      ...context(),
+      settings: {
+        ...DEFAULT_SETTINGS,
+        chatSubtitle: { ...DEFAULT_SETTINGS.chatSubtitle, enabled: true },
+      },
+    });
+    return document.getElementById(CHAT_SUBTITLE_COMPOSE_BUTTON_ID) as HTMLButtonElement;
+  };
+  it('오버레이 말풍선으로 팝업을 열고 같은 원본 채팅에 전송하며 닫으면 초점을 돌려준다', () => {
+    const compose = mountOverlay();
+    const playbackClick = vi.fn();
+    document.querySelector('.pzp-pc')!.addEventListener('click', playbackClick);
+    const sent: string[] = [];
+    nativeSend().addEventListener('click', () => {
+      sent.push(input().value);
+      input().value = '';
+    });
+    enterFullscreen();
+    compose.click();
+    expect(fullscreen!.contains(popup())).toBe(true);
+    expect(compose.getAttribute('aria-expanded')).toBe('true');
+    edit('오버레이에서 한글 전송');
+    popup()!.querySelector<HTMLButtonElement>('.cm-fullscreen-chat-send')!.click();
+    expect(sent).toEqual(['오버레이에서 한글 전송']);
+    expect(editor().value).toBe('');
+    popup()!.querySelector<HTMLButtonElement>('[aria-label="채팅 입력 닫기"]')!.click();
+    expect(document.activeElement).toBe(compose);
+    expect(compose.getAttribute('aria-expanded')).toBe('false');
+    expect(playbackClick).not.toHaveBeenCalled();
+  });
+  it('부모 문서가 전체화면인 멀티뷰 슬롯에서도 로컬 채팅 입력을 사용한다', () => {
+    const compose = mountOverlay();
+    const sent: string[] = [];
+    nativeSend().addEventListener('click', () => sent.push(input().value));
+    expect(button().hidden).toBe(true);
+    compose.click();
+    expect(document.querySelector('.pzp-pc')!.contains(popup())).toBe(true);
+    edit('이 방송 채팅');
+    popup()!.querySelector<HTMLButtonElement>('.cm-fullscreen-chat-send')!.click();
+    expect(sent).toEqual(['이 방송 채팅']);
+  });
+  it('아직 채팅이 없어도 말풍선 버튼으로 입력을 시작할 수 있다', async () => {
+    const compose = mountOverlay();
+    document.querySelector('._chatting_message_test')!.remove();
+    await vi.advanceTimersByTimeAsync(1000);
+    const overlay = compose.closest<HTMLElement>('#cm-chat-subtitle')!;
+    expect(overlay.hidden).toBe(false);
+    expect(overlay.classList.contains('cm-subtitle--empty')).toBe(true);
+    expect(overlay.querySelector<HTMLElement>('.cm-subtitle-lines')!.hidden).toBe(true);
+    enterFullscreen();
+    compose.click();
+    expect(editor().disabled).toBe(false);
+  });
   it('전체화면에서만 버튼을 표시하고 클립 바로 왼쪽에 놓는다', async () => {
     expect(button().hidden).toBe(true);
     expect(button().nextElementSibling?.getAttribute('aria-label')).toBe('클립 만들기');

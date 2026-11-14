@@ -259,7 +259,7 @@ export function PlaybackTab({ settings, update }: TabProps) {
         <p className="cm-sheet__note">전체화면으로 바뀌지 않으면 영상을 한 번 눌러 주세요.</p>
       ) : null}
       <Toggle
-        label="세 번 터치로 전체화면"
+        label="더블 클릭으로 전체화면"
         checked={settings.tripleTapFullscreen.enabled}
         onChange={(next) => update({ tripleTapFullscreen: { enabled: next } })}
       />

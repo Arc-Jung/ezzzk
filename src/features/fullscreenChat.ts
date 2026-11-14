@@ -8,6 +8,8 @@ import type { Feature } from './types';
 
 export const FULLSCREEN_CHAT_BUTTON_ID = 'cm-fullscreen-chat-button';
 export const FULLSCREEN_CHAT_POPUP_ID = 'cm-fullscreen-chat-popup';
+export const CHAT_SUBTITLE_COMPOSE_BUTTON_ID = 'cm-chat-subtitle-compose';
+export const CHAT_SUBTITLE_COMPOSE_EVENT = 'cm-chat-subtitle-compose-request';
 const STYLE_ID = `${FULLSCREEN_CHAT_POPUP_ID}-style`;
 
 export const fullscreenChatFeature: Feature = {
@@ -18,6 +20,9 @@ export const fullscreenChatFeature: Feature = {
   start: (ctx) => {
     let button: HTMLButtonElement | null = null;
     let popup: HTMLDivElement | null = null;
+    let popupHost: HTMLElement | null = null;
+    let invoker: HTMLElement | null = null;
+    let openedFullscreen = false;
     let editor: HTMLTextAreaElement | null = null;
     let send: HTMLButtonElement | null = null;
     let note: HTMLParagraphElement | null = null;
@@ -71,13 +76,16 @@ export const fullscreenChatFeature: Feature = {
 `,
     );
     const paintButton = () => {
-      if (!button) return;
-      button.hidden = !fullscreenHost();
-      button.setAttribute('aria-expanded', String(!!popup));
-      button.setAttribute('aria-controls', FULLSCREEN_CHAT_POPUP_ID);
-      button.setAttribute('aria-haspopup', 'dialog');
-      button.setAttribute('aria-label', popup ? '전체화면 채팅 닫기' : '전체화면 채팅 열기');
-      button.title = button.getAttribute('aria-label')!;
+      if (button) button.hidden = !fullscreenHost();
+      for (const node of [button, document.getElementById(CHAT_SUBTITLE_COMPOSE_BUTTON_ID)]) {
+        if (!node) continue;
+        node.setAttribute('aria-expanded', String(!!popup));
+        node.setAttribute('aria-controls', FULLSCREEN_CHAT_POPUP_ID);
+        node.setAttribute('aria-haspopup', 'dialog');
+        const prefix = node === button ? '전체화면 채팅' : '채팅 입력';
+        node.setAttribute('aria-label', `${prefix} ${popup ? '닫기' : '열기'}`);
+        node.title = node.getAttribute('aria-label')!;
+      }
     };
     const position = () => {
       const viewport = window.visualViewport;
@@ -92,21 +100,30 @@ export const fullscreenChatFeature: Feature = {
       popup?.style.setProperty('--cm-chat-bottom', `${keyboard + clearance}px`);
     };
     const close = (restoreFocus = false) => {
+      const focusTarget = invoker ?? button;
       clearInterval(poll);
       poll = undefined;
       popup?.remove();
       popup = null;
+      popupHost = null;
+      invoker = null;
+      openedFullscreen = false;
       editor = null;
       send = null;
       note = null;
       composing = false;
       paintButton();
-      if (restoreFocus && !button?.hidden) button?.focus();
+      if (restoreFocus && focusTarget?.isConnected && !focusTarget.closest('[hidden]'))
+        focusTarget.focus();
     };
     const sync = () => {
       if (!popup || !editor || !send || !note) return;
       const source = input();
-      if (!fullscreenHost()?.contains(popup) || !popup.isConnected) {
+      if (
+        !popupHost?.isConnected ||
+        !popupHost.contains(popup) ||
+        (document.fullscreenElement && !document.fullscreenElement.contains(popup))
+      ) {
         close();
         return;
       }
@@ -157,13 +174,16 @@ export const fullscreenChatFeature: Feature = {
       busy = false;
       sync();
     };
-    const toggle = () => {
+    const toggle = (trigger: HTMLElement | null, host: HTMLElement | null) => {
       if (popup) {
+        invoker = trigger ?? invoker;
         close(true);
         return;
       }
-      const host = fullscreenHost();
       if (!host) return;
+      invoker = trigger;
+      popupHost = host;
+      openedFullscreen = !!document.fullscreenElement;
       popup = document.createElement('div');
       popup.id = FULLSCREEN_CHAT_POPUP_ID;
       popup.setAttribute('role', 'dialog');
@@ -239,20 +259,40 @@ export const fullscreenChatFeature: Feature = {
       icon: 'chatBubble',
       before: PLAYER.clipButton,
       minTargetPx: Math.max(44, ctx.device.profile.touchTargetPx),
-      onClick: toggle,
+      onClick: () => toggle(button, fullscreenHost()),
       onMount: (node) => {
         button = node;
         paintButton();
       },
     });
     const onFullscreenChange = () => {
-      if (!fullscreenHost() || (popup && !fullscreenHost()!.contains(popup))) close();
+      const host = fullscreenHost();
+      if (
+        popup &&
+        ((openedFullscreen && !host) ||
+          (document.fullscreenElement && !document.fullscreenElement.contains(popup)))
+      )
+        close();
+      else if (popup && host) {
+        popupHost = host;
+        openedFullscreen = true;
+      }
       paintButton();
+    };
+    const onCompose = (event: Event) => {
+      const trigger = event.target;
+      if (!(trigger instanceof HTMLElement) || trigger.id !== CHAT_SUBTITLE_COMPOSE_BUTTON_ID)
+        return;
+      const player = trigger.closest<HTMLElement>(`${PLAYER.rootPc}, ${PLAYER.rootMobile}`);
+      if (!player || !document.querySelector(ID.livePlayerLayout)?.contains(player)) return;
+      if (document.fullscreenElement && !document.fullscreenElement.contains(trigger)) return;
+      toggle(trigger, fullscreenHost() ?? player);
     };
     const onInput = () => {
       if (alive && popup) sync();
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener(CHAT_SUBTITLE_COMPOSE_EVENT, onCompose);
     document.addEventListener('input', onInput);
     window.visualViewport?.addEventListener('resize', position);
     window.visualViewport?.addEventListener('scroll', position);
@@ -263,6 +303,7 @@ export const fullscreenChatFeature: Feature = {
       stopButton();
       removeStyle(STYLE_ID);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener(CHAT_SUBTITLE_COMPOSE_EVENT, onCompose);
       document.removeEventListener('input', onInput);
       window.visualViewport?.removeEventListener('resize', position);
       window.visualViewport?.removeEventListener('scroll', position);

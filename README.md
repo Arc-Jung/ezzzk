@@ -21,7 +21,7 @@
 
 ## 스크린샷
 
-[자막형 채팅 사용법·검증 화면](screenshots/chat-subtitle.md) · [전체화면 채팅 입력](screenshots/fullscreen-chat.md) · [클린봇 켜기·끄기](screenshots/cleanbot.md) · [자동 PiP 옵션](screenshots/auto-pip.md)
+[자막형 채팅 사용법·검증 화면](screenshots/chat-subtitle.md) · [전체화면 채팅 입력](screenshots/fullscreen-chat.md) · [오버레이에서 채팅 보내기](screenshots/overlay-chat-compose.md) · [클린봇 켜기·끄기](screenshots/cleanbot.md) · [자동 PiP 옵션](screenshots/auto-pip.md)
 
 [갤럭시 Z 폴드8·폴드8 울트라 화면별 검증과 스크린샷](screenshots/fold8.md)
 
@@ -101,7 +101,7 @@
 
 ## 단축키
 
-터치 화면에서는 영상의 같은 곳을 빠르게 세 번 누르면 전체화면을 켜거나 끕니다. 멀티뷰에서도 사용할 수 있습니다. **설정 → 재생 → 세 번 터치로 전체화면**에서 끌 수 있습니다(기본 켜짐).
+터치 화면에서는 영상의 같은 곳을 빠르게 두 번 누르면 전체화면을 켜거나 끕니다. 멀티뷰에서도 사용할 수 있습니다. **설정 → 재생 → 더블 클릭으로 전체화면**에서 끌 수 있습니다(기본 켜짐). [화면 보기](screenshots/double-tap-fullscreen.md)
 
 | 동작                  | 단축키                                |
 | --------------------- | ------------------------------------- |

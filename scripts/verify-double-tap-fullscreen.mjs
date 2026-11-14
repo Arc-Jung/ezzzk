@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { openLiveContext, PROFILES, ROOT, seedSettings, warmUp } from './demo-context.mjs';
 
-const out = resolve(ROOT, 'etc/tmp/triple-tap-fullscreen');
+const out = resolve(ROOT, 'etc/tmp/double-tap-fullscreen');
 mkdirSync(out, { recursive: true });
 const report = {
   node: process.version,
@@ -16,8 +16,8 @@ const html = (
   mobile = false,
 ) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{margin:0;background:#111820;color:white;font:16px Arial}.pzp-pc,.pzp-mobile{position:relative;width:90vw;height:65vh;margin:70px auto;background:#173541}.pzp-pc:fullscreen,.pzp-mobile:fullscreen{width:100%;height:100%;margin:0}video{width:100%;height:100%;object-fit:contain}.pzp-pc__bottom{position:absolute;bottom:12px;left:12px;right:12px}.pzp-pc__bottom-buttons{display:flex;justify-content:space-between}.pzp-pc__bottom-buttons-right{display:flex;gap:8px}button{padding:12px;color:white;background:#183140;border:1px solid #6b8290}#fixture-title{text-align:center;padding-top:12px}#outside{position:fixed;left:0;top:0}
-</style><div id="fixture-title">세 번 터치 · 재현용 영상</div><div id="root"><div id="live_player_layout"><div class="${mobile ? 'pzp-mobile' : 'pzp-pc pzp-pc--controls'}"><video muted autoplay playsinline></video><div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div><div class="pzp-pc__bottom-buttons-right"><button id="test-control">설정</button><button class="pzp-pc__fullscreen-button" onclick="document.fullscreenElement?document.exitFullscreen():document.querySelector('video').parentElement.requestFullscreen()">전체화면</button></div></div></div></div></div><aside id="aside-chatting"></aside></div><script>
-const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const c=canvas.getContext('2d');let n=0;function draw(){c.fillStyle='#173541';c.fillRect(0,0,1280,720);c.fillStyle='#00ffa3';c.fillRect(n++%1000,550,180,10);c.fillStyle='white';c.font='44px sans-serif';c.fillText('세 번 터치로 전체화면',80,210);c.font='28px sans-serif';c.fillText('재현용 영상 · 프레임 '+n,80,290);requestAnimationFrame(draw)}draw();const v=document.querySelector('video');v.srcObject=canvas.captureStream(20);v.play();window.originalVideo=v;window.nativeDoubles=0;v.parentElement.addEventListener('dblclick',event=>{if(event.target.closest('button')||window.nativeDoubleEnabled===false)return;window.nativeDoubles++;document.fullscreenElement?document.exitFullscreen():v.parentElement.requestFullscreen()});window.touchInputs=0;document.addEventListener('pointerdown',e=>{if(e.isTrusted&&e.pointerType==='touch')window.touchInputs++},true);
+</style><div id="fixture-title">두 번 터치 · 재현용 영상</div><div id="root"><div id="live_player_layout"><div class="${mobile ? 'pzp-mobile' : 'pzp-pc pzp-pc--controls'}"><video muted autoplay playsinline></video><div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div><div class="pzp-pc__bottom-buttons-right"><button id="test-control">설정</button><button class="pzp-pc__fullscreen-button" onclick="document.fullscreenElement?document.exitFullscreen():document.querySelector('video').parentElement.requestFullscreen()">전체화면</button></div></div></div></div></div><aside id="aside-chatting"></aside></div><script>
+const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const c=canvas.getContext('2d');let n=0;function draw(){c.fillStyle='#173541';c.fillRect(0,0,1280,720);c.fillStyle='#00ffa3';c.fillRect(n++%1000,550,180,10);c.fillStyle='white';c.font='44px sans-serif';c.fillText('더블 클릭으로 전체화면',80,210);c.font='28px sans-serif';c.fillText('재현용 영상 · 프레임 '+n,80,290);requestAnimationFrame(draw)}draw();const v=document.querySelector('video');v.srcObject=canvas.captureStream(20);v.play();window.originalVideo=v;window.nativeDoubles=0;v.parentElement.addEventListener('dblclick',event=>{if(event.target.closest('button')||window.nativeDoubleEnabled===false)return;window.nativeDoubles++;document.fullscreenElement?document.exitFullscreen():v.parentElement.requestFullscreen()});window.touchInputs=0;document.addEventListener('pointerdown',e=>{if(e.isTrusted&&e.pointerType==='touch')window.touchInputs++},true);
 </script>`;
 const ensure = (ok, message) => {
   if (!ok) throw Error(message);
@@ -33,7 +33,7 @@ const profiles = [
 for (const key of profiles.filter((key) => !process.argv[2] || key === process.argv[2])) {
   const context = await openLiveContext(
     PROFILES.find((p) => p.key === key),
-    { profileDir: resolve(ROOT, 'etc/tmp/playwright/triple-tap-' + key) },
+    { profileDir: resolve(ROOT, 'etc/tmp/playwright/double-tap-' + key) },
   );
   try {
     report.browser = context.browser().version();
@@ -82,8 +82,8 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
       console.log(key + ': mouse passed');
       continue;
     }
-    await touchVideo(page, 2);
-    ensure(!(await state()).fullscreen, key + ': entered before third tap');
+    await touchVideo(page);
+    ensure(!(await state()).fullscreen, key + ': entered before second tap');
     await touchVideo();
     await page.waitForFunction(() => !!document.fullscreenElement);
     const entered = await state();
@@ -92,7 +92,7 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
       key + ': tap entry changed playback or zoom',
     );
     await page.screenshot({ path: resolve(out, key + '-entered.png') });
-    await touchVideo(page, 3);
+    await touchVideo(page, 2);
     await page.waitForFunction(() => !document.fullscreenElement);
     await page.evaluate(() => {
       window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
@@ -107,7 +107,7 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
     await touchVideo();
     ensure(!(await state()).fullscreen, key + ': slow taps toggled');
     await page.waitForTimeout(400);
-    for (let i = 0; i < 3; i++) await page.locator('#test-control').tap();
+    for (let i = 0; i < 2; i++) await page.locator('#test-control').tap();
     ensure(!(await state()).fullscreen, key + ': button taps toggled');
     report.cases.push({ name: key + ': single view', entered, exited: await state(), errors });
     console.log(key + ': touch passed');
@@ -118,21 +118,21 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
       window.nativeDoubleEnabled = false;
     });
     await page.locator('#cm-settings-button').click();
-    const option = page.getByRole('switch', { name: '세 번 터치로 전체화면 켜짐', exact: true });
+    const option = page.getByRole('switch', { name: '더블 클릭으로 전체화면 켜짐', exact: true });
     await option.click();
-    await page.getByRole('switch', { name: '세 번 터치로 전체화면 꺼짐', exact: true }).waitFor();
+    await page.getByRole('switch', { name: '더블 클릭으로 전체화면 꺼짐', exact: true }).waitFor();
     await page.screenshot({ path: resolve(out, 'option-off.png'), animations: 'disabled' });
     await page.locator('.cm-sheet__close').click();
     await page.waitForTimeout(150);
-    await touchVideo(page, 3);
-    ensure(!(await state()).fullscreen, 'OFF: triple tap still toggled fullscreen');
+    await touchVideo(page, 2);
+    ensure(!(await state()).fullscreen, 'OFF: double tap still toggled fullscreen');
     await page.locator('#cm-settings-button').click();
-    await page.getByRole('switch', { name: '세 번 터치로 전체화면 꺼짐', exact: true }).click();
+    await page.getByRole('switch', { name: '더블 클릭으로 전체화면 꺼짐', exact: true }).click();
     await page.locator('.cm-sheet__close').click();
     await page.waitForTimeout(150);
-    await touchVideo(page, 3);
+    await touchVideo(page, 2);
     await page.waitForFunction(() => !!document.fullscreenElement);
-    await touchVideo(page, 3);
+    await touchVideo(page, 2);
     await page.waitForFunction(() => !document.fullscreenElement);
     report.cases.push({ name: 'settings OFF / ON without reload', ...(await state()) });
     console.log('settings option: passed');
@@ -162,8 +162,8 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
     await page.evaluate(
       () => (window.originalFrames = [...document.querySelectorAll('.cm-slot iframe')]),
     );
-    await touchVideo(owners[0], 2);
-    ensure(!(await state()).fullscreen, 'multiview: two taps toggled');
+    await touchVideo(owners[0]);
+    ensure(!(await state()).fullscreen, 'multiview: single tap toggled');
     await touchVideo(owners[0]);
     await page.waitForFunction(() => document.fullscreenElement === document.documentElement);
     ensure(
@@ -177,7 +177,7 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
       'multiview button state stale',
     );
     await page.screenshot({ path: resolve(out, 'multiview-entered.png') });
-    await touchVideo(owners[1], 3);
+    await touchVideo(owners[1], 2);
     await page.waitForFunction(() => !document.fullscreenElement);
     ensure(
       await page.evaluate(() =>
@@ -199,13 +199,13 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
         window.nativeDoubleEnabled = false;
       });
     await page.waitForTimeout(150);
-    await touchVideo(owners[0], 3);
+    await touchVideo(owners[0], 2);
     ensure(!(await state()).fullscreen, 'multiview OFF: still toggled fullscreen');
     await seedSettings(context, { tripleTapFullscreen: { enabled: true } });
     await page.waitForTimeout(150);
-    await touchVideo(owners[2], 3);
+    await touchVideo(owners[2], 2);
     await page.waitForFunction(() => document.fullscreenElement === document.documentElement);
-    await touchVideo(owners[0], 3);
+    await touchVideo(owners[0], 2);
     await page.waitForFunction(() => !document.fullscreenElement);
     report.cases.push({ name: 'multiview option OFF / ON propagates to slots', fullscreen: false });
     console.log('multiview option: passed');
@@ -214,9 +214,9 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
     await page.goto('https://m.chzzk.naver.com/live/' + channels[0]);
     await page.waitForSelector('.pzp-mobile');
     await page.waitForTimeout(400);
-    await touchVideo(page, 3);
+    await touchVideo(page, 2);
     await page.waitForFunction(() => !!document.fullscreenElement);
-    await touchVideo(page, 3);
+    await touchVideo(page, 2);
     await page.waitForFunction(() => !document.fullscreenElement);
     report.cases.push({ name: 'mobile web player', ...(await state()) });
     console.log('mobile web: passed');

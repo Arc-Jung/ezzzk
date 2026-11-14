@@ -1,0 +1,187 @@
+{
+  "input": "trusted pointer/touch and keyboard input",
+  "fixture": "canvas video and local native-chat stand-in; no broadcast messages sent",
+  "cases": [
+    {
+      "name": "mobile-portrait",
+      "geometry": {
+        "width": 44,
+        "height": 44,
+        "right": 4,
+        "bottom": 2,
+        "textRight": 335,
+        "buttonLeft": 341
+      },
+      "popup": {
+        "x": 60,
+        "y": 653,
+        "width": 340,
+        "height": 186
+      },
+      "sent": [
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "오버레이 한글 전송 mobile-portrait"
+        }
+      ],
+      "fullscreen": true,
+      "sameVideo": true,
+      "paused": false,
+      "surfaceClicks": 0
+    },
+    {
+      "name": "mobile-landscape",
+      "geometry": {
+        "width": 44,
+        "height": 44,
+        "right": 4,
+        "bottom": 2,
+        "textRight": 507.265625,
+        "buttonLeft": 513.265625
+      },
+      "popup": {
+        "x": 563,
+        "y": 150,
+        "width": 340,
+        "height": 186
+      },
+      "sent": [
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "오버레이 한글 전송 mobile-landscape"
+        }
+      ],
+      "fullscreen": true,
+      "sameVideo": true,
+      "paused": false,
+      "surfaceClicks": 0
+    },
+    {
+      "name": "tablet10-portrait",
+      "geometry": {
+        "width": 44,
+        "height": 44,
+        "right": 4,
+        "bottom": 2,
+        "textRight": 470,
+        "buttonLeft": 476
+      },
+      "popup": {
+        "x": 468,
+        "y": 918,
+        "width": 340,
+        "height": 186
+      },
+      "sent": [
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "오버레이 한글 전송 tablet10-portrait"
+        }
+      ],
+      "fullscreen": true,
+      "sameVideo": true,
+      "paused": false,
+      "surfaceClicks": 0
+    },
+    {
+      "name": "tablet10-landscape",
+      "geometry": {
+        "width": 44,
+        "height": 44,
+        "right": 4,
+        "bottom": 2,
+        "textRight": 682,
+        "buttonLeft": 688
+      },
+      "popup": {
+        "x": 828,
+        "y": 558,
+        "width": 340,
+        "height": 186
+      },
+      "sent": [
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "오버레이 한글 전송 tablet10-landscape"
+        }
+      ],
+      "fullscreen": true,
+      "sameVideo": true,
+      "paused": false,
+      "surfaceClicks": 0
+    },
+    {
+      "name": "laptop13",
+      "geometry": {
+        "width": 44,
+        "height": 44,
+        "right": 4,
+        "bottom": 2,
+        "textRight": 682,
+        "buttonLeft": 688
+      },
+      "popup": {
+        "x": 1088,
+        "y": 638,
+        "width": 340,
+        "height": 186
+      },
+      "sent": [
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "오버레이 한글 전송 laptop13"
+        }
+      ],
+      "fullscreen": true,
+      "sameVideo": true,
+      "paused": false,
+      "surfaceClicks": 0
+    },
+    {
+      "name": "fold8-mobile-browser",
+      "geometry": {
+        "width": 44,
+        "height": 44,
+        "right": 4,
+        "bottom": 2,
+        "textRight": 494,
+        "buttonLeft": 500
+      },
+      "popup": {
+        "x": 507,
+        "y": 536,
+        "width": 340,
+        "height": 186
+      },
+      "sent": [
+        {
+          "channel": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "오버레이 한글 전송 fold8-mobile-browser"
+        }
+      ],
+      "fullscreen": true,
+      "sameVideo": true,
+      "paused": false,
+      "surfaceClicks": 0
+    },
+    {
+      "name": "empty chat can compose",
+      "passed": true
+    },
+    {
+      "name": "fullscreen multiview sends to clicked channel only",
+      "sent": [
+        [],
+        [
+          {
+            "channel": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "text": "두 번째 방송으로 전송"
+          }
+        ],
+        [],
+        []
+      ]
+    }
+  ],
+  "browser": "151.0.7922.34"
+}

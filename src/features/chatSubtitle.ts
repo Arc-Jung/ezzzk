@@ -1,4 +1,4 @@
-/** 영상 안에 표시하는 읽기 전용 채팅 자막. 원본 채팅·입력·재생 조작은 유지한다. */
+/** 영상 안의 채팅 자막과 입력 버튼. 원본 채팅·재생 조작은 유지한다. */
 import { ID, PLAYER } from '../constants/class';
 import { DEFAULT_SETTINGS, type Settings } from '../constants/storage';
 import { removeStyle, upsertStyle } from '../utils/dom';
@@ -8,6 +8,12 @@ import { emoticonUrl, nicknameColor } from '../utils/chatPresentation';
 export { readSubtitleMessages } from '../utils/chatMessages';
 export type { SubtitleMessage } from '../utils/chatMessages';
 import type { Feature } from './types';
+import { createIconElement } from '../ui/icons';
+import {
+  CHAT_SUBTITLE_COMPOSE_BUTTON_ID,
+  CHAT_SUBTITLE_COMPOSE_EVENT,
+  FULLSCREEN_CHAT_POPUP_ID,
+} from './fullscreenChat';
 
 export const CHAT_SUBTITLE_ID = 'cm-chat-subtitle';
 const STYLE_ID = `${CHAT_SUBTITLE_ID}-style`;
@@ -104,14 +110,28 @@ export function subtitleGeometry(
 export const CHAT_SUBTITLE_CSS = `
 #${CHAT_SUBTITLE_ID} {
   position: absolute; z-index: 25; box-sizing: border-box;
-  padding: 8px 10px; border-radius: 5px; pointer-events: none;
+  padding: 8px 10px; min-height: 60px; border-radius: 5px; pointer-events: none;
   text-align: left; text-shadow: 0 1px 2px #000, 0 0 2px #000;
   font-family: system-ui, sans-serif; overflow: hidden;
 }
 #${CHAT_SUBTITLE_ID}[hidden] { display: none !important; }
-#${CHAT_SUBTITLE_ID} .cm-subtitle-lines { overflow: hidden; overflow-wrap: anywhere; }
+#${CHAT_SUBTITLE_ID}.cm-subtitle--empty { background: transparent !important; }
+#${CHAT_SUBTITLE_ID} .cm-subtitle-lines { box-sizing: border-box; padding-right: 44px; overflow: hidden; overflow-wrap: anywhere; }
 #${CHAT_SUBTITLE_ID} .cm-subtitle-message { margin: 0; padding: 0; }
 #${CHAT_SUBTITLE_ID} .cm-subtitle-author { font-weight: 700; }
+#${CHAT_SUBTITLE_ID} .cm-subtitle-compose-row { position: absolute; right: 4px; bottom: 2px; width: 44px; height: 44px; }
+#${CHAT_SUBTITLE_COMPOSE_BUTTON_ID} {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: #fff; cursor: pointer; pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+#${CHAT_SUBTITLE_COMPOSE_BUTTON_ID}::before {
+  content: ''; position: absolute; inset: 6px; border-radius: 50%;
+  background: #141517cc; border: 1px solid #ffffff55;
+}
+#${CHAT_SUBTITLE_COMPOSE_BUTTON_ID} svg { position: relative; width: 16px; height: 16px; }
+#${CHAT_SUBTITLE_COMPOSE_BUTTON_ID}:focus-visible { outline: 2px solid #00ffa3; outline-offset: -2px; }
 #${CHAT_SUBTITLE_ID} .cm-subtitle-emoticon {
   display: inline-block; width: 1.3em; height: 1.3em;
   object-fit: contain; vertical-align: -0.25em;
@@ -136,6 +156,27 @@ export const chatSubtitleFeature: Feature = {
     const lines = document.createElement('div');
     lines.className = 'cm-subtitle-lines';
     overlay.appendChild(lines);
+    const composeRow = document.createElement('div');
+    composeRow.className = 'cm-subtitle-compose-row';
+    const compose = document.createElement('button');
+    compose.id = CHAT_SUBTITLE_COMPOSE_BUTTON_ID;
+    compose.type = 'button';
+    const popupOpen = !!document.getElementById(FULLSCREEN_CHAT_POPUP_ID);
+    const composeLabel = popupOpen ? '채팅 입력 닫기' : '채팅 입력 열기';
+    compose.setAttribute('aria-label', composeLabel);
+    compose.title = composeLabel;
+    compose.setAttribute('aria-haspopup', 'dialog');
+    compose.setAttribute('aria-controls', FULLSCREEN_CHAT_POPUP_ID);
+    compose.setAttribute('aria-expanded', String(popupOpen));
+    compose.appendChild(createIconElement('chatBubble'));
+    compose.addEventListener('click', (event) => {
+      event.stopPropagation();
+      compose.dispatchEvent(new Event(CHAT_SUBTITLE_COMPOSE_EVENT, { bubbles: true }));
+    });
+    for (const type of ['pointerdown', 'pointerup', 'dblclick', 'keydown', 'keyup'])
+      compose.addEventListener(type, (event) => event.stopPropagation());
+    composeRow.appendChild(compose);
+    overlay.appendChild(composeRow);
     overlay.style.color = settings.textColor;
     overlay.style.backgroundColor = subtitleBackground(settings);
     let mounted: HTMLElement | null = null;
@@ -167,7 +208,8 @@ export const chatSubtitleFeature: Feature = {
         }
       }
       if (overlay.parentElement !== player) player.appendChild(overlay);
-      if (lines.parentElement !== overlay) overlay.replaceChildren(lines);
+      if (lines.parentElement !== overlay || composeRow.parentElement !== overlay)
+        overlay.replaceChildren(lines, composeRow);
       const aside = document.querySelector(ID.asideChatting);
       if (aside !== observedAside) {
         source.reset();
@@ -191,7 +233,6 @@ export const chatSubtitleFeature: Feature = {
         player.classList.contains('pzp-pc--controls'),
       );
       overlay.hidden =
-        messages.length === 0 ||
         rect.width === 0 ||
         rect.height === 0 ||
         (!ctx.page.isSlotFrame && document.getElementById('cm-multiview-stage') !== null);
@@ -199,6 +240,8 @@ export const chatSubtitleFeature: Feature = {
       overlay.style.left = `${picture.left + geometry.left}px`;
       overlay.style.bottom = `${picture.bottom + geometry.bottom}px`;
       overlay.style.fontSize = `${geometry.fontPx}px`;
+      lines.hidden = messages.length === 0;
+      overlay.classList.toggle('cm-subtitle--empty', messages.length === 0);
       overlay.style.lineHeight = `${geometry.lineHeight}px`;
       lines.style.maxHeight = `${geometry.lines * geometry.lineHeight}px`;
       overlay.dataset['lines'] = String(geometry.lines);

@@ -111,7 +111,7 @@ describe('재생 시작 화면 선택', () => {
     expect(latest.autoPip.enabled).toBe(false);
     expect(host!.textContent).toContain('기본 PiP는 별도로 동작합니다');
   });
-  it('세 번 터치로 전체화면을 켜짐에서 끄고 다시 켠다', () => {
+  it('더블 클릭으로 전체화면을 켜짐에서 끄고 다시 켠다', () => {
     let latest = DEFAULT_SETTINGS;
     function Harness() {
       const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -125,7 +125,9 @@ describe('재생 시작 화면 선택', () => {
       );
     }
     mount(<Harness />);
-    const toggle = host!.querySelector<HTMLButtonElement>('[aria-label^="세 번 터치로 전체화면"]')!;
+    const toggle = host!.querySelector<HTMLButtonElement>(
+      '[aria-label^="더블 클릭으로 전체화면"]',
+    )!;
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     act(() => toggle.click());
     expect(latest.tripleTapFullscreen.enabled).toBe(false);
