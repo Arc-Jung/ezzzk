@@ -94,6 +94,7 @@ export type Settings = {
   /** 영상 하단에 최근 채팅을 자막처럼 표시한다. 0줄은 화면에 맞춰 3~6줄. */
   chatSubtitle: {
     enabled: boolean;
+    useBottomSpace: boolean;
     position: 'left' | 'center' | 'right';
     lines: 0 | 3 | 4 | 5 | 6;
     fontPx: number;
@@ -280,6 +281,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chatFont: { sidePx: CHAT_FONT_RANGE.side.default, slotPx: CHAT_FONT_RANGE.slot.default },
   chatSubtitle: {
     enabled: false,
+    useBottomSpace: false,
     position: 'left',
     lines: 0,
     fontPx: 16,

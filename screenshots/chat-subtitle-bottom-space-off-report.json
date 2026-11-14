@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-14T01:58:38.164Z",
+  "browser": "151.0.7922.34",
+  "url": "https://chzzk.naver.com/live/e14259667937be6e561d28ab156718be",
+  "viewport": {
+    "width": 859,
+    "height": 954
+  },
+  "video": {
+    "width": 1920,
+    "height": 1080
+  },
+  "placement": "video",
+  "lines": 5,
+  "overlay": {
+    "top": 526.59375,
+    "bottom": 638.59375,
+    "left": 16,
+    "right": 548
+  },
+  "pictureBottom": 718.59375,
+  "playerBottom": 954,
+  "controlsTop": 855,
+  "playing": true
+}

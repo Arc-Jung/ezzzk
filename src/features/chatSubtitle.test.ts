@@ -14,6 +14,7 @@ import {
   subtitleBackground,
   subtitleGeometry,
   subtitlePicture,
+  subtitlePlacement,
   subtitleSettings,
 } from './chatSubtitle';
 
@@ -24,6 +25,57 @@ afterEach(() => {
 });
 
 describe('자막형 채팅 저장값과 크기', () => {
+  it('하단 빈 공간 옵션은 기존 설정에서 꺼짐이고 명시한 켜짐을 보존한다', () => {
+    expect(subtitleSettings().useBottomSpace).toBe(false);
+    expect(mergeSettings({ chatSubtitle: { enabled: true } }).chatSubtitle.useBottomSpace).toBe(
+      false,
+    );
+    expect(subtitleSettings({ useBottomSpace: true }).useBottomSpace).toBe(true);
+  });
+  it.each(['left', 'center', 'right'] as const)(
+    '%s 위치를 유지하며 하단 여백에 채팅 전체를 넣는다',
+    (position) => {
+      const settings = subtitleSettings({ useBottomSpace: true, position, lines: 6 });
+      const picture = subtitlePicture(1280, 1158);
+      const geometry = subtitlePlacement(1280, 1158, 16 / 9, settings, false);
+      expect(geometry.placement).toBe('bottom-space');
+      expect(geometry.lines).toBeGreaterThanOrEqual(3);
+      expect(
+        geometry.bottom + Math.max(60, geometry.lines * geometry.lineHeight + 16),
+      ).toBeLessThan(picture.bottom);
+      expect(geometry.left).toBe(subtitleGeometry(1280, 720, settings).left);
+    },
+  );
+  it('컨트롤이 나타나면 공간에 맞춰 줄 수를 줄이고 영상과 컨트롤바를 피한다', () => {
+    const settings = subtitleSettings({ useBottomSpace: true, lines: 6 });
+    const geometry = subtitlePlacement(1280, 1158, 16 / 9, settings, true);
+    expect(geometry.placement).toBe('bottom-space');
+    expect(geometry.bottom).toBe(80);
+    expect(geometry.lines).toBeLessThan(6);
+    expect(geometry.bottom + geometry.lines * geometry.lineHeight + 16).toBeLessThan(219);
+  });
+  it('실측한 볼륨 줄까지 피하고 3줄이 들어가지 않으면 영상 안으로 돌아간다', () => {
+    const settings = subtitleSettings({ useBottomSpace: true, lines: 6 });
+    const geometry = subtitlePlacement(1280, 1158, 16 / 9, settings, true, 112);
+    expect(geometry.placement).toBe('bottom-space');
+    expect(geometry.bottom).toBe(112);
+    expect(geometry.lines).toBe(3);
+    expect(subtitlePlacement(1280, 1158, 16 / 9, settings, true, 160).placement).toBe('video');
+  });
+  it.each([
+    [1280, 720],
+    [1280, 820],
+    [1000, 400],
+  ] as const)('%d×%d의 여백이 부족하면 영상 안에 표시한다', (width, height) => {
+    const settings = subtitleSettings({ useBottomSpace: true });
+    expect(subtitlePlacement(width, height, 16 / 9, settings).placement).toBe('video');
+  });
+  it('꺼짐이면 여백이 넓어도 영상 안의 기존 위치에 표시한다', () => {
+    const settings = subtitleSettings();
+    const geometry = subtitlePlacement(1280, 1158, 16 / 9, settings);
+    expect(geometry.placement).toBe('video');
+    expect(geometry.bottom).toBeGreaterThan(219);
+  });
   it('상하·좌우 검은 여백을 제외하고 실제 영상 영역을 기준으로 배치한다', () => {
     expect(subtitlePicture(1440, 1000)).toEqual({ width: 1440, height: 810, left: 0, bottom: 95 });
     expect(subtitlePicture(1000, 400)).toEqual({
@@ -106,6 +158,55 @@ function chatFixture() {
 }
 
 describe('채팅 수집과 표시 생명주기', () => {
+  it('화면 크기와 영상 비율이 바뀌면 같은 영상·채팅·입력 버튼을 유지하며 여백 배치를 갱신한다', () => {
+    vi.useFakeTimers();
+    const player = chatFixture();
+    const video = player.querySelector('video')!;
+    let width = 1280;
+    let height = 1158;
+    vi.mocked(player.getBoundingClientRect).mockImplementation(
+      () => ({ width, height, left: 0, top: 0, right: width, bottom: height }) as DOMRect,
+    );
+    const stop = chatSubtitleFeature.start({
+      settings: mergeSettings({ chatSubtitle: { enabled: true, useBottomSpace: true } }),
+      device: decideDevice('auto'),
+      page: { type: 'live', channelId: 'a'.repeat(32), videoNo: null, isSlotFrame: false },
+    });
+    const overlay = document.getElementById(CHAT_SUBTITLE_ID)!;
+    const button = overlay.querySelector('button');
+    const row = overlay.querySelector('.cm-subtitle-message');
+    expect(overlay.dataset['placement']).toBe('bottom-space');
+    width = 915;
+    height = 412;
+    vi.advanceTimersByTime(1000);
+    expect(overlay.dataset['placement']).toBe('video');
+    width = 1280;
+    height = 1158;
+    vi.advanceTimersByTime(1000);
+    expect(overlay.dataset['placement']).toBe('bottom-space');
+    const controls = document.createElement('div');
+    controls.className = 'pzp-pc__bottom';
+    player.appendChild(controls);
+    vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue({
+      top: 1054,
+      bottom: 1158,
+      height: 104,
+    } as DOMRect);
+    player.classList.add('pzp-pc--controls');
+    vi.advanceTimersByTime(1000);
+    expect(overlay.style.bottom).toBe('112px');
+    expect(overlay.dataset['lines']).toBe('3');
+    Object.defineProperties(video, { videoWidth: { value: 720 }, videoHeight: { value: 1280 } });
+    video.dispatchEvent(new Event('loadedmetadata'));
+    expect(overlay.dataset['placement']).toBe('video');
+    expect(player.querySelector('video')).toBe(video);
+    expect(overlay.querySelector('button')).toBe(button);
+    expect(overlay.querySelector('.cm-subtitle-message')).toBe(row);
+    expect(document.querySelectorAll(`#${CHAT_SUBTITLE_ID}`)).toHaveLength(1);
+    stop?.();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('일시정지 중 표시 DOM이 비워져도 playing에서 같은 채팅을 복구하고 새 채팅을 갱신한다', () => {
     vi.useFakeTimers();
     const player = chatFixture();

@@ -27,6 +27,14 @@ describe('자막형 채팅 설정', () => {
     const toggle = host.querySelector<HTMLButtonElement>('button[role="switch"]')!;
     act(() => toggle.click());
     expect(latest.chatSubtitle.enabled).toBe(true);
+    const bottomSpace = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="하단 빈 공간에 표시 꺼짐"]',
+    )!;
+    expect(bottomSpace.getAttribute('aria-checked')).toBe('false');
+    act(() => bottomSpace.click());
+    expect(latest.chatSubtitle.useBottomSpace).toBe(true);
+    act(() => bottomSpace.click());
+    expect(latest.chatSubtitle.useBottomSpace).toBe(false);
     const nicknameColor = host.querySelector<HTMLButtonElement>(
       'button[aria-label="치지직 원본 닉네임 색상 사용 켜짐"]',
     )!;

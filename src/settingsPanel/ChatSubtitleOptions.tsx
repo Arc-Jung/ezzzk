@@ -40,6 +40,12 @@ export function ChatSubtitleOptions({
           <option value="right">우측 하단</option>
         </select>
       </div>
+      <Toggle
+        label="하단 빈 공간에 표시"
+        checked={value.useBottomSpace}
+        onChange={(useBottomSpace) => patch({ useBottomSpace })}
+        hint={<p className="cm-sheet__note">여백이 부족하면 영상 위에 표시합니다.</p>}
+      />
       <div className="cm-sheet__row">
         <label htmlFor="cm-subtitle-count">표시 줄 수</label>
         <select
