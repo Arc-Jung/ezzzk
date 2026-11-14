@@ -21,7 +21,7 @@
 
 ## 스크린샷
 
-[자막형 채팅 사용법·검증 화면](screenshots/chat-subtitle.md) · [전체화면 채팅 입력](screenshots/fullscreen-chat.md) · [클린봇 켜기·끄기](screenshots/cleanbot.md) · [자동 PiP 옵션](screenshots/auto-pip.md)
+[자막형 채팅 사용법·검증 화면](screenshots/chat-subtitle.md) · [전체화면 채팅 입력](screenshots/fullscreen-chat.md) · [오버레이에서 채팅 보내기](screenshots/overlay-chat-compose.md) · [클린봇 켜기·끄기](screenshots/cleanbot.md) · [자동 PiP 옵션](screenshots/auto-pip.md)
 
 [갤럭시 Z 폴드8·폴드8 울트라 화면별 검증과 스크린샷](screenshots/fold8.md)
 
