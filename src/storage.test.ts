@@ -9,7 +9,7 @@ import {
 import { mergeSettings, migrate } from './storage';
 
 describe('자동 PiP 설정 병합', () => {
-  it('세 번 터치는 기존 설정에 켜짐을 보완하고 명시한 꺼짐을 보존한다', () => {
+  it('더블 클릭은 기존 설정에 켜짐을 보완하고 명시한 꺼짐을 보존한다', () => {
     expect(mergeSettings({}).tripleTapFullscreen.enabled).toBe(true);
     expect(
       mergeSettings({ tripleTapFullscreen: { enabled: false } }).tripleTapFullscreen.enabled,

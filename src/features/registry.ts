@@ -23,7 +23,7 @@ import { chatSubtitleButtonFeature } from './chatSubtitleButton';
 import { chatSubtitleFeature } from './chatSubtitle';
 import { fullscreenChatFeature } from './fullscreenChat';
 import { fullscreenRestoreFeature } from './fullscreenRestore';
-import { tripleTapFullscreenFeature } from './tripleTapFullscreen';
+import { doubleTapFullscreenFeature } from './doubleTapFullscreen';
 import { chatPresetFeature } from './chatPreset';
 import { chatUserFilterFeature } from './chatUserFilter';
 import { chatWidthFeature } from './chatWidth';
@@ -51,7 +51,7 @@ export const FEATURES: Feature[] = [
   chatSubtitleFeature,
   chatSubtitleButtonFeature,
   fullscreenChatFeature,
-  tripleTapFullscreenFeature,
+  doubleTapFullscreenFeature,
   fullscreenRestoreFeature,
   autoPipFeature,
   qualityFeature, // FR-01

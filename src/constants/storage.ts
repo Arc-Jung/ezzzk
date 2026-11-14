@@ -56,6 +56,7 @@ export type Settings = {
   liveResume: { enabled: boolean };
   /** 지원 브라우저의 싱글뷰 자동 PiP 요청에 응답한다. 브라우저 자체 PiP와는 별개. */
   autoPip: { enabled: boolean };
+  /** 더블 터치 전체화면. 기존 옵션·프리셋 호환을 위해 저장 키를 유지한다. */
   tripleTapFullscreen: { enabled: boolean };
   /**
    * FR-19 오디오 처리 (2026-08-20). 구현 참조: chzzk-plus (kyechan99/chzzk-plus, MIT).

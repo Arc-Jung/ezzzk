@@ -1,9 +1,9 @@
-/** 영상 위의 연속 세 번 터치로 전체화면을 전환한다. */
+/** 영상 위의 연속 두 번 터치로 전체화면을 전환한다. */
 import { OURS, PLAYER } from '../constants/class';
 import type { Disposer, Feature } from './types';
 
 export const FULLSCREEN_EXIT_INTENT = 'cm-fullscreen-exit-intent';
-const SLOT_TOGGLE = 'cm-triple-tap-fullscreen';
+const SLOT_TOGGLE = 'cm-double-tap-fullscreen';
 const PLAYER_SELECTOR = `${PLAYER.rootPc}, ${PLAYER.rootMobile}`;
 const INTERACTIVE =
   'button, input, textarea, select, a, [role="button"], [role="slider"], [role="dialog"], [role="menu"], [contenteditable]:not([contenteditable="false"]), .pzp-pc__bottom, .pzp-mobile__bottom, [class*="setting-pane"], [class*="contextmenu"]';
@@ -16,7 +16,7 @@ type Point = { x: number; y: number };
 type Tap = Point & { player: HTMLElement; at: number; count: number };
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
-export function registerTripleTapFullscreen(isSlotFrame = false): Disposer {
+export function registerDoubleTapFullscreen(isSlotFrame = false): Disposer {
   const touches = new Set<number>();
   let down: (Point & { id: number; player: HTMLElement; at: number }) | null = null;
   let sequence: Tap | null = null;
@@ -109,7 +109,7 @@ export function registerTripleTapFullscreen(isSlotFrame = false): Disposer {
         ? sequence.count + 1
         : 1;
     lastTouch = sequence = { ...point, player: tap.player, at: now, count };
-    if (count !== 3) return;
+    if (count !== 2) return;
     sequence = null;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -122,7 +122,7 @@ export function registerTripleTapFullscreen(isSlotFrame = false): Disposer {
     lastTouch = null;
   };
   const onClick = (event: MouseEvent) => {
-    // 두 번째 터치의 dblclick이 먼저 전체화면을 바꾸지 않게 한다. 마우스 더블클릭은 유지한다.
+    // 터치로 전환한 뒤 생기는 dblclick의 중복 전환을 막는다. 마우스 더블클릭은 유지한다.
     if (
       !event.isTrusted ||
       !lastTouch ||
@@ -181,12 +181,12 @@ export function registerTripleTapFullscreen(isSlotFrame = false): Disposer {
   };
 }
 
-export const tripleTapFullscreenFeature: Feature = {
-  id: 'tripleTapFullscreen',
+export const doubleTapFullscreenFeature: Feature = {
+  id: 'doubleTapFullscreen',
   watches: ['tripleTapFullscreen'],
   preserveOnDeviceChange: true,
   supports: (ctx) =>
     ctx.settings.tripleTapFullscreen.enabled &&
     ['live', 'vod', 'mobile-web'].includes(ctx.page.type),
-  start: (ctx) => registerTripleTapFullscreen(ctx.page.isSlotFrame),
+  start: (ctx) => registerDoubleTapFullscreen(ctx.page.isSlotFrame),
 };

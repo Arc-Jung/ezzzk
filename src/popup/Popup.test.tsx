@@ -84,10 +84,10 @@ afterEach(() => {
 });
 
 describe('Popup — 마운트', () => {
-  it('세 번 터치 설정을 켜짐에서 끄고 다시 켜면 저장한다', async () => {
+  it('더블 클릭 설정을 켜짐에서 끄고 다시 켜면 저장한다', async () => {
     const { store } = installFakeChrome({ [STORAGE_KEY]: DEFAULT_SETTINGS });
     const el = await mountPopup();
-    const toggle = el.querySelector<HTMLInputElement>('[aria-label="세 번 터치로 전체화면"]')!;
+    const toggle = el.querySelector<HTMLInputElement>('[aria-label="더블 클릭으로 전체화면"]')!;
     expect(toggle.checked).toBe(true);
     await act(async () => {
       toggle.click();

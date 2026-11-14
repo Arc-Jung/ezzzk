@@ -1,7 +1,7 @@
 /** 앱 전환으로 잃은 전체화면을 복원한다. 직접 종료한 경우에는 복원하지 않는다. */
 import { OURS, PLAYER } from '../constants/class';
 import type { Disposer, Feature } from './types';
-import { FULLSCREEN_EXIT_INTENT } from './tripleTapFullscreen';
+import { FULLSCREEN_EXIT_INTENT } from './doubleTapFullscreen';
 
 const PLAYER_SELECTOR = `${PLAYER.rootPc}, ${PLAYER.rootMobile}`;
 const EXIT_BUTTON = `${PLAYER.fullscreenButton}, .pzp-mobile__fullscreen-button, [data-cm-fullscreen-toggle]`;
