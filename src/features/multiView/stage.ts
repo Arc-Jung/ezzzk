@@ -13,7 +13,7 @@
 import { createIconElement } from '../../ui/icons';
 import { averageVolumeTarget, AUTO_VOLUME_TARGET } from './autoVolume';
 import { ACCENT, FONT_FAMILY, RADIUS, UI_STATE } from '../../ui/tokens';
-import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
+import { OURS } from '../../constants/class';
 import type { MultiViewSlot, Settings, SlotIndex, SlotLines } from '../../constants/storage';
 import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
@@ -384,23 +384,6 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
 }
 #${OURS.multiViewStageId} .cm-stage-bar output { min-width: 40px; text-align: center; }
 /*
-  BETA 뱃지. 조작 바의 **정적 텍스트**라 스크린 리더가 조작마다 반복해 읽지 않는다
-  (버튼 안이 아니므로 aria-hidden 을 쓰지 않는다).
-  🔴 바 높이를 키우지 않게 버튼(min-height: touchTargetPx)보다 낮게 유지한다 —
-  바 높이는 stageTopInset() 을 통해 슬롯 배치 띠로 그대로 환산된다.
-*/
-#${OURS.multiViewStageId} .cm-stage-bar .${OURS.betaBadgeClass} {
-  flex: 0 0 auto;
-  padding: 1px 5px;
-  border: 1px solid #00ffa3;
-  border-radius: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: 0.04em;
-  color: #00ffa3;
-}
-/*
   사이드 채팅 패널 (BETA, 요청 2026-08-18).
   🔴 무대 오른쪽 **바깥**에 붙인다. 컨테이너 폭은 layout() 이 viewport - chatWidth 로 줄이므로
   패널은 그 옆 빈 자리를 차지한다 — 슬롯을 덮지 않는다(겹침 판정이 이것을 감시한다).
@@ -432,16 +415,6 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
 #${OURS.multiViewStageId} .cm-stage-chat__title {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-#${OURS.multiViewStageId} .cm-stage-chat__head .${OURS.betaBadgeClass} {
-  flex: 0 0 auto;
-  padding: 1px 5px;
-  border: 1px solid #00ffa3;
-  border-radius: 4px;
-  font-size: 9px;
-  line-height: 1.4;
-  letter-spacing: 0.04em;
-  color: #00ffa3;
 }
 /* 목록만 스크롤한다 — 헤더가 밀려 올라가면 어느 방송 채팅인지 알 수 없다. */
 #${OURS.multiViewStageId} .cm-stage-chat__list {
@@ -1202,12 +1175,6 @@ export class MultiViewStage {
     const bar = document.createElement('div');
     bar.className = 'cm-stage-bar';
 
-    // 멀티뷰가 아직 불안정함을 스테이지에서도 알린다 (2026-08-16). 조작 요소가 아니다.
-    const beta = document.createElement('span');
-    beta.className = OURS.betaBadgeClass;
-    beta.textContent = BETA_BADGE_TEXT;
-    bar.appendChild(beta);
-
     const configButton = document.createElement('button');
     configButton.type = 'button';
     configButton.setAttribute('aria-label', '멀티뷰 구성 열기');
@@ -1609,11 +1576,6 @@ export class MultiViewStage {
       const title = document.createElement('span');
       title.className = 'cm-stage-chat__title';
       head.appendChild(title);
-      // BETA 뱃지 — 멀티뷰 3지점과 같은 클래스·문구를 쓴다 (요청 2026-08-18).
-      const badge = document.createElement('span');
-      badge.className = OURS.betaBadgeClass;
-      badge.textContent = BETA_BADGE_TEXT;
-      head.appendChild(badge);
 
       const list = document.createElement('div');
       list.className = 'cm-stage-chat__list';

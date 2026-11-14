@@ -78,7 +78,7 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
       away = restore = false;
       return;
     }
-    if (away) {
+    if (away || restore) {
       clearTimer();
       restore = true;
       request(false);
@@ -121,13 +121,12 @@ export function keepFullscreenOnReturn(isSlotFrame = false): Disposer {
       away = restore = true;
       resume();
     } else {
-      // 일부 브라우저는 전체화면 종료를 visibilitychange/blur보다 먼저 보낸다.
+      // PiP 전환·늦은 앱 전환 이벤트를 잠깐 기다린다. 명시적 종료 전까지 복원 의사는 유지한다.
+      restore = true;
       exitTimer = setTimeout(() => {
         exitTimer = undefined;
-        if (away || !visible()) {
-          away = restore = true;
-          resume();
-        } else forget();
+        if (!wanted || document.pictureInPictureElement) return;
+        resume();
       }, 250);
     }
   };

@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../constants/storage';
 import { decideDevice } from '../../device';
-import { BETA_BADGE_TEXT, OURS } from '../../constants/class';
+import { OURS } from '../../constants/class';
 import { auditIconButtons } from '../../ui/iconButtonAudit.test-utils';
 import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
 import { MV_CHANNEL } from './messages';
@@ -903,13 +903,13 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     [...document.querySelectorAll('.cm-stage-chat__line')].map((n) => n.textContent);
 
   it.skipIf(!MULTIVIEW_CHAT_ENABLED)(
-    '사이드 채팅 패널에 BETA 뱃지가 붙고 활성 슬롯 채널명이 보인다',
+    '사이드 채팅 패널에 활성 슬롯 채널명이 보이고 BETA 뱃지는 없다',
     () => {
       // 기본값이 chatMode: 'none' 이라 패널 테스트는 명시적으로 켠다 (2026-08-20).
       const { stage } = openStage({ chatMode: 'active' });
 
       expect(panel()).not.toBeNull();
-      expect(panel()?.querySelector(`.${OURS.betaBadgeClass}`)?.textContent).toBe(BETA_BADGE_TEXT);
+      expect(panel()?.querySelector(`.${OURS.betaBadgeClass}`)).toBeNull();
       expect(panel()?.querySelector('.cm-stage-chat__title')?.textContent).toContain('로마러');
 
       stage.close();
