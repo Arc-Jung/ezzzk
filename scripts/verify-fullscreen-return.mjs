@@ -21,7 +21,7 @@ const report = {
   viewport: { width: 859, height: 798 },
   fixture: 'canvas captureStream video on routed Chzzk URLs',
   lifecycle: 'pagehide/pageshow replay',
-  permissionCase: 'first automatic restore request rejection (fault injection)',
+  permissionCase: 'automatic restore rejected until trusted input (fault injection)',
   cases: [],
 };
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
@@ -45,11 +45,11 @@ async function requireGesture(page) {
   for (const world of contexts)
     await session.send('Runtime.evaluate', {
       contextId: world.id,
-      expression: `(()=>{let blocked=true;const original=HTMLElement.prototype.requestFullscreen;HTMLElement.prototype.requestFullscreen=function(options){if(blocked){blocked=false;return Promise.reject(new TypeError('Injected: user gesture required'))};return original.call(this,options)}})()`,
+      expression: `(()=>{let blocked=true;const original=HTMLElement.prototype.requestFullscreen;document.addEventListener('pointerup',e=>{if(e.isTrusted)blocked=false},true);window.addEventListener('message',e=>{if(e.origin===location.origin&&e.data==='cm-fullscreen-restore-gesture'&&[...document.querySelectorAll('#cm-multiview-stage iframe')].some(f=>f.contentWindow===e.source))blocked=false},true);HTMLElement.prototype.requestFullscreen=function(options){if(blocked)return Promise.reject(new TypeError('Injected: user gesture required'));return original.call(this,options)}})()`,
     });
   return session;
 }
-async function runCase(name, multiView, leaf, blocked) {
+async function runCase(name, multiView, leaf, blocked, delayed = false) {
   await seedSettings(context, {
     wideScreen: { enabled: false, mode: 'default' },
     multiView: {
@@ -71,7 +71,7 @@ async function runCase(name, multiView, leaf, blocked) {
   const page = await context.newPage();
   let probe;
   let videoOwner = page;
-  const result = { name, multiView, leaf, blocked, states: [] };
+  const result = { name, multiView, leaf, blocked, delayed, states: [] };
   const sample = async (owner, phase) => {
     const value = await videoOwner.evaluate(() => ({
       sameVideo: document.querySelector('video') === window.__originalVideo,
@@ -85,6 +85,7 @@ async function runCase(name, multiView, leaf, blocked) {
   try {
     await page.goto('https://chzzk.naver.com/live/' + channels[0]);
     await page.waitForSelector('#cm-settings-button');
+    if (await page.locator('.cm-beta-badge').count()) throw Error('BETA badge remains');
     let owner = page;
     if (multiView) {
       await page.waitForFunction(() => document.querySelectorAll('.cm-slot iframe').length === 4);
@@ -109,10 +110,14 @@ async function runCase(name, multiView, leaf, blocked) {
     if (blocked) probe = await requireGesture(page);
     // 요청에 쓰인 기존 입력 활성화가 만료될 때까지 기다린다.
     await page.waitForTimeout(6000);
+    if (delayed) {
+      await owner.evaluate(() => document.exitFullscreen());
+      await page.waitForTimeout(700);
+    }
     await owner.evaluate(() =>
       window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })),
     );
-    await owner.evaluate(() => document.exitFullscreen());
+    if (!delayed) await owner.evaluate(() => document.exitFullscreen());
     await owner.evaluate(() =>
       window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
     );
@@ -178,6 +183,8 @@ try {
   await runCase('single-gesture-return', false, false, true);
   await runCase('multiview-gesture-return', true, false, true);
   await runCase('slot-gesture-return', true, true, true);
+  await runCase('single-late-return', false, false, true, true);
+  await runCase('multiview-late-return', true, false, true, true);
   report.success = true;
 } finally {
   writeFileSync(resolve(out, 'report.json'), JSON.stringify(report, null, 2));

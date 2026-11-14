@@ -3,7 +3,7 @@ import {
   subtitleBackground,
   subtitleSettings,
   type SubtitleSettings,
-} from '../features/chatSubtitle';
+} from '../features/chatSubtitleSettings';
 import { Stepper } from '../popup/Stepper';
 import { Toggle } from './tabs';
 

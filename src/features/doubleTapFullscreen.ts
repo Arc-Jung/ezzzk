@@ -2,8 +2,10 @@
 import { OURS, PLAYER } from '../constants/class';
 import type { Disposer, Feature } from './types';
 
-export const FULLSCREEN_EXIT_INTENT = 'cm-fullscreen-exit-intent';
-const SLOT_TOGGLE = 'cm-double-tap-fullscreen';
+import {
+  FULLSCREEN_EXIT_INTENT,
+  SLOT_FULLSCREEN_TOGGLE as SLOT_TOGGLE,
+} from './fullscreenProtocol';
 const PLAYER_SELECTOR = `${PLAYER.rootPc}, ${PLAYER.rootMobile}`;
 const INTERACTIVE =
   'button, input, textarea, select, a, [role="button"], [role="slider"], [role="dialog"], [role="menu"], [contenteditable]:not([contenteditable="false"]), .pzp-pc__bottom, .pzp-mobile__bottom, [class*="setting-pane"], [class*="contextmenu"]';
