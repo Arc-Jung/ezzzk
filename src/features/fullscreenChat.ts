@@ -12,6 +12,14 @@ export const CHAT_SUBTITLE_COMPOSE_BUTTON_ID = 'cm-chat-subtitle-compose';
 export const CHAT_SUBTITLE_COMPOSE_EVENT = 'cm-chat-subtitle-compose-request';
 const STYLE_ID = `${FULLSCREEN_CHAT_POPUP_ID}-style`;
 
+function isLineBreak(event: InputEvent) {
+  return (
+    event.inputType === 'insertLineBreak' ||
+    event.inputType === 'insertParagraph' ||
+    (event.inputType === 'insertText' && /^\r?\n$/.test(event.data ?? ''))
+  );
+}
+
 export const fullscreenChatFeature: Feature = {
   id: 'fullscreenChat',
   watches: [],
@@ -19,14 +27,15 @@ export const fullscreenChatFeature: Feature = {
   supports: (ctx) => ctx.page.type === 'live',
   start: (ctx) => {
     let button: HTMLButtonElement | null = null;
-    let popup: HTMLDivElement | null = null;
+    let popup: HTMLFormElement | null = null;
     let popupHost: HTMLElement | null = null;
     let invoker: HTMLElement | null = null;
     let openedFullscreen = false;
-    let editor: HTMLTextAreaElement | null = null;
+    let editor: HTMLInputElement | null = null;
     let send: HTMLButtonElement | null = null;
     let note: HTMLParagraphElement | null = null;
     let composing = false;
+    let enterTimer: ReturnType<typeof setTimeout> | undefined;
     let busy = false;
     let lastSentAt = -Infinity;
     let poll: ReturnType<typeof setInterval> | undefined;
@@ -64,8 +73,8 @@ export const fullscreenChatFeature: Feature = {
   border-radius: 8px; background: #ffffff12; color: inherit; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
-#${FULLSCREEN_CHAT_POPUP_ID} textarea {
-  box-sizing: border-box; display: block; width: 100%; height: 64px; min-height: 44px;
+#${FULLSCREEN_CHAT_POPUP_ID} .cm-fullscreen-chat-editor {
+  box-sizing: border-box; display: block; width: 100%; height: 44px; min-height: 44px;
   margin: 6px 0; padding: 8px; resize: none; border: 1px solid #ffffff55;
   border-radius: 8px; background: #0004; color: #fff; font: 16px/1.4 sans-serif;
 }
@@ -102,6 +111,8 @@ export const fullscreenChatFeature: Feature = {
     const close = (restoreFocus = false) => {
       const focusTarget = invoker ?? button;
       clearInterval(poll);
+      clearTimeout(enterTimer);
+      enterTimer = undefined;
       poll = undefined;
       popup?.remove();
       popup = null;
@@ -145,12 +156,15 @@ export const fullscreenChatFeature: Feature = {
         original.disabled ||
         performance.now() - lastSentAt < LIMITS.chatSendIntervalMs;
       if (send.disabled !== disabled) send.disabled = disabled;
-      let message = unavailable
-        ? '채팅 입력이 가능한 상태에서 사용해주세요.'
-        : 'Enter 전송 · Shift+Enter 줄바꿈';
+      let message = unavailable ? '채팅 입력이 가능한 상태에서 사용해주세요.' : 'Enter로 전송';
       if (source?.placeholder.includes('로그인'))
         message = '치지직에 로그인한 뒤 채팅을 보낼 수 있습니다.';
       if (note.textContent !== message) note.textContent = message;
+    };
+    const copyDraft = () => {
+      const source = input();
+      if (source && !source.disabled && !source.readOnly && editor && source.value !== editor.value)
+        setNativeValue(source, editor.value);
     };
     const submit = () => {
       if (!editor || composing || busy) return;
@@ -174,6 +188,17 @@ export const fullscreenChatFeature: Feature = {
       busy = false;
       sync();
     };
+    // Android IME는 Enter keydown 대신 beforeinput/input으로 줄바꿈을 전달할 수 있다.
+    // 같은 입력 묶음의 최종 한글·input 반영 뒤 전송하고 중복 이벤트는 합친다.
+    const queueEnter = () => {
+      clearTimeout(enterTimer);
+      enterTimer = setTimeout(() => {
+        enterTimer = undefined;
+        if (!editor || composing) return;
+        copyDraft();
+        submit();
+      }, 0);
+    };
     const toggle = (trigger: HTMLElement | null, host: HTMLElement | null) => {
       if (popup) {
         invoker = trigger ?? invoker;
@@ -184,10 +209,15 @@ export const fullscreenChatFeature: Feature = {
       invoker = trigger;
       popupHost = host;
       openedFullscreen = !!document.fullscreenElement;
-      popup = document.createElement('div');
+      popup = document.createElement('form');
       popup.id = FULLSCREEN_CHAT_POPUP_ID;
       popup.setAttribute('role', 'dialog');
       popup.setAttribute('aria-label', '전체화면 채팅 입력');
+      popup.addEventListener('submit', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        submit();
+      });
       const header = document.createElement('div');
       header.className = 'cm-fullscreen-chat-header';
       const title = document.createElement('strong');
@@ -198,8 +228,11 @@ export const fullscreenChatFeature: Feature = {
       dismiss.appendChild(createIconElement('close'));
       dismiss.addEventListener('click', () => close(true));
       header.append(title, dismiss);
-      editor = document.createElement('textarea');
+      editor = document.createElement('input');
+      editor.type = 'text';
+      editor.className = 'cm-fullscreen-chat-editor';
       editor.setAttribute('aria-label', '전체화면 채팅 내용');
+      editor.setAttribute('enterkeyhint', 'send');
       editor.value = input()?.value ?? '';
       editor.addEventListener('compositionstart', () => {
         composing = true;
@@ -207,20 +240,21 @@ export const fullscreenChatFeature: Feature = {
       editor.addEventListener('compositionend', () => {
         composing = false;
       });
-      editor.addEventListener('input', () => {
-        const source = input();
-        if (source && !source.disabled && !source.readOnly && editor)
-          setNativeValue(source, editor.value);
+      editor.addEventListener('beforeinput', (event) => {
+        if (!isLineBreak(event) || event.isComposing) return;
+        event.preventDefault();
+        queueEnter();
+      });
+      editor.addEventListener('input', (event) => {
+        if (event instanceof InputEvent && isLineBreak(event) && !event.isComposing) {
+          // 취소할 수 없는 IME 입력도 처리한다. 한 줄 입력창은 개행을 저장하지 않는다.
+          queueEnter();
+        }
+        copyDraft();
         sync();
       });
       editor.addEventListener('keydown', (event) => {
-        if (
-          event.key === 'Enter' &&
-          !event.shiftKey &&
-          !event.isComposing &&
-          !composing &&
-          event.keyCode !== 229
-        ) {
+        if (event.key === 'Enter' && !event.isComposing && !composing && event.keyCode !== 229) {
           event.preventDefault();
           submit();
         }
@@ -231,10 +265,9 @@ export const fullscreenChatFeature: Feature = {
       note.className = 'cm-fullscreen-chat-note';
       note.setAttribute('aria-live', 'polite');
       send = document.createElement('button');
-      send.type = 'button';
+      send.type = 'submit';
       send.className = 'cm-fullscreen-chat-send';
-      send.textContent = '채팅';
-      send.addEventListener('click', submit);
+      send.textContent = '전송';
       footer.append(note, send);
       popup.append(header, editor, footer);
       // 입력·조작이 플레이어의 재생 토글/전체화면 제스처로 전달되지 않게 한다.

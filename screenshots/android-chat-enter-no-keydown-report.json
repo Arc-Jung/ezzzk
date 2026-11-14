@@ -1,0 +1,80 @@
+{
+  "date": "2026-11-14T02:33:42.056Z",
+  "android": "16",
+  "browser": "157.0.8103.51",
+  "input": "CDP Input.insertText newline without keydown in Android Chrome; not a Samsung keyboard trace",
+  "cases": [
+    {
+      "version": "before",
+      "sent": [],
+      "editor": "아옹아옹\n",
+      "events": [
+        {
+          "type": "beforeinput",
+          "inputType": "insertText",
+          "data": "아옹아옹",
+          "isComposing": false,
+          "defaultPrevented": false,
+          "value": ""
+        },
+        {
+          "type": "input",
+          "inputType": "insertText",
+          "data": "아옹아옹",
+          "isComposing": false,
+          "defaultPrevented": false,
+          "value": "아옹아옹"
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertText",
+          "data": "\n",
+          "isComposing": false,
+          "defaultPrevented": false,
+          "value": "아옹아옹"
+        },
+        {
+          "type": "input",
+          "inputType": "insertLineBreak",
+          "data": null,
+          "isComposing": false,
+          "defaultPrevented": false,
+          "value": "아옹아옹\n"
+        }
+      ]
+    },
+    {
+      "version": "after",
+      "sent": [
+        "아옹아옹"
+      ],
+      "editor": "",
+      "events": [
+        {
+          "type": "beforeinput",
+          "inputType": "insertText",
+          "data": "아옹아옹",
+          "isComposing": false,
+          "defaultPrevented": false,
+          "value": ""
+        },
+        {
+          "type": "input",
+          "inputType": "insertText",
+          "data": "아옹아옹",
+          "isComposing": false,
+          "defaultPrevented": false,
+          "value": "아옹아옹"
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertText",
+          "data": "\n",
+          "isComposing": false,
+          "defaultPrevented": false,
+          "value": "아옹아옹"
+        }
+      ]
+    }
+  ]
+}
