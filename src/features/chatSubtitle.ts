@@ -32,6 +32,7 @@ export function subtitleSettings(value?: Partial<SubtitleSettings>): SubtitleSet
     typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : fallback;
   return {
     enabled: value?.enabled === true,
+    useBottomSpace: value?.useBottomSpace === true,
     position:
       value?.position === 'right' || value?.position === 'center'
         ? value.position
@@ -105,6 +106,38 @@ export function subtitleGeometry(
     left,
     bottom,
   };
+}
+
+/** 여백 안에 최소 3줄과 조작 버튼이 들어갈 때만 영상 아래로 옮긴다. */
+export function subtitlePlacement(
+  width: number,
+  height: number,
+  aspect: number,
+  settings: SubtitleSettings,
+  controlsVisible = false,
+  controlsHeight = 0,
+) {
+  const picture = subtitlePicture(width, height, aspect);
+  const geometry = subtitleGeometry(picture.width, picture.height, settings, controlsVisible);
+  const video = {
+    ...geometry,
+    left: picture.left + geometry.left,
+    bottom: picture.bottom + geometry.bottom,
+    placement: 'video' as const,
+  };
+  if (!settings.useBottomSpace) return video;
+  const bottom = Math.round(
+    controlsVisible
+      ? Math.max(Math.min(80, height * 0.25), controlsHeight)
+      : Math.min(20, height * 0.08),
+  );
+  const lines = Math.min(
+    geometry.lines,
+    Math.floor((picture.bottom - bottom - 16 - 8) / geometry.lineHeight),
+  );
+  if (lines < 3 || bottom + Math.max(60, lines * geometry.lineHeight + 16) + 8 > picture.bottom)
+    return video;
+  return { ...geometry, left: video.left, bottom, lines, placement: 'bottom-space' as const };
 }
 
 export const CHAT_SUBTITLE_CSS = `
@@ -225,20 +258,31 @@ export const chatSubtitleFeature: Feature = {
         video && video.videoWidth > 0 && video.videoHeight > 0
           ? video.videoWidth / video.videoHeight
           : 16 / 9;
-      const picture = subtitlePicture(rect.width, rect.height, aspect);
-      const geometry = subtitleGeometry(
-        picture.width,
-        picture.height,
+      const controlsVisible = player.classList.contains('pzp-pc--controls');
+      let controlsHeight = 0;
+      if (settings.useBottomSpace && controlsVisible) {
+        for (const control of player.querySelectorAll('.pzp-pc__bottom, #cm-volume-control')) {
+          const box = control.getBoundingClientRect();
+          if (box.height > 0 && box.top >= rect.top && box.top < rect.bottom)
+            controlsHeight = Math.max(controlsHeight, rect.bottom - box.top + 8);
+        }
+      }
+      const geometry = subtitlePlacement(
+        rect.width,
+        rect.height,
+        aspect,
         settings,
-        player.classList.contains('pzp-pc--controls'),
+        controlsVisible,
+        controlsHeight,
       );
       overlay.hidden =
         rect.width === 0 ||
         rect.height === 0 ||
         (!ctx.page.isSlotFrame && document.getElementById('cm-multiview-stage') !== null);
       overlay.style.width = `${geometry.width}px`;
-      overlay.style.left = `${picture.left + geometry.left}px`;
-      overlay.style.bottom = `${picture.bottom + geometry.bottom}px`;
+      overlay.style.left = `${geometry.left}px`;
+      overlay.style.bottom = `${geometry.bottom}px`;
+      overlay.dataset['placement'] = geometry.placement;
       overlay.style.fontSize = `${geometry.fontPx}px`;
       lines.hidden = messages.length === 0;
       overlay.classList.toggle('cm-subtitle--empty', messages.length === 0);

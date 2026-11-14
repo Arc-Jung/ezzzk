@@ -463,6 +463,136 @@ SHOTS.push({
     await page.waitForTimeout(600);
   },
 });
+// 하단 여백은 실제 영상 크기와 오버레이 영역을 비교한 뒤 저장한다.
+for (const bottomSpace of [false, true]) {
+  SHOTS.push({
+    ...subtitleShot,
+    key: bottomSpace ? 'chat-subtitle-bottom-space' : 'chat-subtitle-bottom-space-off',
+    bottomSpace,
+    caption: bottomSpace ? '하단 빈 공간에 채팅 표시' : '영상 위에 채팅 표시',
+    file: (p) => `demo-${p}-chat-subtitle-bottom-space${bottomSpace ? '' : '-off'}.png`,
+    setup: async (page) => {
+      await subtitleShot.setup(page);
+      await revealControls(page);
+      await page.locator('button.pzp-pc__fullscreen-button').first().click();
+      await page.waitForFunction(() => !!document.fullscreenElement);
+      await page.waitForFunction(
+        (enabled) =>
+          document.getElementById('cm-chat-subtitle')?.dataset.placement ===
+          (enabled ? 'bottom-space' : 'video'),
+        bottomSpace,
+      );
+    },
+    verify: async (page) => {
+      let resize;
+      if (bottomSpace) {
+        const viewport = page.viewportSize();
+        const video = await page.locator('#live_player_layout video').first().elementHandle();
+        const compose = await page.locator('#cm-chat-subtitle-compose').elementHandle();
+        try {
+          await page.setViewportSize({ width: 915, height: 412 });
+          await page.waitForFunction(
+            () => document.getElementById('cm-chat-subtitle')?.dataset.placement === 'video',
+          );
+          await page.setViewportSize(viewport);
+          await revealControls(page);
+          await page.waitForFunction(
+            () => document.getElementById('cm-chat-subtitle')?.dataset.placement === 'bottom-space',
+          );
+          resize = {
+            sameVideo: await video.evaluate(
+              (v) => v === document.querySelector('#live_player_layout video'),
+            ),
+            sameCompose: await compose.evaluate(
+              (e) => e === document.getElementById('cm-chat-subtitle-compose'),
+            ),
+          };
+          if (!resize.sameVideo || !resize.sameCompose)
+            throw new Error('화면 크기 전환 후 영상 또는 입력 버튼 교체');
+        } finally {
+          await page.setViewportSize(viewport);
+        }
+      }
+      const result = await page.locator('#cm-chat-subtitle').evaluate((overlay) => {
+        const rect = overlay.getBoundingClientRect();
+        const player = overlay.parentElement.getBoundingClientRect();
+        const video = overlay.parentElement.querySelector('video');
+        const pictureHeight = Math.min(
+          player.height,
+          player.width / (video.videoWidth / video.videoHeight),
+        );
+        return {
+          url: location.href,
+          viewport: { width: innerWidth, height: innerHeight },
+          video: { width: video.videoWidth, height: video.videoHeight },
+          placement: overlay.dataset.placement,
+          lines: Number(overlay.dataset.lines),
+          overlay: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+          pictureBottom: player.top + (player.height + pictureHeight) / 2,
+          playerBottom: player.bottom,
+          controlsTop: overlay.parentElement.classList.contains('pzp-pc--controls')
+            ? Math.min(
+                ...[
+                  ...overlay.parentElement.querySelectorAll('.pzp-pc__bottom, #cm-volume-control'),
+                ]
+                  .map((e) => e.getBoundingClientRect())
+                  .filter((r) => r.height > 0)
+                  .map((r) => r.top),
+              )
+            : null,
+          playing: !video.paused && video.readyState >= 3,
+        };
+      });
+      if (
+        !result.playing ||
+        result.lines < 3 ||
+        (bottomSpace && result.overlay.top < result.pictureBottom) ||
+        (bottomSpace &&
+          result.controlsTop !== null &&
+          result.overlay.bottom > result.controlsTop - 7) ||
+        result.overlay.bottom > result.playerBottom
+      )
+        throw new Error(`하단 여백 배치 오류: ${JSON.stringify(result)}`);
+      writeFileSync(
+        resolve(OUT_DIR, `chat-subtitle-bottom-space${bottomSpace ? '' : '-off'}-report.json`),
+        JSON.stringify(
+          {
+            date: new Date().toISOString(),
+            browser: page.context().browser().version(),
+            ...result,
+            resize,
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+    },
+  });
+}
+SHOTS.push({
+  ...subtitleShot,
+  key: 'chat-subtitle-bottom-space-settings',
+  bottomSpace: true,
+  caption: '하단 빈 공간 표시 설정',
+  file: (p) => `demo-${p}-chat-subtitle-settings.png`,
+  setup: async (page) => {
+    await subtitleShot.setup(page);
+    await revealControls(page);
+    await page.locator('#cm-settings-button').first().click();
+    await page.getByRole('tab', { name: '채팅 탭', exact: true }).click();
+    await page
+      .getByRole('switch', { name: '하단 빈 공간에 표시 켜짐', exact: true })
+      .scrollIntoViewIfNeeded();
+  },
+  verify: async (page) => {
+    if (
+      (await page
+        .getByRole('switch', { name: '하단 빈 공간에 표시 켜짐', exact: true })
+        .getAttribute('aria-checked')) !== 'true'
+    )
+      throw new Error('하단 여백 설정이 켜져 있지 않습니다');
+  },
+});
 SHOTS.push({
   ...subtitleShot,
   key: 'chat-subtitle-settings',
@@ -1577,6 +1707,7 @@ async function captureProfile(profile, channels) {
           chatWidth: { collapsed: false },
           chatSubtitle: {
             enabled: shot.subtitle ?? false,
+            useBottomSpace: shot.bottomSpace ?? false,
             position: 'left',
             lines: 0,
             fontPx: 16,

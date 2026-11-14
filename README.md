@@ -23,6 +23,8 @@
 
 [자막형 채팅 사용법·검증 화면](screenshots/chat-subtitle.md) · [전체화면 채팅 입력](screenshots/fullscreen-chat.md) · [오버레이에서 채팅 보내기](screenshots/overlay-chat-compose.md) · [클린봇 켜기·끄기](screenshots/cleanbot.md) · [자동 PiP 옵션](screenshots/auto-pip.md)
 
+**설정 → 채팅 → 하단 빈 공간에 표시**를 켜면 영상 아래 검은 여백에 채팅을 표시합니다(기본 꺼짐). 3줄이 들어갈 여백이 없으면 영상 위에 표시합니다. [ON/OFF 비교와 설정 화면](screenshots/chat-subtitle-bottom-space.md)
+
 [갤럭시 Z 폴드8·폴드8 울트라 화면별 검증과 스크린샷](screenshots/fold8.md)
 
 ### 노트북 13인치 (1440×900)

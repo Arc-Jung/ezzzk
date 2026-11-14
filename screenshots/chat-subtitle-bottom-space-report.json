@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-14T01:59:28.063Z",
+  "browser": "151.0.7922.34",
+  "url": "https://chzzk.naver.com/live/089185efc29a8fbe14ea294dc85f9661",
+  "viewport": {
+    "width": 859,
+    "height": 954
+  },
+  "video": {
+    "width": 1920,
+    "height": 1080
+  },
+  "placement": "bottom-space",
+  "lines": 3,
+  "overlay": {
+    "top": 747,
+    "bottom": 835,
+    "left": 16,
+    "right": 548
+  },
+  "pictureBottom": 718.59375,
+  "playerBottom": 954,
+  "controlsTop": 843,
+  "playing": true,
+  "resize": {
+    "sameVideo": true,
+    "sameCompose": true
+  }
+}
