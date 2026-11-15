@@ -31,7 +31,11 @@ const input = (
   const listener = add.mock.calls.find((call) => call[0] === phase)![1] as EventListener;
   const event = Object.create(key ? KeyboardEvent.prototype : Event.prototype) as Event;
   if (key) Object.defineProperty(event, 'key', { value: key });
-  Object.defineProperties(event, { isTrusted: { value: trusted }, target: { value: target } });
+  Object.defineProperties(event, {
+    isTrusted: { value: trusted },
+    target: { value: target },
+    type: { value: phase },
+  });
   listener(event);
 };
 const flush = async () => {
@@ -148,22 +152,45 @@ describe('전체화면 복귀', () => {
     await flush();
     expect(request).toHaveBeenCalledOnce();
   });
-  it('같은 문서의 iframe으로 옮겨간 포커스를 앱 전환으로 보지 않는다', async () => {
+  it('같은 문서의 iframe으로 옮겨간 포커스만으로 중복 전체화면을 요청하지 않는다', async () => {
     change(player);
     window.dispatchEvent(new Event('blur'));
-    change(null);
     await vi.advanceTimersByTimeAsync(300);
     visibility(true);
     visibility(false);
     expect(request).not.toHaveBeenCalled();
   });
-  it('전면에서 직접 나가면 이후 앱 복귀에도 재진입하지 않는다', async () => {
+  it('명시적인 종료 입력 없이 해제되면 전체화면을 복원한다', async () => {
     change(player);
     change(null);
     await vi.advanceTimersByTimeAsync(300);
     visibility(true);
     visibility(false);
-    expect(request).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledOnce();
+    expect(fullscreen).toBe(player);
+  });
+  it('해제 후 250ms 넘게 늦은 앱 전환에서도 복원 의사가 사라지지 않는다', async () => {
+    request.mockRejectedValueOnce(new TypeError('User activation required'));
+    change(player);
+    change(null);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(request).toHaveBeenCalledOnce();
+    visibility(true);
+    await vi.advanceTimersByTimeAsync(5000);
+    visibility(false);
+    await flush();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(fullscreen).toBe(player);
+  });
+  it('복귀 포커스 뒤에 늦게 도착한 해제 이벤트도 복원한다', async () => {
+    change(player);
+    visibility(true);
+    visibility(false);
+    window.dispatchEvent(new Event('focus'));
+    change(null);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(fullscreen).toBe(player);
+    expect(request).toHaveBeenCalledOnce();
   });
   it.each(['button', 'Escape', 'Escape keyup', 'f'])(
     '명시적 종료 %s를 존중한다',
@@ -183,6 +210,15 @@ describe('전체화면 복귀', () => {
       expect(request).not.toHaveBeenCalled();
     },
   );
+  it('마우스 더블클릭으로 직접 종료하면 앱 복귀 때도 다시 진입하지 않는다', async () => {
+    change(player);
+    input(video, undefined, true, 'dblclick');
+    change(null);
+    await vi.advanceTimersByTimeAsync(300);
+    visibility(true);
+    visibility(false);
+    expect(request).not.toHaveBeenCalled();
+  });
   it('차단된 자동 요청을 반복하지 않고 다음 신뢰된 영상 입력에서 복원한다', async () => {
     request.mockRejectedValueOnce(new TypeError('User activation required'));
     change(player);

@@ -175,7 +175,6 @@ export const multiViewFeature: Feature = {
       ariaLabel: '멀티뷰 열기',
       content: '멀티',
       // 멀티뷰는 아직 불안정하다 — 진입점에서 미리 알린다 (2026-08-16).
-      betaBadge: true,
       minTargetPx: device.profile.touchTargetPx,
       onClick: openEntry,
     });

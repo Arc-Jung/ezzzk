@@ -376,7 +376,6 @@ export function ConfigSheet({ settings, device, currentChannel, onClose, onStart
   return (
     <Sheet
       title="멀티뷰 구성"
-      beta
       onClose={onClose}
       touchTargetPx={device.profile.touchTargetPx}
       footer={

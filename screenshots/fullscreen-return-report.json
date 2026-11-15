@@ -7,47 +7,48 @@
   },
   "fixture": "canvas captureStream video on routed Chzzk URLs",
   "lifecycle": "pagehide/pageshow replay",
-  "permissionCase": "first automatic restore request rejection (fault injection)",
+  "permissionCase": "automatic restore rejected until trusted input (fault injection)",
   "cases": [
     {
       "name": "single-auto-return",
       "multiView": false,
       "leaf": false,
       "blocked": false,
+      "delayed": false,
       "states": [
         {
           "phase": "entered",
           "sameVideo": true,
           "paused": false,
-          "time": 0.059823,
+          "time": 0.109906,
           "fullscreen": true
         },
         {
           "phase": "returned",
           "sameVideo": true,
           "paused": false,
-          "time": 6.359928,
+          "time": 6.411462,
           "fullscreen": true
         },
         {
           "phase": "restored",
           "sameVideo": true,
           "paused": false,
-          "time": 6.409883,
+          "time": 6.411462,
           "fullscreen": true
         },
         {
           "phase": "minimized",
           "sameVideo": true,
           "paused": false,
-          "time": 6.859064,
+          "time": 6.857728,
           "fullscreen": false
         },
         {
           "phase": "escape",
           "sameVideo": true,
           "paused": false,
-          "time": 7.609946,
+          "time": 7.610861,
           "fullscreen": false
         }
       ],
@@ -58,40 +59,41 @@
       "multiView": false,
       "leaf": false,
       "blocked": true,
+      "delayed": false,
       "states": [
         {
           "phase": "entered",
           "sameVideo": true,
           "paused": false,
-          "time": 0.062628,
+          "time": 0.059459,
           "fullscreen": true
         },
         {
           "phase": "returned",
           "sameVideo": true,
           "paused": false,
-          "time": 6.364642,
+          "time": 6.357883,
           "fullscreen": false
         },
         {
           "phase": "restored",
           "sameVideo": true,
           "paused": false,
-          "time": 6.364642,
+          "time": 6.407723,
           "fullscreen": true
         },
         {
           "phase": "minimized",
           "sameVideo": true,
           "paused": false,
-          "time": 6.862699,
+          "time": 6.857912,
           "fullscreen": false
         },
         {
           "phase": "escape",
           "sameVideo": true,
           "paused": false,
-          "time": 7.612788,
+          "time": 7.607937,
           "fullscreen": false
         }
       ],
@@ -102,40 +104,41 @@
       "multiView": true,
       "leaf": false,
       "blocked": true,
+      "delayed": false,
       "states": [
         {
           "phase": "entered",
           "sameVideo": true,
           "paused": false,
-          "time": 0.317465,
+          "time": 0.328297,
           "fullscreen": true
         },
         {
           "phase": "returned",
           "sameVideo": true,
           "paused": false,
-          "time": 6.567148,
+          "time": 6.611412,
           "fullscreen": false
         },
         {
           "phase": "restored",
           "sameVideo": true,
           "paused": false,
-          "time": 6.634044,
+          "time": 6.678192,
           "fullscreen": true
         },
         {
           "phase": "minimized",
           "sameVideo": true,
           "paused": false,
-          "time": 7.167005,
+          "time": 7.109438,
           "fullscreen": false
         },
         {
           "phase": "escape",
           "sameVideo": true,
           "paused": false,
-          "time": 7.867032,
+          "time": 7.877767,
           "fullscreen": false
         }
       ],
@@ -146,40 +149,131 @@
       "multiView": true,
       "leaf": true,
       "blocked": true,
+      "delayed": false,
       "states": [
         {
           "phase": "entered",
           "sameVideo": true,
           "paused": false,
-          "time": 0.323086,
+          "time": 0.305085,
           "fullscreen": true
         },
         {
           "phase": "returned",
           "sameVideo": true,
           "paused": false,
-          "time": 6.624582,
+          "time": 6.606619,
           "fullscreen": false
         },
         {
           "phase": "restored",
           "sameVideo": true,
           "paused": false,
-          "time": 6.624582,
+          "time": 6.606619,
           "fullscreen": true
         },
         {
           "phase": "minimized",
           "sameVideo": true,
           "paused": false,
-          "time": 7.005885,
+          "time": 7.004479,
           "fullscreen": false
         },
         {
           "phase": "escape",
           "sameVideo": true,
           "paused": false,
-          "time": 7.755951,
+          "time": 7.70449,
+          "fullscreen": false
+        }
+      ],
+      "success": true
+    },
+    {
+      "name": "single-late-return",
+      "multiView": false,
+      "leaf": false,
+      "blocked": true,
+      "delayed": true,
+      "states": [
+        {
+          "phase": "entered",
+          "sameVideo": true,
+          "paused": false,
+          "time": 0.063825,
+          "fullscreen": true
+        },
+        {
+          "phase": "returned",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.062941,
+          "fullscreen": false
+        },
+        {
+          "phase": "restored",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.062941,
+          "fullscreen": true
+        },
+        {
+          "phase": "minimized",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.513038,
+          "fullscreen": false
+        },
+        {
+          "phase": "escape",
+          "sameVideo": true,
+          "paused": false,
+          "time": 8.264512,
+          "fullscreen": false
+        }
+      ],
+      "success": true
+    },
+    {
+      "name": "multiview-late-return",
+      "multiView": true,
+      "leaf": false,
+      "blocked": true,
+      "delayed": true,
+      "states": [
+        {
+          "phase": "entered",
+          "sameVideo": true,
+          "paused": false,
+          "time": 0.261333,
+          "fullscreen": true
+        },
+        {
+          "phase": "returned",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.279498,
+          "fullscreen": false
+        },
+        {
+          "phase": "restored",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.309336,
+          "fullscreen": true
+        },
+        {
+          "phase": "minimized",
+          "sameVideo": true,
+          "paused": false,
+          "time": 7.812377,
+          "fullscreen": false
+        },
+        {
+          "phase": "escape",
+          "sameVideo": true,
+          "paused": false,
+          "time": 8.579386,
           "fullscreen": false
         }
       ],

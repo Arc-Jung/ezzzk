@@ -6,10 +6,12 @@ import { mountControlBarButton } from './controlBar';
 import { createIconElement } from '../ui/icons';
 import type { Feature } from './types';
 
-export const FULLSCREEN_CHAT_BUTTON_ID = 'cm-fullscreen-chat-button';
-export const FULLSCREEN_CHAT_POPUP_ID = 'cm-fullscreen-chat-popup';
-export const CHAT_SUBTITLE_COMPOSE_BUTTON_ID = 'cm-chat-subtitle-compose';
-export const CHAT_SUBTITLE_COMPOSE_EVENT = 'cm-chat-subtitle-compose-request';
+import {
+  FULLSCREEN_CHAT_BUTTON_ID,
+  FULLSCREEN_CHAT_POPUP_ID,
+  CHAT_SUBTITLE_COMPOSE_BUTTON_ID,
+  CHAT_SUBTITLE_COMPOSE_EVENT,
+} from './chatInputProtocol';
 const STYLE_ID = `${FULLSCREEN_CHAT_POPUP_ID}-style`;
 
 function isLineBreak(event: InputEvent) {
