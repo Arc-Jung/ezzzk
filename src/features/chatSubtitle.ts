@@ -226,7 +226,8 @@ export const chatSubtitleFeature: Feature = {
         !event.target.closest(`${ID.livePlayerLayout} ${PLAYER.rootPc}`)
       )
         return;
-      source.reset();
+      // 같은 플레이어의 재생이 재개되면 다음 채팅 응답까지 현재 줄을 유지한다.
+      // 플레이어 또는 채팅 루트 교체는 sync()에서 별도로 초기화한다.
       sync();
     };
     const resumeEvents = ['play', 'playing', 'loadedmetadata', 'canplay'] as const;

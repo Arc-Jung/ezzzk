@@ -15,6 +15,13 @@ body{margin:0;background:#101518;color:#fff;font:16px Arial}.pzp-pc{position:rel
 </style><div id="fixture-header">채팅 오버레이 입력 · 재현용 영상</div><div id="root"><div id="live_player_layout"><div class="pzp-pc pzp-pc--controls"><video autoplay playsinline muted></video><div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div><div class="pzp-pc__bottom-buttons-right"><button class="custom__clip-button" aria-label="클립 만들기">클립</button><button class="pzp-pc__fullscreen-button" onclick="document.fullscreenElement?document.exitFullscreen():document.querySelector('.pzp-pc').requestFullscreen()">전체화면</button></div></div></div></div></div><aside id="aside-chatting"><div class="_chatting_message_test"><span class="_nickname_test">시청자1</span><span class="_text_test">오늘 방송도 잘 보고 있어요</span></div><div class="_chatting_message_test"><span class="_nickname_test">시청자2</span><span class="_text_test">말풍선을 눌러 채팅할 수 있어요</span></div><div class="_chatting_message_test"><span class="_nickname_test">시청자3</span><span class="_text_test">안녕하세요!</span></div><textarea class="_input_test" placeholder="채팅을 입력해주세요" maxlength="400"></textarea><button class="_send_button_test" disabled>채팅</button></aside></div><script>
 window.sent=[];window.surfaceClicks=0;const source=document.querySelector('aside textarea');const send=document.querySelector('aside button');source.addEventListener('input',()=>send.disabled=!source.value.trim());send.addEventListener('click',()=>{window.sent.push({channel:location.pathname.split('/').pop(),text:source.value});source.value='';source.dispatchEvent(new Event('input',{bubbles:true}))});document.querySelector('.pzp-pc').addEventListener('click',e=>{if(!e.target.closest('button,[role=dialog]'))window.surfaceClicks++});
 const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const c=canvas.getContext('2d');let n=0;function draw(){c.fillStyle='#173541';c.fillRect(0,0,1280,720);c.fillStyle='#00ffa3';c.fillRect(n++%1000,540,180,10);c.fillStyle='#fff';c.font='44px sans-serif';c.fillText('오버레이에서 채팅 보내기',80,70);c.font='26px sans-serif';c.fillText('재현용 영상 · 프레임 '+n,80,120);requestAnimationFrame(draw)}draw();const v=document.querySelector('video');v.srcObject=canvas.captureStream(20);v.play();window.originalVideo=v;
+if (new URLSearchParams(location.search).get('cmSlot') === '1') {
+  const aside = document.querySelector('#aside-chatting');
+  aside.querySelectorAll('._chatting_message_test').forEach(row => row.remove());
+  aside.insertAdjacentHTML('afterbegin', '<div class="_container_1li40_1"><div class="_wrapper_1li40_25"><div class="_list_bottom_1li40_52"></div></div></div>');
+  window.slotChat = {messageLimitCount:200,messageList:[{content:'첫 방송 채팅',profile:{nickname:'시청자'}}]};
+  aside.querySelector('._wrapper_1li40_25').__reactFiber$test = {memoizedProps:{client:window.slotChat}};
+}
 </script>`;
 const ensure = (ok, message) => {
   if (!ok) throw Error(message);
@@ -216,6 +223,41 @@ for (const key of [
     for (const owner of owners) await owner.waitForSelector('#cm-chat-subtitle-compose');
     await page.locator('[data-cm-fullscreen-toggle]').click();
     await page.waitForFunction(() => document.fullscreenElement === document.documentElement);
+    const firstChat = owners[0].locator('#cm-chat-subtitle .cm-subtitle-lines');
+    await firstChat.getByText('첫 방송 채팅', { exact: false }).waitFor({ timeout: 7000 });
+    const resumed = await owners[0].evaluate(() => {
+      const lines = document.querySelector('.cm-subtitle-lines');
+      const video = document.querySelector('video');
+      video.dispatchEvent(new Event('playing'));
+      return {
+        hidden: lines.hidden,
+        text: lines.textContent,
+        sameVideo: video === window.originalVideo,
+      };
+    });
+    ensure(
+      !resumed.hidden && resumed.text.includes('첫 방송 채팅') && resumed.sameVideo,
+      'slot subtitles disappeared on playback resume',
+    );
+    await owners[0].evaluate(() =>
+      window.slotChat.messageList.push({
+        content: '첫 방송 새 채팅',
+        profile: { nickname: '시청자' },
+      }),
+    );
+    await firstChat.getByText('첫 방송 새 채팅', { exact: false }).waitFor();
+    ensure(
+      (await owners[1].locator('.cm-subtitle-message').count()) > 0,
+      'other slot lost its chat',
+    );
+    ensure(
+      (await owners[1].getByText('첫 방송 새 채팅').count()) === 0,
+      'messages leaked to another slot',
+    );
+    report.cases.push({
+      name: 'slot chat without mounted native rows stays visible and updates',
+      passed: true,
+    });
     await owners[1].locator('#cm-chat-subtitle-compose').tap();
     const slotPopup = owners[1].locator('#cm-fullscreen-chat-popup');
     await slotPopup

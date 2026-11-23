@@ -65,10 +65,16 @@ export function readSubtitleSnapshot(root: ParentNode = document): {
 } {
   const nodes = [...root.querySelectorAll(CHZZK.chatMessage)];
   const anchor = nodes.at(-1);
-  // 접힌 채팅은 가상 목록의 행을 모두 지운다. 스크롤러는 남아 있고
-  // 같은 상위 클라이언트를 참조하므로 행 존재 여부에 구독을 묶지 않는다.
+  // 접힌 채팅은 행이 없어도 스크롤러와 목록 끝 표시가 남는다. CSS 모듈 해시가
+  // 바뀌어도 목록 끝 표시의 부모에서 클라이언트를 찾고, 이전 구조도 지원한다.
+  const listEnd = root.querySelector(
+    '#aside-chatting [class*="_wrapper_"] > [class*="_list_bottom_"]',
+  );
   const scroller = root.querySelector(CHZZK.chatScroller);
-  const client = (scroller && findChatClient(scroller)) || (anchor && findChatClient(anchor));
+  const client =
+    (listEnd?.parentElement && findChatClient(listEnd.parentElement)) ||
+    (scroller && findChatClient(scroller)) ||
+    (anchor && findChatClient(anchor));
   const history = client?.messageList;
   if (history !== undefined) {
     // 원본 목록은 수신 순서다. 메시지 시각은 역전·누락될 수 있어 정렬 기준으로 쓰면
