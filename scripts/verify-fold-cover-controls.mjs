@@ -206,10 +206,16 @@ try {
 
     await page.goto(url + '?responsive');
     await page.locator(frameSelector).nth(1).waitFor();
+    await page.frameLocator(frameSelector).first().locator('.pzp-pc__playback-switch').waitFor();
     const responsive = await measure();
     console.log('responsive:', responsive);
     assert.equal(responsive.scale, 1);
-    assert.ok(responsive.barTarget >= 44 && responsive.barFits && responsive.stacked);
+    assert.ok(
+      responsive.barTarget >= 44 &&
+        responsive.playerTarget >= 44 &&
+        responsive.barFits &&
+        responsive.stacked,
+    );
   }
 } finally {
   await context.close();

@@ -9,11 +9,11 @@
 - 내부 화면의 낮은 가로 비율에서는 채팅을 영상 아래에 자동 배치한다. 직접 선택한 위치와 배치별 크기가 우선한다.
 - 좁은 설정 창은 탭을 가로 스크롤하고, 멀티뷰 분할 옵션은 줄을 바꿔 표시한다.
 
-2026-10-27 실제 치지직 방송을 캡처했다. 멀티뷰는 네 영상의 재생 시간이 연속으로 진행되는지 확인한 뒤 저장했다.
+폴드8 울트라 커버의 멀티뷰는 Chromium에서 980px 데스크톱 페이지를 411px 화면에 맞춘 뒤, 재현용 영상 두 개를 재생하며 새로 캡처했다. 조작 버튼은 축소 상태에서 약 18px에서 44px로 커지고, 상단 바는 아이콘 한 줄로 표시된다. 나머지 화면은 2026-10-27 치지직 라이브에서 캡처했다.
 
 | 화면 / CSS 뷰포트 | 설정 | 멀티뷰 |
 | --- | --- | --- |
-| 폴드8 울트라 커버 411×960 | ![폴드8 울트라 커버 설정](demo-fold8-ultra-cover-settings.png) | ![폴드8 울트라 커버 멀티뷰](demo-fold8-ultra-cover-multiview.png) |
+| 폴드8 울트라 커버 411×960 | ![폴드8 울트라 커버 설정](demo-fold8-ultra-cover-settings.png) | ![폴드8 울트라 커버 멀티뷰에서 확대된 상단 바와 2분할](demo-fold8-ultra-cover-multiview.png) |
 | 폴드8 울트라 펼침 859×954 | ![폴드8 울트라 펼침 설정](demo-fold8-ultra-open-settings.png) | ![폴드8 울트라 펼침 멀티뷰](demo-fold8-ultra-open-multiview.png) |
 | 폴드8 울트라 펼침 가로 954×859 | ![폴드8 울트라 펼침 가로 설정](demo-fold8-ultra-open-landscape-settings.png) | ![폴드8 울트라 펼침 가로 멀티뷰](demo-fold8-ultra-open-landscape-multiview.png) |
 | 폴드8 커버 475×751 | ![폴드8 커버 설정](demo-fold8-cover-settings.png) | ![폴드8 커버 멀티뷰](demo-fold8-cover-multiview.png) |
@@ -23,8 +23,11 @@
 재현:
 
 ```sh
-yarn demo:shots settings,multiview fold8-ultra-cover,fold8-ultra-open,fold8-ultra-open-landscape,fold8-cover,fold8-open,fold8-open-landscape
+yarn build
+node scripts/verify-fold-cover-controls.mjs
 ```
+
+커버 캡처 경로는 `etc/tmp/fold-cover-controls/cover.png`다.
 
 ## 펼친 가로 화면의 영상·채팅 배치
 
