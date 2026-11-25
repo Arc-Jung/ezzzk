@@ -73,7 +73,6 @@ try {
     multiView: {
       enabled: true,
       restoreLastLayout: true,
-      autoFullscreen: false,
       autoVolume: false,
       defaultSplit: 4,
       slots: [1, 2, 3, 4].map((index) => ({

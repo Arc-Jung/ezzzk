@@ -60,7 +60,7 @@ yarn test
 yarn build
 yarn lint
 yarn format:check
-node scripts/verify-fullscreen-return.mjs
+node scripts/verify-manual-fullscreen.mjs
 node scripts/verify-overlay-chat-compose.mjs
 node scripts/verify-double-tap-fullscreen.mjs
 node scripts/verify-multiview-auto-volume.mjs

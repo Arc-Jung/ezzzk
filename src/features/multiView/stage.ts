@@ -221,7 +221,6 @@ export class MultiViewStage {
     this.updateChatControls();
     this.layout();
     info(`multiview stage opened with ${slots.length} slot(s)`);
-    if (this.settings.multiView.autoFullscreen) void this.enterAutoFullscreen();
   }
 
   close(): void {
@@ -255,13 +254,10 @@ export class MultiViewStage {
    */
   updateSettings(next: Settings): void {
     const autoVolumeChanged = next.multiView.autoVolume !== this.settings.multiView.autoVolume;
-    const enableAutoFullscreen =
-      next.multiView.autoFullscreen && !this.settings.multiView.autoFullscreen;
     this.settings = next;
     if (autoVolumeChanged) this.syncAutoVolume();
     this.layout();
     for (const runtime of this.runtimes.values()) this.applyQuality(runtime.slot);
-    if (enableAutoFullscreen) void this.enterAutoFullscreen();
   }
 
   /** 접힘·펼침 때 iframe과 재생 상태를 유지한 채 프로필·배치만 갱신한다. */
@@ -717,23 +713,6 @@ export class MultiViewStage {
       const observer = new ResizeObserver(() => this.layout());
       observer.observe(toolbar.element);
       this.disposers.push(() => observer.disconnect());
-    }
-  }
-
-  /**
-   * 스테이지를 전체 화면으로 전환한다.
-   * 실패해도 조용히 넘긴다 — 제스처 없이 호출되면 브라우저가 거부하는 것이 정상이다.
-   */
-  private async enterAutoFullscreen(): Promise<void> {
-    // 시작·옵션 활성화 때만 요청한다. Esc 이후나 다른 설정 변경에는 재진입하지 않는다.
-    if (!this.container || document.fullscreenElement) return;
-    if (typeof document.documentElement.requestFullscreen !== 'function') return;
-    try {
-      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-    } catch (e) {
-      warning('multiview auto fullscreen request was rejected', e);
-    } finally {
-      this.updateFullscreenButton();
     }
   }
 

@@ -60,6 +60,11 @@ export function mergeSettings(stored: unknown): Settings {
       base[key] = incoming;
     }
   }
+  // Older settings and presets can still contain the removed automatic modes.
+  if (isRecord(base.wideScreen) && base.wideScreen.mode === 'fullscreen') {
+    base.wideScreen = { ...base.wideScreen, enabled: false, mode: 'default' };
+  }
+  if (isRecord(base.multiView)) delete base.multiView['autoFullscreen'];
   return base as Settings;
 }
 

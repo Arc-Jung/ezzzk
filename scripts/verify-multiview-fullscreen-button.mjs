@@ -23,7 +23,6 @@ try {
     multiView: {
       enabled: true,
       restoreLastLayout: true,
-      autoFullscreen: false,
       defaultSplit: 2,
       slots: [
         { index: 1, channelId: '11111111111111111111111111111111', channelName: '테스트1' },

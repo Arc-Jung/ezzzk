@@ -44,23 +44,20 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     deviceClass,
     chatMode,
     lowerInactiveQuality,
-    autoFullscreen,
   }: {
     deviceClass?: 'mobile';
     chatMode?: 'active' | 'none';
     lowerInactiveQuality?: boolean;
-    autoFullscreen?: boolean;
   } = {}) {
     const onActiveSlotChange = vi.fn();
     const settings =
-      chatMode || lowerInactiveQuality || autoFullscreen
+      chatMode || lowerInactiveQuality
         ? {
             ...DEFAULT_SETTINGS,
             multiView: {
               ...DEFAULT_SETTINGS.multiView,
               ...(chatMode ? { chatMode } : {}),
               ...(lowerInactiveQuality ? { lowerInactiveQuality } : {}),
-              ...(autoFullscreen ? { autoFullscreen } : {}),
             },
           }
         : DEFAULT_SETTINGS;
@@ -74,63 +71,28 @@ describe('MultiViewStage — 슬롯 → 부모 메시지 배선', () => {
     return { stage, onActiveSlotChange };
   }
 
-  it('자동 전체화면은 기본 꺼짐이고 켜진 멀티뷰 시작 때만 요청한다', () => {
-    const request = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(document.documentElement, 'requestFullscreen', {
-      configurable: true,
-      value: request,
-    });
-    const normal = openStage();
-    expect(request).not.toHaveBeenCalled();
-    normal.stage.close();
-    const automatic = openStage({ autoFullscreen: true });
-    expect(request).toHaveBeenCalledTimes(1);
-    expect(request).toHaveBeenCalledWith({ navigationUI: 'hide' });
-    automatic.stage.close();
-    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
-  });
-
-  it('사용 중 켜면 프레임을 유지하고 진입하며 이후 설정 변경·끄기에는 재요청하지 않는다', () => {
+  it('멀티뷰 진입과 설정 변경은 전체화면을 요청하지 않고 최대화 버튼만 요청한다', () => {
     const request = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(document.documentElement, 'requestFullscreen', {
       configurable: true,
       value: request,
     });
     const { stage } = openStage();
-    const frames = [...document.querySelectorAll('iframe')];
-    const enabled = {
-      ...DEFAULT_SETTINGS,
-      multiView: { ...DEFAULT_SETTINGS.multiView, autoFullscreen: true },
-    };
-    stage.updateSettings(enabled);
-    expect(request).toHaveBeenCalledTimes(1);
-    stage.updateSettings({ ...enabled, volume: { ...enabled.volume, step: 10 } });
-    stage.updateSettings(DEFAULT_SETTINGS);
-    expect(request).toHaveBeenCalledTimes(1);
-    expect([...document.querySelectorAll('iframe')]).toEqual(frames);
-    stage.close();
-    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
-  });
-
-  it('브라우저가 자동 전체화면을 거부해도 멀티뷰와 수동 최대화는 유지된다', async () => {
-    const request = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('NotAllowedError'))
-      .mockResolvedValue(undefined);
-    Object.defineProperty(document.documentElement, 'requestFullscreen', {
-      configurable: true,
-      value: request,
-    });
-    const { stage } = openStage({ autoFullscreen: true });
-    await Promise.resolve();
-    const button = document.querySelector<HTMLButtonElement>(
-      '.cm-stage-bar [aria-label^="전체 화면"]',
-    )!;
-    button.click();
-    expect(request).toHaveBeenCalledTimes(2);
-    expect(document.querySelectorAll('iframe')).toHaveLength(SLOTS.length);
-    stage.close();
-    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
+    try {
+      const frames = [...document.querySelectorAll('iframe')];
+      stage.updateSettings({
+        ...DEFAULT_SETTINGS,
+        multiView: { ...DEFAULT_SETTINGS.multiView, autoVolume: true },
+      });
+      expect(request).not.toHaveBeenCalled();
+      expect([...document.querySelectorAll('iframe')]).toEqual(frames);
+      document.querySelector<HTMLButtonElement>('[data-cm-fullscreen-toggle]')!.click();
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(request).toHaveBeenCalledWith({ navigationUI: 'hide' });
+    } finally {
+      stage.close();
+      Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
+    }
   });
 
   function sendFromSlot(data: unknown, origin = 'https://chzzk.naver.com') {

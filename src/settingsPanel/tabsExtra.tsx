@@ -86,14 +86,6 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         onChange={(next) => patch({ restoreLastLayout: next })}
       />
       <Toggle
-        label="멀티뷰 상태일 때 자동 전체화면"
-        checked={multiView.autoFullscreen}
-        onChange={(next) => patch({ autoFullscreen: next })}
-      />
-      {multiView.autoFullscreen ? (
-        <p className="cm-sheet__note">자동으로 전환되지 않으면 최대화 버튼을 눌러 주세요.</p>
-      ) : null}
-      <Toggle
         label="멀티뷰 자동 음량"
         checked={multiView.autoVolume}
         onChange={(next) => patch({ autoVolume: next })}

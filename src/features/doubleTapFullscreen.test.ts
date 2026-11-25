@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OURS } from '../constants/class';
 import { DEFAULT_SETTINGS } from '../constants/storage';
 import { decideDevice } from '../device';
-import { keepFullscreenOnReturn } from './fullscreenRestore';
 import { registerDoubleTapFullscreen, doubleTapFullscreenFeature } from './doubleTapFullscreen';
 
 let add: ReturnType<typeof vi.spyOn>;
@@ -277,23 +276,6 @@ describe('영상 두 번 터치 전체화면', () => {
     document.body.append(stage);
     doubleTap();
     expect(request).not.toHaveBeenCalled();
-  });
-  it('직접 종료한 뒤 앱으로 돌아와도 전체화면을 다시 켜지 않는다', async () => {
-    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-    const restore = keepFullscreenOnReturn();
-    try {
-      doubleTap();
-      await flush();
-      doubleTap();
-      await flush();
-      window.dispatchEvent(new PageTransitionEvent('pagehide'));
-      window.dispatchEvent(new PageTransitionEvent('pageshow'));
-      await vi.advanceTimersByTimeAsync(400);
-      expect(request).toHaveBeenCalledOnce();
-      expect(fullscreen).toBeNull();
-    } finally {
-      restore();
-    }
   });
   it('정리 후에는 입력 리스너가 제거된다', () => {
     const remove = vi.spyOn(document, 'removeEventListener');

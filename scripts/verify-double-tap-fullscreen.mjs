@@ -46,7 +46,7 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
     await warmUp(context, channels[0]);
     await seedSettings(context, {
       wideScreen: { enabled: false, mode: 'default' },
-      multiView: { enabled: false, restoreLastLayout: false, autoFullscreen: false },
+      multiView: { enabled: false, restoreLastLayout: false },
       autoPip: { enabled: false },
       tripleTapFullscreen: { enabled: true },
     });
@@ -142,7 +142,6 @@ for (const key of profiles.filter((key) => !process.argv[2] || key === process.a
       multiView: {
         enabled: true,
         restoreLastLayout: true,
-        autoFullscreen: false,
         autoVolume: false,
         defaultSplit: 4,
         chatMode: 'none',

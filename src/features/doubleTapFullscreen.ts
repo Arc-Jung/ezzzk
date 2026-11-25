@@ -2,10 +2,7 @@
 import { OURS, PLAYER } from '../constants/class';
 import type { Disposer, Feature } from './types';
 
-import {
-  FULLSCREEN_EXIT_INTENT,
-  SLOT_FULLSCREEN_TOGGLE as SLOT_TOGGLE,
-} from './fullscreenProtocol';
+const SLOT_TOGGLE = 'cm-double-tap-fullscreen';
 const PLAYER_SELECTOR = `${PLAYER.rootPc}, ${PLAYER.rootMobile}`;
 const INTERACTIVE =
   'button, input, textarea, select, a, [role="button"], [role="slider"], [role="dialog"], [role="menu"], [contenteditable]:not([contenteditable="false"]), .pzp-pc__bottom, .pzp-mobile__bottom, [class*="setting-pane"], [class*="contextmenu"]';
@@ -41,8 +38,6 @@ export function registerDoubleTapFullscreen(isSlotFrame = false): Disposer {
     const exiting = !!document.fullscreenElement;
     if (!exiting && (!target.requestFullscreen || document.fullscreenEnabled === false)) return;
     if (exiting && !document.exitFullscreen) return;
-    // 직접 종료했다는 의사를 복귀 컨트롤러에도 전달한다.
-    if (exiting) document.dispatchEvent(new Event(FULLSCREEN_EXIT_INTENT));
     pending = true;
     try {
       const request = exiting

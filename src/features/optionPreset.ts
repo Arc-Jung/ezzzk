@@ -75,7 +75,6 @@ export function summarizePreset(
   ];
   const mode = playbackScreenMode(wideScreen);
   if (mode === 'wide') parts.push('와이드');
-  if (mode === 'fullscreen') parts.push('전체화면');
   if (multiView.enabled && multiView.slots.length >= 2) {
     parts.push(`${multiView.defaultSplit}분할`);
   }

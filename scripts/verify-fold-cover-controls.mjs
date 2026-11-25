@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { openLiveContext, PROFILES, ROOT, seedSettings, warmUp } from './demo-context.mjs';
 
 const baseline = process.argv.includes('--baseline');
+const overscaleBaseline = process.argv.includes('--overscale-baseline');
 const out = resolve(ROOT, 'etc/tmp/fold-cover-controls');
 mkdirSync(out, { recursive: true });
 
@@ -86,7 +87,6 @@ try {
     multiView: {
       enabled: true,
       restoreLastLayout: true,
-      autoFullscreen: false,
       defaultSplit: 2,
       layout: 'grid',
       slots: channelIds.map((channelId, index) => ({
@@ -162,9 +162,25 @@ try {
   console.log('cover:', state);
   assert.equal(state.width, cover.viewport.width);
   assert.ok(state.layoutWidth >= 960 && state.scale < 0.6, 'Missing desktop fit');
-  await page.screenshot({ path: resolve(out, baseline ? 'before.png' : 'cover.png') });
+  const setPageScale = async (scale) => {
+    const session = await context.newCDPSession(page);
+    await session.send('Emulation.setPageScaleFactor', { pageScaleFactor: scale });
+    await page.waitForFunction((expected) => visualViewport.scale === expected, scale);
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    await session.detach();
+    return measure();
+  };
+
   if (baseline) {
     assert.ok(state.barTarget < 30, 'Original undersized buttons should reproduce');
+    await page.screenshot({ path: resolve(out, 'before.png') });
+  } else if (overscaleBaseline) {
+    const overlaid = await setPageScale(0.75);
+    console.log('partially zoomed desktop, before:', overlaid);
+    assert.ok(overlaid.layoutWidth >= 960 && overlaid.barTarget > 70 && overlaid.barRows >= 3);
+    await page.screenshot({ path: resolve(out, 'overscale-before.png') });
   } else {
     assert.ok(state.barTarget >= 43.5, 'Toolbar target should be 44 visible CSS pixels');
     assert.ok(state.playerTarget >= 43.5, 'Slot player target should be 44 visible CSS pixels');
@@ -203,6 +219,55 @@ try {
     const refolded = await measure();
     assert.ok(refolded.barTarget >= 43.5 && refolded.barFits && refolded.stacked);
     assert.ok(frames.every((frame) => !frame.isDetached()));
+
+    for (const scale of [0.75, 1]) {
+      const actual = await setPageScale(scale);
+      console.log('desktop at scale', scale, actual);
+      assert.ok(actual.layoutWidth >= 960 && actual.barRows === 1 && actual.barFits);
+      assert.ok(actual.barTarget >= 43.5 && actual.barTarget <= 45);
+      assert.ok(actual.playerTarget >= 43.5 && actual.playerTarget <= 45);
+      assert.ok(actual.stacked && actual.firstWidth >= actual.width - 1);
+      if (scale === 0.75) {
+        await Promise.all(
+          frames.map((frame) =>
+            frame.evaluate(() => {
+              const ad = document.createElement('div');
+              ad.className = 'ad_info_area';
+              ad.style.cssText =
+                'position:absolute;right:12px;bottom:12px;padding:6px 10px;background:#111c;border-radius:4px;font:14px sans-serif';
+              ad.textContent = '14초 후 SKIP';
+              document.querySelector('.pzp-pc').append(ad);
+            }),
+          ),
+        );
+        await page.waitForFunction(
+          () => document.querySelectorAll('.cm-slot__ad-notice').length === 2,
+        );
+        assert.ok(
+          await page.evaluate(() => {
+            const bottom = document.querySelector('.cm-stage-bar').getBoundingClientRect().bottom;
+            return [...document.querySelectorAll('.cm-slot__ad-notice')].every(
+              (notice) => notice.getBoundingClientRect().top > bottom,
+            );
+          }),
+          'Toolbar must leave both ad notices visible',
+        );
+        await page.screenshot({ path: resolve(out, 'cover.png') });
+        await Promise.all(
+          frames.map((frame) => frame.locator('.ad_info_area').evaluate((ad) => ad.remove())),
+        );
+      }
+    }
+
+    await page.setViewportSize({ width: 360, height: cover.viewport.height });
+    await page.waitForFunction(() => {
+      const stage = document.getElementById('cm-multiview-stage');
+      return Math.abs(parseFloat(stage.style.width) - 360) < 1;
+    });
+    const narrow = await measure();
+    console.log('narrow cover:', narrow);
+    assert.ok(narrow.barRows === 1 && narrow.barFits && narrow.barTarget >= 43.5);
+    await page.setViewportSize(cover.viewport);
 
     await page.goto(url + '?responsive');
     await page.locator(frameSelector).nth(1).waitFor();

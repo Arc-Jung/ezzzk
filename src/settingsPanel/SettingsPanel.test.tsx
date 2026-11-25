@@ -134,42 +134,20 @@ describe('재생 시작 화면 선택', () => {
     act(() => toggle.click());
     expect(latest.tripleTapFullscreen.enabled).toBe(true);
   });
-  it('멀티뷰 자동 전체화면은 기본 꺼짐이고 토글을 양방향으로 저장한다', () => {
-    let latest = DEFAULT_SETTINGS;
-    function Harness() {
-      const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-      latest = settings;
-      return (
-        <MultiViewTab
-          settings={settings}
-          device={decideDevice('auto')}
-          update={(patch) => setSettings((old) => ({ ...old, ...patch }))}
-        />
-      );
-    }
-    mount(<Harness />);
-    const toggle = host!.querySelector<HTMLButtonElement>(
-      '[aria-label^="멀티뷰 상태일 때 자동 전체화면"]',
-    )!;
-    expect(toggle.getAttribute('aria-checked')).toBe('false');
-    act(() => toggle.click());
-    expect(latest.multiView.autoFullscreen).toBe(true);
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    act(() => toggle.click());
-    expect(latest.multiView.autoFullscreen).toBe(false);
+  it('멀티뷰 설정에 자동 전체화면 토글이 없다', () => {
+    mount(
+      <MultiViewTab settings={DEFAULT_SETTINGS} device={decideDevice('auto')} update={vi.fn()} />,
+    );
+    expect(host!.querySelector('[aria-label*="자동 전체화면"]')).toBeNull();
   });
-  it('기본·넓은 화면·전체화면을 하나의 설정으로 저장한다', () => {
+  it('재생 시작 화면에서 기본과 넓은 화면을 저장한다', () => {
     const update = vi.fn();
     mount(
       <PlaybackTab settings={DEFAULT_SETTINGS} device={decideDevice('auto')} update={update} />,
     );
     const select = host!.querySelector<HTMLSelectElement>('select[aria-label="재생 시작 화면"]')!;
-    expect([...select.options].map((option) => option.text)).toEqual([
-      '기본',
-      '넓은 화면',
-      '전체화면',
-    ]);
-    for (const mode of ['default', 'wide', 'fullscreen']) {
+    expect([...select.options].map((option) => option.text)).toEqual(['기본', '넓은 화면']);
+    for (const mode of ['default', 'wide']) {
       act(() => {
         select.value = mode;
         select.dispatchEvent(new Event('change', { bubbles: true }));

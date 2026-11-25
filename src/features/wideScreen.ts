@@ -168,7 +168,6 @@ export const wideScreenFeature: Feature = {
   preserveOnDeviceChange: true,
   watches: ['wideScreen'],
   supports: (ctx) =>
-    playbackScreenMode(ctx.settings.wideScreen) !== 'fullscreen' &&
     (ctx.settings.wideScreen.enabled || ctx.settings.wideScreen.mode === 'default') &&
     hasWideScreenButton(ctx.page.type),
   start: (ctx) => {

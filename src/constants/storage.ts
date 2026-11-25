@@ -195,8 +195,6 @@ export type Settings = {
      */
     lowerInactiveQuality: boolean;
     restoreLastLayout: boolean;
-    /** 멀티뷰 시작·복원 시 전체화면 요청. 기본 끄기. */
-    autoFullscreen: boolean;
     /** 멀티뷰 방송별 실시간 자동 음량 보정. 기본 끄기. */
     autoVolume: boolean;
     /**
@@ -332,7 +330,6 @@ export const DEFAULT_SETTINGS: Settings = {
     // 요청에 따라 기본값은 **끄기** — 비활성 슬롯도 목표 화질(1080p)로 재생한다.
     lowerInactiveQuality: false,
     restoreLastLayout: true,
-    autoFullscreen: false,
     autoVolume: false,
     chatMode: 'none',
     slotChatLines: 3,
@@ -362,11 +359,10 @@ export const BUILTIN_PRESETS: { name: string; values: Partial<Settings> }[] = [
   },
 ];
 
-export type PlaybackScreenMode = 'default' | 'wide' | 'fullscreen';
+export type PlaybackScreenMode = 'default' | 'wide';
 
 /** 기존 자동 넓은 화면 설정도 그대로 읽는다. */
 export function playbackScreenMode(setting: Settings['wideScreen']): PlaybackScreenMode {
-  if (setting.mode === 'default' || setting.mode === 'wide' || setting.mode === 'fullscreen')
-    return setting.mode;
+  if (setting.mode === 'default' || setting.mode === 'wide') return setting.mode;
   return setting.enabled ? 'wide' : 'default';
 }

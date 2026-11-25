@@ -48,7 +48,7 @@ for (const key of [
       wideScreen: { enabled: false, mode: 'default' },
       autoPip: { enabled: false },
       chatSubtitle: { enabled: true, lines: 3, position: 'left', fontPx: 16 },
-      multiView: { enabled: false, restoreLastLayout: false, autoFullscreen: false },
+      multiView: { enabled: false, restoreLastLayout: false },
     });
     const page = await context.newPage();
     await page.goto('https://chzzk.naver.com/live/' + channels[0]);
@@ -205,7 +205,6 @@ for (const key of [
       multiView: {
         enabled: true,
         restoreLastLayout: true,
-        autoFullscreen: false,
         autoVolume: false,
         chatMode: 'none',
         defaultSplit: 4,

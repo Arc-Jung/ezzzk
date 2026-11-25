@@ -27,11 +27,17 @@ describe('재생 시작 화면', () => {
     expect(mergeSettings({ multiView: { enabled: true } }).multiView.autoVolume).toBe(false);
     expect(mergeSettings({ multiView: { autoVolume: true } }).multiView.autoVolume).toBe(true);
   });
-  it('기존 멀티뷰 설정은 자동 전체화면 꺼짐으로 보완하고 명시한 켜짐은 유지한다', () => {
-    expect(mergeSettings({ multiView: { enabled: true } }).multiView.autoFullscreen).toBe(false);
-    expect(mergeSettings({ multiView: { autoFullscreen: true } }).multiView.autoFullscreen).toBe(
-      true,
-    );
+  it('이전 자동 전체화면 값을 무시하면서 멀티뷰 구성을 보존한다', () => {
+    const raw = {
+      wideScreen: { enabled: false, mode: 'fullscreen' },
+      multiView: { enabled: true, autoFullscreen: true, autoVolume: true },
+    };
+    const settings = mergeSettings(raw);
+    expect(settings.wideScreen).toEqual({ enabled: false, mode: 'default' });
+    expect(settings.multiView).not.toHaveProperty('autoFullscreen');
+    expect(settings.multiView.enabled).toBe(true);
+    expect(settings.multiView.autoVolume).toBe(true);
+    expect(raw.multiView.autoFullscreen).toBe(true);
   });
   it('기존 자동 넓은 화면 on/off 값을 선택 모드로 읽는다', () => {
     expect(playbackScreenMode(mergeSettings({ wideScreen: { enabled: true } }).wideScreen)).toBe(
@@ -42,7 +48,7 @@ describe('재생 시작 화면', () => {
     );
   });
 
-  it.each(['default', 'wide', 'fullscreen'] as const)('선택한 %s 모드를 보존한다', (mode) => {
+  it.each(['default', 'wide'] as const)('선택한 %s 모드를 보존한다', (mode) => {
     expect(
       playbackScreenMode(
         mergeSettings({ wideScreen: { enabled: mode === 'wide', mode } }).wideScreen,

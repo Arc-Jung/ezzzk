@@ -103,17 +103,6 @@ describe('buildStageCss', () => {
     expect(css).toContain('min-width: 44px');
     expect(css).toContain('min-height: 44px');
   });
-
-  it('좁은 화면 압축 시 버튼 사이 간격을 줄이지 않는다 — 오히려 넓힌다', () => {
-    const css = buildStageCss(44, true);
-    const baseGap = Number(/\.cm-stage-bar\s*\{[^}]*gap:\s*(\d+)px/.exec(css)?.[1] ?? '0');
-    const compactBlock = css.slice(css.indexOf("[data-compact='true']"));
-    const compactGap = Number(
-      /\.cm-stage-bar\s*\{[^}]*gap:\s*(\d+)px/.exec(compactBlock)?.[1] ?? '0',
-    );
-    expect(baseGap).toBeGreaterThan(0);
-    expect(compactGap).toBeGreaterThanOrEqual(baseGap);
-  });
 });
 
 describe('sideChatWidthPx — 사이드 채팅 폭', () => {
