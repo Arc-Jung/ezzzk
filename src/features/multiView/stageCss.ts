@@ -297,15 +297,10 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   border-left: 1px solid #2a2d31;
 }
 #${OURS.multiViewStageId} .cm-stage-chat-controls output { min-width: 48px; }
-/*
-  🔴 좁은 화면에서 조작 바 1줄 압축 (사용자 보고: 3줄로 접혀 무대를 잡아먹음).
-  버튼 크기(터치 타겟)는 절대 줄이지 않는다 — 라벨 글자만 숨기고 아이콘만 남긴다.
-  간격은 오히려 넓힌다: 촘촘해 보이는 건 버튼이 커서가 아니라 간격이 부족해서다.
-  라벨을 숨겨도 버튼의 aria-label 이 그대로 접근성 이름을 맡는다 (createBar 참고).
-  laptop13(1440) 처럼 이 경계보다 넓은 화면은 그대로 라벨이 보인다.
-*/
+/* 버튼 일곱 개가 360px 화면에서도 한 줄에 들어가도록 간격과 좌우 여백을 줄인다. */
 #${OURS.multiViewStageId}[data-compact='true'] .cm-stage-bar {
-  gap: 12px;
+  gap: 5px;
+  padding-inline: 4px;
 }
 #${OURS.multiViewStageId}[data-compact='true'] .cm-stage-bar__label {
   display: none;
