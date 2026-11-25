@@ -1,5 +1,7 @@
 # 앱 복귀 후 전체화면 복원
 
+2026-11-26 자동 전체화면 복원을 제거했다. 현재 동작은 `node scripts/verify-manual-fullscreen.mjs`로 검증한다. 아래는 2026-11-14 당시의 기록이다.
+
 2026-11-14 갱신. 한 번 전체화면에 들어가면 앱 전환으로 해제되더라도 복귀 때 같은 플레이어로 다시 요청한다. 단일뷰, 멀티뷰 전체, 개별 슬롯에 적용한다. 최소화 버튼·Esc·F·더블 터치·마우스 더블클릭으로 직접 종료하면 복원 의사를 지운다.
 
 이전에는 해제 후 250ms 안에 앱 전환을 감지하지 못하면 복원 의사를 버렸다. 이제 명시적 종료 입력이 없으면 유지하므로, 숨김 이벤트가 늦거나 복귀 포커스 뒤에 해제가 도착해도 복원할 수 있다. PiP로 전환할 때는 재진입을 보류한다.
@@ -23,14 +25,14 @@ Node 24.22.2에서 빌드한 확장을 Chromium에 로드하고 859×798 모바�
 
 요청 거부 경로는 신뢰된 영상 입력이 오기 전까지 자동 요청을 거부하도록 확장 실행 문맥에 주입했다. 실제 Android 권한 정책을 측정한 것은 아니다. CDP의 Esc 입력은 브라우저 UI의 기본 종료가 실행되지 않을 수 있어 이 경우 네이티브 종료 API도 호출한 뒤, 복귀가 재진입을 일으키지 않는지 확인했다. 실제 `visibilitychange`·`blur` 순서, 종료가 숨김보다 먼저 오는 경우, 거부 후 중복 요청 방지와 늦게 승인된 요청 취소는 단위 테스트로 검증했다.
 
-[브라우저 검증 기록](fullscreen-return-report.json), 재현 스크립트: `scripts/verify-fullscreen-return.mjs`.
+[당시 브라우저 검증 기록](fullscreen-return-report.json)
 
 ```sh
 yarn test
 yarn build
 yarn lint
 yarn format:check
-node scripts/verify-fullscreen-return.mjs
+node scripts/verify-manual-fullscreen.mjs
 ```
 
 브라우저 6개 경로와 단위·통합 테스트 1,479개 통과·4개 건너뜀. 빌드·타입 검사·린트·포맷 검사 통과.

@@ -15,14 +15,12 @@
 
 import { adBlockNoticeFeature } from './adBlockNotice';
 import { adSkipFeature } from './adSkip';
-import { autoFullscreenFeature } from './autoFullscreen';
 import { autoPipFeature } from './autoPip';
 import { chatClutterHideFeature } from './chatClutterHide';
 import { chatFontFeature } from './chatFont';
 import { chatSubtitleButtonFeature } from './chatSubtitleButton';
 import { chatSubtitleFeature } from './chatSubtitle';
 import { fullscreenChatFeature } from './fullscreenChat';
-import { fullscreenRestoreFeature } from './fullscreenRestore';
 import { doubleTapFullscreenFeature } from './doubleTapFullscreen';
 import { chatPresetFeature } from './chatPreset';
 import { chatUserFilterFeature } from './chatUserFilter';
@@ -52,12 +50,10 @@ export const FEATURES: Feature[] = [
   chatSubtitleButtonFeature,
   fullscreenChatFeature,
   doubleTapFullscreenFeature,
-  fullscreenRestoreFeature,
   autoPipFeature,
   qualityFeature, // FR-01
   volumeFeature, // FR-02, FR-03
   playbackStallFeature, // 검은 화면 재생 실패 재시도
-  autoFullscreenFeature,
   wideScreenFeature, // FR-07
   ultraWideFeature, // FR-10
   chatWidthFeature, // FR-05

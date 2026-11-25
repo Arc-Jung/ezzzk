@@ -222,13 +222,11 @@ describe('폴드 기기 전환 정책', () => {
         .map((feature) => feature.id)
         .sort(),
     ).toEqual([
-      'autoFullscreen',
       'autoPip',
       'chatSubtitle',
       'chatWidth',
       'doubleTapFullscreen',
       'fullscreenChat',
-      'fullscreenRestore',
       'multiView',
       'playbackStall',
       'quality',

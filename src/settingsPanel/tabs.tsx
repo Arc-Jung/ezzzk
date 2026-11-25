@@ -252,12 +252,8 @@ export function PlaybackTab({ settings, update }: TabProps) {
         >
           <option value="default">기본</option>
           <option value="wide">넓은 화면</option>
-          <option value="fullscreen">전체화면</option>
         </select>
       </div>
-      {playbackScreenMode(settings.wideScreen) === 'fullscreen' ? (
-        <p className="cm-sheet__note">전체화면으로 바뀌지 않으면 영상을 한 번 눌러 주세요.</p>
-      ) : null}
       <Toggle
         label="더블 클릭으로 전체화면"
         checked={settings.tripleTapFullscreen.enabled}

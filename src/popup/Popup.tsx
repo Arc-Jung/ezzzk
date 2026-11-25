@@ -63,7 +63,6 @@ export function Popup() {
               >
                 <option value="default">기본</option>
                 <option value="wide">넓은 화면</option>
-                <option value="fullscreen">전체화면</option>
               </select>
             </label>
             <label className="cm-label">
