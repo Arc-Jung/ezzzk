@@ -10,14 +10,11 @@
  * 레이아웃 값은 **크기 변화마다 재계산하고 캐시하지 않는다** (FR-12.1).
  */
 
-import { createIconElement } from '../../ui/icons';
 import { averageVolumeTarget, AUTO_VOLUME_TARGET } from './autoVolume';
 import { OURS } from '../../constants/class';
-import { SIZE_TIERS } from '../../constants/device';
 import type { MultiViewSlot, Settings, SlotIndex, SlotLines } from '../../constants/storage';
 import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
-import { readViewport } from '../../utils/viewport';
 import { info, warning } from '../../utils/log';
 import { effectiveChatMode, effectiveSlotChatLines } from './chatFeature';
 import { slotFromAudioShortcut } from './messages';
@@ -38,7 +35,9 @@ import {
   type Orientation,
 } from './slotLayout';
 
-import { buildStageCss, STAGE_BAR_COMPACT_MAX_PX } from './stageCss';
+import { buildStageCss } from './stageCss';
+import { readStageViewport } from './stageViewport';
+import { createStageToolbar } from './stageToolbar';
 import {
   barOverlapsSlots,
   sideChatWidthPx,
@@ -103,23 +102,6 @@ const MIN_STAGE_WIDTH_PX = 480;
  */
 const SIDE_CHAT_LINES = 40;
 
-function readStageViewport() {
-  const { width, height } = readViewport();
-  const screenWidth = width * (window.visualViewport?.scale ?? 1);
-  const layoutWidth = document.documentElement.clientWidth;
-  // Android desktop-site mode can fit a wide layout to a narrow touch screen.
-  // Base compensation on that fit so it stays constant when the user pinches.
-  const zoom =
-    screenWidth > 0 &&
-    screenWidth < SIZE_TIERS.mobileShortSide &&
-    layoutWidth > STAGE_BAR_COMPACT_MAX_PX &&
-    navigator.maxTouchPoints > 0 &&
-    !window.matchMedia?.('(hover: hover)').matches
-      ? layoutWidth / screenWidth
-      : 1;
-  return { width: width / zoom, height: height / zoom, zoom };
-}
-
 export type StageCallbacks = {
   onAutoVolumeChange?: (enabled: boolean) => void;
   onRequestConfig: () => void;
@@ -164,31 +146,10 @@ type SlotRuntime = {
   autoVolumeRms?: number | null;
 };
 
-/**
- * 조작 바 버튼의 텍스트 라벨. 좁은 화면(600px 이하)에서는
- * `buildStageCss` 의 미디어쿼리가 이 클래스를 숨겨 아이콘만 남긴다 — 그때도
- * 접근성 이름은 버튼의 `aria-label` 이 그대로 맡으므로 스크린리더에는 문제가 없다.
- */
-function barLabel(text: string): HTMLSpanElement {
-  const label = document.createElement('span');
-  label.className = 'cm-stage-bar__label';
-  label.textContent = text;
-  return label;
-}
-
 export class MultiViewStage {
   private container: HTMLElement | null = null;
-  /** 상단 컨트롤 바. 스트립이 이 바를 피하도록 좌표를 읽는다. */
-  private bar: HTMLElement | null = null;
-  private fullscreenButton: HTMLButtonElement | null = null;
-  private autoVolumeButton: HTMLButtonElement | null = null;
+  private toolbar: ReturnType<typeof createStageToolbar> | null = null;
   private autoVolumeTarget = AUTO_VOLUME_TARGET;
-  /**
-   * 바가 영상 위로 겹칠 때 무대 위쪽에서 바가 덮는 높이(px). 겹치지 않으면 0.
-   * 🔴 이 값만큼 슬롯 헤더를 아래로 밀어 2026-08-16 회귀(바가 헤더 버튼을 덮어 눌리지
-   * 않음)를 구조적으로 막는다.
-   */
-  private barOverlapHeightPx = 0;
   /** 사이드 채팅 표시 여부. `채팅 끄기` 로 접고 다시 켤 수 있다. */
   private chatOpen = true;
   /** 사이드 채팅 패널. `chatMode: 'none'` 이거나 폭이 부족하면 만들지 않는다. */
@@ -197,13 +158,6 @@ export class MultiViewStage {
   private chatPanelList: HTMLElement | null = null;
   /** `−`/`+` 가 누적한 폭 조절 칸 수. */
   private chatSteps = 0;
-  /** 전체 화면 전용 컨트롤 묶음 (채팅 폭 조절). */
-  private chatControls: HTMLElement | null = null;
-  private chatLabel: HTMLElement | null = null;
-  /** 사이드 채팅 토글. 지금 동작(켜기/끄기)에 맞춰 label 을 바꿔 줘야 한다. */
-  private chatToggle: HTMLElement | null = null;
-  /** 마지막 배치에 쓴 조작 바 높이. 줄바꿈으로 높이가 바뀌면 한 번 더 배치한다. */
-  private lastBarHeight = 0;
   private runtimes = new Map<SlotIndex, SlotRuntime>();
   /** 재시도 후 로드 타임아웃을 다시 거는 함수. 슬롯마다 최신 타이머 클로저를 가리킨다. */
   private slotRetryRearm = new Map<SlotIndex, () => void>();
@@ -237,8 +191,6 @@ export class MultiViewStage {
     }
     container.replaceChildren();
     this.container = container;
-    // replaceChildren 로 이전 바 노드가 사라졌다 — 참조를 남기면 떼어낸 노드의 좌표를 읽는다.
-    this.bar = null;
 
     // 프레임 로드는 순서대로 100ms 씩 벌려 출발시킨다 (`SLOT_LOAD_STAGGER_MS`).
     slots.forEach((slot, order) => this.createSlot(slot, order));
@@ -282,12 +234,7 @@ export class MultiViewStage {
     this.slotRetryRearm.clear();
     this.container?.remove();
     this.container = null;
-    this.bar = null;
-    this.fullscreenButton = null;
-    this.autoVolumeButton = null;
-    this.chatControls = null;
-    this.chatLabel = null;
-    this.chatToggle = null;
+    this.toolbar = null;
     this.chatPanel = null;
     this.chatPanelTitle = null;
     this.chatPanelList = null;
@@ -324,7 +271,7 @@ export class MultiViewStage {
       STAGE_STYLE_ID,
       buildStageCss(next.profile.touchTargetPx, !next.profile.allowHover),
     );
-    this.layout();
+    this.syncChatWidth();
   }
 
   /**
@@ -332,14 +279,15 @@ export class MultiViewStage {
    * 멀티뷰 중에는 기존 우측 채팅을 비활성화하므로(2026-08-12 결정) 폭을 뺄 이유가 없다.
    * 슬롯 채팅은 슬롯마다 붙는 스트립(FR-14.2)이 담당한다.
    */
-  private stageSize(): { width: number; height: number; orientation: Orientation; zoom: number } {
-    const { width, height, zoom } = readStageViewport();
+  private stageSize() {
+    const { width, height, zoom, compact } = readStageViewport();
     const chatWidth = this.currentChatWidth();
     return {
       width: Math.max(0, width - chatWidth),
       height,
-      orientation: width >= height ? 'landscape' : 'portrait',
+      orientation: (width >= height ? 'landscape' : 'portrait') as Orientation,
       zoom,
+      compact,
     };
   }
 
@@ -374,17 +322,7 @@ export class MultiViewStage {
   }
 
   private updateFullscreenButton(): void {
-    const button = this.fullscreenButton;
-    if (!button) return;
-    const maximized = this.isFullscreen();
-    const label = maximized ? '전체 화면 종료 (최소화)' : '전체 화면 전환 (주소창 숨김)';
-    button.setAttribute('aria-label', label);
-    button.setAttribute('aria-pressed', String(maximized));
-    button.title = label;
-    button.replaceChildren(
-      createIconElement(maximized ? 'minimize' : 'fullscreen'),
-      barLabel(maximized ? '최소화' : '최대화'),
-    );
+    this.toolbar?.setFullscreen(this.isFullscreen());
   }
 
   private syncAutoVolume(): void {
@@ -402,8 +340,7 @@ export class MultiViewStage {
   }
 
   private updateAutoVolumeButton(): void {
-    const button = this.autoVolumeButton;
-    if (!button) return;
+    if (!this.toolbar) return;
     const enabled = this.settings.multiView.autoVolume;
     const active = [...this.runtimes.values()].filter(
       (runtime) => runtime.autoVolumeState === 'active',
@@ -414,17 +351,7 @@ export class MultiViewStage {
     const status = unavailable
       ? '일부 방송 측정 불가'
       : `${active}/${this.runtimes.size}개 방송 조정 중`;
-    button.setAttribute('aria-pressed', String(enabled));
-    const label = button.querySelector('.cm-stage-bar__label');
-    if (label) label.textContent = '자동 음량';
-    button.setAttribute(
-      'aria-label',
-      `자동 음량 ${enabled ? '켜짐, 누르면 끄기' : '꺼짐, 누르면 켜기'}`,
-    );
-    button.title = enabled
-      ? `자동 음량 켜짐 · ${status} · 누르면 끄기`
-      : '자동 음량 꺼짐 · 방송별 음량을 비슷하게 맞추기';
-    button.style.color = enabled ? '#00ffa3' : '';
+    this.toolbar.setAutoVolume(enabled, status);
   }
 
   /** 채팅 폭을 다시 계산해 적용하고 무대를 재배치한다. */
@@ -440,27 +367,10 @@ export class MultiViewStage {
    * `chatMode: 'none'` 이면 기능 자체를 끈 것이므로 컨트롤도 감춘다.
    */
   private updateChatControls(): void {
-    if (!this.chatControls) return;
-    /*
-     * 🔴 **켤 수 없는 화면에서는 컨트롤도 감춘다** (실측 회귀 2026-08-18).
-     * 컨트롤을 상시 노출로 바꾸자 412px 세로 모바일에서 조작 바가 뷰포트보다 넓어져
-     * `볼륨 줄이기`·`전체 화면 전환`·`멀티뷰 해제` 가 화면 밖으로 밀려 **해제조차 못 누르는**
-     * 상태가 됐다 (하네스 M-01: inViewport false, 해제 클릭 타임아웃).
-     * 사이드 채팅이 들어갈 수 없는 폭이면(자동 접힘) 컨트롤도 만들지 않는다.
-     */
+    if (!this.toolbar) return;
     const enabled =
       effectiveChatMode(this.settings.multiView.chatMode) !== 'none' && this.sideChatFits();
-    this.chatControls.style.display = enabled ? 'inline-flex' : 'none';
-    const width = this.currentChatWidth();
-    if (this.chatLabel) {
-      this.chatLabel.textContent = width > 0 ? `${width}px` : '꺼짐';
-    }
-    if (this.chatToggle) {
-      this.chatToggle.setAttribute('aria-label', this.chatOpen ? '채팅 끄기' : '채팅 켜기');
-      this.chatToggle.replaceChildren(
-        this.chatOpen ? createIconElement('close') : createIconElement('chatBubble'),
-      );
-    }
+    this.toolbar.setSideChat(enabled, this.chatOpen, this.currentChatWidth());
   }
 
   /**
@@ -468,30 +378,12 @@ export class MultiViewStage {
    * 캐시하지 않는다 — 회전·분할 화면·자유 창·주소창 접힘마다 호출된다 (FR-12.1).
    */
   layout(): void {
-    this.layoutOnce();
-    /*
-     * 🔴 **한 번 더 재야 하는 경우가 있다.** 사이드 채팅을 켜면 무대가 좁아지고, 그러면 조작 바가
-     * 줄바꿈되어 높이가 커진다(모바일·세로 태블릿). 그 높이는 `stageTopInset()` 으로 슬롯 띠에
-     * 환산되는데, 첫 계산은 줄바꿈 **전** 높이를 썼기 때문에 슬롯이 바를 덮는다 — 실측 2026-08-19
-     * 세로 태블릿에서 조작 바 버튼 8개가 전부 눌리지 않았다(`채팅 끄기`·`멀티뷰 해제` 포함).
-     * 높이가 바뀌었으면 그 값으로 한 번만 다시 배치한다 (재귀 방지: 1회 한정).
-     */
-    const barHeight = this.bar?.getBoundingClientRect().height ?? 0;
-    if (barHeight > 0 && barHeight !== this.lastBarHeight) {
-      this.lastBarHeight = barHeight;
-      this.layoutOnce();
-    }
-  }
-
-  private layoutOnce(): void {
     if (!this.container) return;
-    const { width, height, orientation, zoom } = this.stageSize();
+    const { width, height, orientation, zoom, compact } = this.stageSize();
     this.container.style.zoom = zoom === 1 ? '' : String(zoom);
     this.container.style.width = `${width}px`;
     this.container.style.height = zoom === 1 ? '' : `${height}px`;
-    this.container.dataset['compact'] = String(
-      width + this.currentChatWidth() <= STAGE_BAR_COMPACT_MAX_PX,
-    );
+    this.container.dataset['compact'] = String(compact);
     const split = Math.max(2, this.runtimes.size) as 2 | 3 | 4;
     /**
      * 🔴 예전에는 바가 차지하는 띠를 배치에서 통째로 떼어 냈다(`stageTopInset`) — 바 높이만큼
@@ -502,7 +394,7 @@ export class MultiViewStage {
      * 들어가 **영상을 하나도 가리지 않는다**. 여백이 모자랄 때만 영상 위로 올라가고, 그때는
      * `data-overlay` 가 서서 반투명해진다.
      */
-    const bar = this.bar?.getBoundingClientRect();
+    const bar = this.toolbar?.element.getBoundingClientRect();
     const barRect = bar
       ? {
           left: bar.left / zoom,
@@ -528,8 +420,8 @@ export class MultiViewStage {
      * `.cm-slot[data-under-bar='true'] .cm-slot__head`).
      */
     const overlaps = barOverlapsSlots(barRect, rects[0]?.y ?? null);
-    if (this.bar) this.bar.dataset['overlay'] = overlaps ? 'true' : 'false';
-    this.barOverlapHeightPx = overlaps && barRect ? Math.ceil(barRect.top + barRect.height) : 0;
+    if (this.toolbar) this.toolbar.element.dataset['overlay'] = String(overlaps);
+    const barOverlapHeight = overlaps && barRect ? Math.ceil(barRect.top + barRect.height) : 0;
 
     /**
      * 컨테이너 폭을 무대 폭과 일치시킨다. 사이드 채팅을 켜면 그 폭만큼 비워 두어야
@@ -557,12 +449,12 @@ export class MultiViewStage {
        * 비워 둔다 (2026-08-16 회귀 방지). CSS 변수로 넘겨 슬롯마다 다른 값을 쓰지 않는다 —
        * 바는 무대 최상단에 하나뿐이라 덮는 높이도 하나다.
        */
-      const coveredByBar = this.barOverlapHeightPx > rect.y;
+      const coveredByBar = barOverlapHeight > rect.y;
       runtime.cell.dataset['underBar'] = coveredByBar ? 'true' : 'false';
       if (coveredByBar) {
         runtime.cell.style.setProperty(
           '--cm-bar-overlap',
-          `${Math.max(0, this.barOverlapHeightPx - rect.y)}px`,
+          `${Math.max(0, barOverlapHeight - rect.y)}px`,
         );
       } else {
         runtime.cell.style.removeProperty('--cm-bar-overlap');
@@ -787,148 +679,45 @@ export class MultiViewStage {
 
   private createBar(): void {
     if (!this.container) return;
-    const bar = document.createElement('div');
-    bar.className = 'cm-stage-bar';
-
-    const configButton = document.createElement('button');
-    configButton.type = 'button';
-    configButton.setAttribute('aria-label', '멀티뷰 구성 열기');
-    configButton.appendChild(createIconElement('slots'));
-    configButton.appendChild(barLabel('구성'));
-    configButton.addEventListener('click', () => this.callbacks.onRequestConfig());
-    bar.appendChild(configButton);
-
-    /**
-     * 🔴 스테이지가 화면 전체를 덮어 호스트 컨트롤바의 설정(⚙) 버튼이 가려진다 —
-     * 멀티뷰 중에는 마스터 볼륨·음량 평탄화(컴프레서) 등 설정에 접근할 방법이 없었다
-     * (사용자 보고 2026-08-23). 설정 패널 자체는 z-index 가 스테이지보다 높아(`OURS.topZIndex`)
-     * 열리기만 하면 스테이지 위에 뜬다 — `settingsPanel` 기능에 열기 요청만 보내면 된다.
-     */
-    const settingsButton = document.createElement('button');
-    settingsButton.type = 'button';
-    settingsButton.setAttribute('aria-label', '이지직 설정 열기');
-    settingsButton.title = '이지직 설정 열기';
-    settingsButton.appendChild(createIconElement('ezzzkSettings', 20));
-    settingsButton.appendChild(barLabel('설정'));
-    settingsButton.addEventListener('click', () => {
-      window.dispatchEvent(new Event(OURS.openSettingsEventName));
+    const toolbar = createStageToolbar({
+      configure: () => this.callbacks.onRequestConfig(),
+      settings: () => window.dispatchEvent(new Event(OURS.openSettingsEventName)),
+      autoVolume: () => {
+        const enabled = !this.settings.multiView.autoVolume;
+        this.settings = {
+          ...this.settings,
+          multiView: { ...this.settings.multiView, autoVolume: enabled },
+        };
+        this.syncAutoVolume();
+        this.callbacks.onAutoVolumeChange?.(enabled);
+      },
+      // Reload the host as well as the slots. The saved layout is restored on load.
+      reload: () => location.reload(),
+      resizeChat: (steps) => {
+        this.chatSteps += steps;
+        this.syncChatWidth();
+      },
+      toggleChat: () => {
+        this.chatOpen = !this.chatOpen;
+        this.syncChatWidth();
+      },
+      fullscreen: () => void this.toggleFullscreen(),
+      exit: () => {
+        const active = this.runtimes.get(this.getFocusedSlot());
+        this.callbacks.onExit(active?.channelId ?? null);
+      },
     });
-    bar.appendChild(settingsButton);
-
-    const autoVolumeButton = document.createElement('button');
-    autoVolumeButton.type = 'button';
-    autoVolumeButton.id = 'cm-multiview-auto-volume';
-    autoVolumeButton.append(createIconElement('autoVolume'), barLabel('자동 음량'));
-    this.autoVolumeButton = autoVolumeButton;
-    this.updateAutoVolumeButton();
-    autoVolumeButton.addEventListener('click', () => {
-      const enabled = !this.settings.multiView.autoVolume;
-      this.settings = {
-        ...this.settings,
-        multiView: { ...this.settings.multiView, autoVolume: enabled },
-      };
-      this.syncAutoVolume();
-      this.callbacks.onAutoVolumeChange?.(enabled);
-    });
-    bar.appendChild(autoVolumeButton);
-
-    /**
-     * 새로고침 (요청 2026-09-07). 슬롯이 멎거나 방송이 끊겼을 때 페이지를 다시 읽는다.
-     *
-     * 🔴 슬롯 iframe 만 다시 붙이지 않고 **페이지 전체**를 새로 읽는다. 슬롯만 되살리면
-     * 호스트 페이지의 플레이어·채팅이 낡은 상태로 남아 "일부만 살아난" 화면이 된다.
-     * 멀티뷰 구성은 `chrome.storage` 에 있고 `restoreLastLayout` 이 복원하므로,
-     * 새로고침해도 보던 슬롯 구성 그대로 돌아온다.
-     */
-    const reloadButton = document.createElement('button');
-    reloadButton.type = 'button';
-    reloadButton.setAttribute('aria-label', '새로고침');
-    reloadButton.appendChild(createIconElement('refresh'));
-    reloadButton.appendChild(barLabel('새로고침'));
-    reloadButton.addEventListener('click', () => {
-      location.reload();
-    });
-    bar.appendChild(reloadButton);
-
-    /**
-     * 사이드 채팅 컨트롤 — `−`/`+`(폭 조절) · 토글.
-     * 사이드 채팅이 생기면서 **전체 화면 전용이 아니게** 됐다 (요청 2026-08-18).
-     * 실제 노출 여부는 `updateChatControls()` 가 `chatMode` 로 결정한다.
-     */
-    const chatControls = document.createElement('span');
-    chatControls.className = 'cm-stage-chat-controls';
-    chatControls.style.display = 'none';
-
-    const chatLabel = document.createElement('output');
-    chatLabel.setAttribute('aria-live', 'polite');
-
-    const narrow = document.createElement('button');
-    narrow.type = 'button';
-    narrow.setAttribute('aria-label', '채팅 영역 좁히기');
-    narrow.appendChild(createIconElement('minus'));
-    narrow.addEventListener('click', () => {
-      this.chatSteps -= 1;
-      this.syncChatWidth();
-    });
-
-    const widen = document.createElement('button');
-    widen.type = 'button';
-    widen.setAttribute('aria-label', '채팅 영역 넓히기');
-    widen.appendChild(createIconElement('plus'));
-    widen.addEventListener('click', () => {
-      this.chatSteps += 1;
-      this.syncChatWidth();
-    });
-
-    const chatOff = document.createElement('button');
-    chatOff.type = 'button';
-    chatOff.setAttribute('aria-label', '채팅 끄기');
-    chatOff.addEventListener('click', () => {
-      /*
-       * 🔴 토글이다. 예전에는 끄기만 있고 다시 켜는 경로가 **전체 화면 재진입** 뿐이어서,
-       * 일반 멀티뷰에서 한 번 끄면 되돌릴 방법이 없었다 (요청 2026-08-18로 사이드 채팅이
-       * 상시 기능이 되며 드러난 문제다).
-       */
-      this.chatOpen = !this.chatOpen;
-      this.syncChatWidth();
-    });
-
-    chatControls.append(barLabel('채팅'), narrow, chatLabel, widen, chatOff);
-    bar.appendChild(chatControls);
-    this.chatControls = chatControls;
-    this.chatLabel = chatLabel;
-    this.chatToggle = chatOff;
-
-    /**
-     * ⛶ 전체 화면 — 목업 화면 ③ 하단 바에 있는 버튼이다.
-     *
-     * 모바일(특히 Edge for Android 가로 모드)에서 **주소창이 화면을 크게 가리는데, 확장이
-     * 브라우저 UI 를 직접 숨길 방법은 없다.** 전체 화면 API 가 유일한 수단이고 이 API 는
-     * **사용자 제스처가 있어야** 허용되므로(회전 이벤트로는 자동 호출이 거부된다) 버튼으로 둔다.
-     */
-    const fullscreenButton = document.createElement('button');
-    fullscreenButton.type = 'button';
-    fullscreenButton.dataset.cmFullscreenToggle = '';
-    this.fullscreenButton = fullscreenButton;
+    this.container.appendChild(toolbar.element);
+    this.toolbar = toolbar;
     this.updateFullscreenButton();
-    fullscreenButton.addEventListener('click', () => {
-      void this.toggleFullscreen();
-    });
-    bar.appendChild(fullscreenButton);
+    this.updateAutoVolumeButton();
 
-    const exitButton = document.createElement('button');
-    exitButton.type = 'button';
-    exitButton.setAttribute('aria-label', '멀티뷰 해제');
-    exitButton.appendChild(createIconElement('close'));
-    exitButton.appendChild(barLabel('해제'));
-    exitButton.addEventListener('click', () => {
-      const active = this.runtimes.get(this.getFocusedSlot());
-      this.callbacks.onExit(active?.channelId ?? null);
-    });
-    bar.appendChild(exitButton);
-
-    this.container.appendChild(bar);
-    this.bar = bar;
+    // The chat overlay feature can insert its button after the stage has opened.
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => this.layout());
+      observer.observe(toolbar.element);
+      this.disposers.push(() => observer.disconnect());
+    }
   }
 
   /**

@@ -1,8 +1,6 @@
 import { OURS } from '../../constants/class';
 import { ACCENT, FONT_FAMILY, RADIUS, UI_STATE } from '../../ui/tokens';
 
-export const STAGE_BAR_COMPACT_MAX_PX = 600;
-
 /**
  * 스테이지 컨테이너의 폭은 CSS 에 박지 않고 `layout()` 이 무대 폭으로 인라인 지정한다.
  *
