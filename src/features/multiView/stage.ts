@@ -13,6 +13,7 @@
 import { createIconElement } from '../../ui/icons';
 import { averageVolumeTarget, AUTO_VOLUME_TARGET } from './autoVolume';
 import { OURS } from '../../constants/class';
+import { SIZE_TIERS } from '../../constants/device';
 import type { MultiViewSlot, Settings, SlotIndex, SlotLines } from '../../constants/storage';
 import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
@@ -37,7 +38,7 @@ import {
   type Orientation,
 } from './slotLayout';
 
-import { buildStageCss } from './stageCss';
+import { buildStageCss, STAGE_BAR_COMPACT_MAX_PX } from './stageCss';
 import {
   barOverlapsSlots,
   sideChatWidthPx,
@@ -102,6 +103,23 @@ const MIN_STAGE_WIDTH_PX = 480;
  */
 const SIDE_CHAT_LINES = 40;
 
+function readStageViewport() {
+  const { width, height } = readViewport();
+  const screenWidth = width * (window.visualViewport?.scale ?? 1);
+  const layoutWidth = document.documentElement.clientWidth;
+  // Android desktop-site mode can fit a wide layout to a narrow touch screen.
+  // Base compensation on that fit so it stays constant when the user pinches.
+  const zoom =
+    screenWidth > 0 &&
+    screenWidth < SIZE_TIERS.mobileShortSide &&
+    layoutWidth > STAGE_BAR_COMPACT_MAX_PX &&
+    navigator.maxTouchPoints > 0 &&
+    !window.matchMedia?.('(hover: hover)').matches
+      ? layoutWidth / screenWidth
+      : 1;
+  return { width: width / zoom, height: height / zoom, zoom };
+}
+
 export type StageCallbacks = {
   onAutoVolumeChange?: (enabled: boolean) => void;
   onRequestConfig: () => void;
@@ -160,7 +178,7 @@ function barLabel(text: string): HTMLSpanElement {
 
 export class MultiViewStage {
   private container: HTMLElement | null = null;
-  /** 하단 컨트롤 바. 스트립이 이 바를 피하도록 좌표를 읽는다. */
+  /** 상단 컨트롤 바. 스트립이 이 바를 피하도록 좌표를 읽는다. */
   private bar: HTMLElement | null = null;
   private fullscreenButton: HTMLButtonElement | null = null;
   private autoVolumeButton: HTMLButtonElement | null = null;
@@ -314,13 +332,14 @@ export class MultiViewStage {
    * 멀티뷰 중에는 기존 우측 채팅을 비활성화하므로(2026-08-12 결정) 폭을 뺄 이유가 없다.
    * 슬롯 채팅은 슬롯마다 붙는 스트립(FR-14.2)이 담당한다.
    */
-  private stageSize(): { width: number; height: number; orientation: Orientation } {
-    const { width, height } = readViewport();
+  private stageSize(): { width: number; height: number; orientation: Orientation; zoom: number } {
+    const { width, height, zoom } = readStageViewport();
     const chatWidth = this.currentChatWidth();
     return {
       width: Math.max(0, width - chatWidth),
       height,
       orientation: width >= height ? 'landscape' : 'portrait',
+      zoom,
     };
   }
 
@@ -336,7 +355,7 @@ export class MultiViewStage {
     // 멀티뷰 채팅 임시 비활성화 중에는 저장값과 무관하게 폭 0 이다 (`chatFeature.ts`).
     if (!this.chatOpen || effectiveChatMode(this.settings.multiView.chatMode) === 'none') return 0;
     if (!this.sideChatFits()) return 0;
-    const { width, height } = readViewport();
+    const { width, height } = readStageViewport();
     return sideChatWidthPx(width, height, this.chatSteps);
   }
 
@@ -345,7 +364,7 @@ export class MultiViewStage {
    * 껐다 켜는 컨트롤을 보여 줘야 하는지 판단하는 데도 쓴다.
    */
   private sideChatFits(): boolean {
-    const { width, height } = readViewport();
+    const { width, height } = readStageViewport();
     const chat = sideChatWidthPx(width, height, this.chatSteps);
     return chat > 0 && width - chat >= MIN_STAGE_WIDTH_PX;
   }
@@ -466,7 +485,13 @@ export class MultiViewStage {
 
   private layoutOnce(): void {
     if (!this.container) return;
-    const { width, height, orientation } = this.stageSize();
+    const { width, height, orientation, zoom } = this.stageSize();
+    this.container.style.zoom = zoom === 1 ? '' : String(zoom);
+    this.container.style.width = `${width}px`;
+    this.container.style.height = zoom === 1 ? '' : `${height}px`;
+    this.container.dataset['compact'] = String(
+      width + this.currentChatWidth() <= STAGE_BAR_COMPACT_MAX_PX,
+    );
     const split = Math.max(2, this.runtimes.size) as 2 | 3 | 4;
     /**
      * 🔴 예전에는 바가 차지하는 띠를 배치에서 통째로 떼어 냈다(`stageTopInset`) — 바 높이만큼
@@ -477,7 +502,16 @@ export class MultiViewStage {
      * 들어가 **영상을 하나도 가리지 않는다**. 여백이 모자랄 때만 영상 위로 올라가고, 그때는
      * `data-overlay` 가 서서 반투명해진다.
      */
-    const barRect = this.bar?.getBoundingClientRect() ?? null;
+    const bar = this.bar?.getBoundingClientRect();
+    const barRect = bar
+      ? {
+          left: bar.left / zoom,
+          right: bar.right / zoom,
+          top: bar.top / zoom,
+          bottom: bar.bottom / zoom,
+          height: bar.height / zoom,
+        }
+      : null;
     const rects = computeSlotRects(
       split,
       width,
@@ -501,7 +535,6 @@ export class MultiViewStage {
      * 컨테이너 폭을 무대 폭과 일치시킨다. 사이드 채팅을 켜면 그 폭만큼 비워 두어야
      * 기존 채팅 aside 가 실제로 보인다 (위 CSS 주석의 실측 버그).
      */
-    this.container.style.width = `${width}px`;
     this.ensureChatPanel();
 
     /*
@@ -1207,7 +1240,7 @@ export class MultiViewStage {
     messages: { nickname: string; text: string; color: string | null }[],
   ): void {
     const rect = runtime.cell.getBoundingClientRect();
-    const lines = this.linesFor(runtime.slot, rect.width);
+    const lines = this.linesFor(runtime.slot, rect.width / readStageViewport().zoom);
     if (lines <= 0) {
       runtime.strip.replaceChildren();
       return;

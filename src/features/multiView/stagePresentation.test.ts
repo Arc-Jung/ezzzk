@@ -93,7 +93,7 @@ describe('buildStageCss', () => {
    */
   it('좁은 화면에서만 조작 바 라벨을 숨긴다 — 터치 타겟은 그대로다', () => {
     const css = buildStageCss(44, true);
-    const compactBlock = /@media \(max-width:\s*\d+px\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    const compactBlock = css.slice(css.indexOf("[data-compact='true']"));
     expect(compactBlock).not.toBe('');
     expect(compactBlock).toMatch(/\.cm-stage-bar__label\s*\{[^}]*display:\s*none/);
     // 압축 블록 안에서도 버튼 크기(터치 타겟)는 건드리지 않는다 — 라벨만 숨긴다.
@@ -107,7 +107,7 @@ describe('buildStageCss', () => {
   it('좁은 화면 압축 시 버튼 사이 간격을 줄이지 않는다 — 오히려 넓힌다', () => {
     const css = buildStageCss(44, true);
     const baseGap = Number(/\.cm-stage-bar\s*\{[^}]*gap:\s*(\d+)px/.exec(css)?.[1] ?? '0');
-    const compactBlock = /@media \(max-width:\s*\d+px\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    const compactBlock = css.slice(css.indexOf("[data-compact='true']"));
     const compactGap = Number(
       /\.cm-stage-bar\s*\{[^}]*gap:\s*(\d+)px/.exec(compactBlock)?.[1] ?? '0',
     );
