@@ -1,8 +1,6 @@
 import { OURS } from '../../constants/class';
 import { ACCENT, FONT_FAMILY, RADIUS, UI_STATE } from '../../ui/tokens';
 
-const STAGE_BAR_COMPACT_MAX_PX = 600;
-
 /**
  * 스테이지 컨테이너의 폭은 CSS 에 박지 않고 `layout()` 이 무대 폭으로 인라인 지정한다.
  *
@@ -162,7 +160,8 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
    * 가운데를 맞추면 가용 폭이 컨테이너 전체 폭이 된다 — 표준적인 "shrink-to-fit 가운데" 기법.
    */
   width: fit-content;
-  max-width: calc(100vw - 8px);
+  box-sizing: border-box;
+  max-width: calc(100% - 8px);
   flex-wrap: wrap;
   justify-content: center;
   position: absolute;
@@ -217,6 +216,7 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   transition: background-color 140ms ease, border-color 140ms ease;
   color: #e9ecef;
   cursor: pointer;
+  touch-action: manipulation;
 }
 #${OURS.multiViewStageId} .cm-stage-bar button[aria-pressed='true'] {
   background: ${UI_STATE.selected};
@@ -304,13 +304,15 @@ export function buildStageCss(touchTargetPx: number, alwaysShowHeader: boolean):
   라벨을 숨겨도 버튼의 aria-label 이 그대로 접근성 이름을 맡는다 (createBar 참고).
   laptop13(1440) 처럼 이 경계보다 넓은 화면은 그대로 라벨이 보인다.
 */
-@media (max-width: ${STAGE_BAR_COMPACT_MAX_PX}px) {
-  #${OURS.multiViewStageId} .cm-stage-bar {
-    gap: 12px;
-  }
-  #${OURS.multiViewStageId} .cm-stage-bar__label {
-    display: none;
-  }
+#${OURS.multiViewStageId}[data-compact='true'] .cm-stage-bar {
+  gap: 12px;
+}
+#${OURS.multiViewStageId}[data-compact='true'] .cm-stage-bar__label {
+  display: none;
+}
+#${OURS.multiViewStageId}[data-compact='true'] .cm-stage-bar button > svg {
+  width: 20px;
+  height: 20px;
 }
 `.trim();
 }

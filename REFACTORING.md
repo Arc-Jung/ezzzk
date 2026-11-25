@@ -65,3 +65,9 @@ node scripts/verify-overlay-chat-compose.mjs
 node scripts/verify-double-tap-fullscreen.mjs
 node scripts/verify-multiview-auto-volume.mjs
 ```
+
+## 멀티뷰 조작 바 정리
+
+- `stageToolbar.ts`에서 버튼 생성, 접근성 이름과 상태 표시를 관리한다. 스테이지는 재생과 슬롯 상태를 관리하고, 조작 바에서 넘어온 동작을 실행한다.
+- `stageViewport.ts`에서 커버 화면의 축소 배율과 슬롯 배치에 쓸 크기를 계산한다. 스테이지는 너비를 적용한 뒤 조작 바 높이를 재고, 채팅 버튼 추가나 줄바꿈으로 바 크기가 바뀌면 다시 배치한다.
+- `node scripts/verify-fold-cover-controls.mjs`로 커버 화면의 재생·일시정지, 전체화면 진입·종료, 접힘·펼침 중 슬롯 유지, 모바일 사이트의 기본 크기를 검증한다.
