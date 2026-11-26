@@ -36,6 +36,7 @@
 | 멀티뷰 구성 시트 — 조작은 상단, 인기 방송 30개씩 추가 로드                                 | ![멀티뷰 구성](screenshots/demo-laptop13-multiview-config.png) |
 | 멀티뷰 시청 — 4분할                                                                        | ![멀티뷰 시청](screenshots/demo-laptop13-multiview.png)        |
 | 멀티뷰 시청 — 메인 70% + 오른쪽 3개 | ![메인 70% 멀티뷰](screenshots/demo-laptop13-multiview-main-sidebar.png) |
+| 멀티뷰 시청 — 메인 70% + 오른쪽 4개 (재현 영상) | ![5분할 멀티뷰](screenshots/demo-laptop13-multiview-five-streams.png) |
 
 ### 모바일 (데스크톱 사이트 요청 상태)
 
@@ -45,8 +46,8 @@
 | 세로 412×915 — 기본 시청 (**채팅이 영상 아래로 내려간 하단 배치**) | ![모바일 세로 기본](screenshots/demo-mobile-portrait-watch.png)                    |
 | 가로 915×412 — 설정 패널                                           | ![모바일 가로 설정](screenshots/demo-mobile-landscape-settings.png)                |
 | 세로 412×915 — 설정 패널                                           | ![모바일 세로 설정](screenshots/demo-mobile-portrait-settings.png)                 |
-| 가로 915×412 — 멀티뷰 구성 (4분할까지)                       | ![모바일 가로 멀티뷰 구성](screenshots/demo-mobile-landscape-multiview-config.png) |
-| 세로 412×915 — 멀티뷰 구성 (4분할까지)                       | ![모바일 세로 멀티뷰 구성](screenshots/demo-mobile-portrait-multiview-config.png)  |
+| 가로 915×412 — 멀티뷰 구성                                  | ![모바일 가로 멀티뷰 구성](screenshots/demo-mobile-landscape-multiview-config.png) |
+| 세로 412×915 — 멀티뷰 구성                                  | ![모바일 세로 멀티뷰 구성](screenshots/demo-mobile-portrait-multiview-config.png)  |
 | 가로 915×412 — 멀티뷰 시청 (4분할 · 2×2)                       | ![모바일 가로 멀티뷰](screenshots/demo-mobile-landscape-multiview.png)             |
 | 가로 915×412 — 메인 70% + 오른쪽 3개 | ![모바일 가로 메인 70% 멀티뷰](screenshots/demo-mobile-landscape-multiview-main-sidebar.png) |
 | 세로 412×915 — 멀티뷰 시청 (4분할 · 한 열)                       | ![모바일 세로 멀티뷰](screenshots/demo-mobile-portrait-multiview.png)              |
@@ -55,6 +56,8 @@
 > **슬롯·사이드 채팅 기능은 버그로 임시 비활성**이다.
 
 멀티뷰 구성에서 **메인 70% + 오른쪽 3개**를 선택하면 1번 방송을 왼쪽 가로 폭의 약 70%에 크게, 2~4번 방송을 오른쪽 30%에 세로로 배치합니다. 선택한 배치는 저장되며, 세로 화면에서는 기존 한 열 배치를 사용합니다.
+
+**메인 70% + 오른쪽 4개**는 가로에서 1번 방송에 왼쪽 70%, 2~5번 방송에 오른쪽 30%를 배정합니다. 세로에서는 1번 방송을 위에 크게 두고 2~5번 방송을 아래 2×2로 표시합니다.
 
 ## 기능
 

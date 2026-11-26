@@ -7,8 +7,8 @@
 
 import { decideDevice } from '../../device';
 import { OURS } from '../../constants/class';
-import type { Settings, SlotIndex } from '../../constants/storage';
-import { supportsMultiView } from '../../pageType';
+import { isSlotIndex, type Settings, type SlotIndex } from '../../constants/storage';
+import { SLOT_FRAME_PARAM, supportsMultiView } from '../../pageType';
 import { onSettingsChanged, updateSection } from '../../storage';
 import { claimWidth, ensureLayoutArbiter, releaseWidth } from '../../layoutArbiter';
 import { onViewportChange, readViewport } from '../../utils/viewport';
@@ -249,8 +249,7 @@ export const multiViewFeature: Feature = {
 };
 
 function readSlotFromUrl(): SlotIndex | null {
-  const raw = new URL(location.href).searchParams.get('cmSlot');
+  const raw = new URL(location.href).searchParams.get(SLOT_FRAME_PARAM);
   const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 4) return null;
-  return parsed as SlotIndex;
+  return isSlotIndex(parsed) ? parsed : null;
 }

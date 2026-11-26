@@ -10,13 +10,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  MultiViewLayout,
-  MultiViewSlot,
-  Settings,
-  SlotIndex,
-  SlotLines,
-  SplitCount,
+import {
+  SLOT_INDEXES,
+  type MultiViewSlot,
+  type Settings,
+  type SlotIndex,
+  type SlotLines,
+  type SplitCount,
 } from '../../constants/storage';
 import { Sheet } from '../../ui/Sheet';
 import { fetchLiveStatus, type LiveStatus } from '../liveResume';
@@ -25,7 +25,8 @@ import { OURS } from '../../constants/class';
 import { MULTIVIEW_CHAT_ENABLED } from './chatFeature';
 import { CONFIG_SHEET_CSS } from './configSheetCss';
 import { upsertStyle } from '../../utils/dom';
-import { fitListScrollHeight, isSplitAvailable, recommendedPlacement } from './slotLayout';
+import { fitListScrollHeight, recommendedPlacement } from './slotLayout';
+import { MULTIVIEW_LAYOUT_OPTIONS, selectedLayoutOption } from './layoutOptions';
 import {
   LIVES_PAGE_SIZE,
   fetchCurrentLives,
@@ -40,12 +41,11 @@ import type { DeviceDecision } from '../../device';
 export const SLOT_STATUS_REFRESH_MS = 30_000;
 const SLOT_STATUS_TIMEOUT_MS = 10_000;
 
-const ALL_SLOTS: SlotIndex[] = [1, 2, 3, 4];
 /** 스크롤로 자동 로드할 최대 페이지 수. 이후는 `더 보기` 를 눌러야 한다. */
 const AUTO_LOAD_PAGE_LIMIT = 4;
 /** 팔로우 채널을 한 번에 보여 주는 수 (요청 2026-08-20). */
 const FOLLOW_PAGE_SIZE = 10;
-const CIRCLED = ['①', '②', '③', '④'] as const;
+const CIRCLED = ['①', '②', '③', '④', '⑤'] as const;
 
 type Props = {
   settings: Settings;
@@ -65,14 +65,13 @@ type ListState =
 
 export function ConfigSheet({ settings, device, currentChannel, onClose, onStart }: Props) {
   const maxSplit = device.profile.maxSplit;
-  const [split, setSplit] = useState<SplitCount>(
-    Math.min(settings.multiView.defaultSplit, maxSplit) as SplitCount,
+  const [layoutOption, setLayoutOption] = useState(() =>
+    selectedLayoutOption(
+      Math.min(settings.multiView.defaultSplit, maxSplit) as SplitCount,
+      settings.multiView.layout,
+    ),
   );
-  const [layout, setLayout] = useState<MultiViewLayout>(
-    settings.multiView.defaultSplit === 4 && maxSplit >= 4
-      ? (settings.multiView.layout ?? 'grid')
-      : 'grid',
-  );
+  const { split, layout } = layoutOption;
   const [slots, setSlots] = useState<MultiViewSlot[]>(() => {
     const base = settings.multiView.restoreLastLayout ? [...settings.multiView.slots] : [];
     if (currentChannel && !base.some((s) => s.index === 1)) {
@@ -260,7 +259,7 @@ export function ConfigSheet({ settings, device, currentChannel, onClose, onStart
     return () => observer.disconnect();
   }, [popular.length, list, split, device.profile.touchTargetPx]);
 
-  const usableSlots = useMemo(() => ALL_SLOTS.slice(0, split), [split]);
+  const usableSlots = useMemo(() => SLOT_INDEXES.slice(0, split), [split]);
   const placedSlots = useMemo(() => slots.filter((slot) => slot.index <= split), [slots, split]);
 
   const selectedChannelIds = useMemo(
@@ -403,41 +402,22 @@ export function ConfigSheet({ settings, device, currentChannel, onClose, onStart
       <div className="cm-sheet__row">
         <fieldset className="cm-mv-splits">
           <legend>분할</legend>
-          {([2, 3, 4] as SplitCount[]).map((value) => {
-            const available = isSplitAvailable(value, device.deviceClass);
-            return (
-              <label key={value} className={available ? '' : 'cm-disabled'}>
-                <input
-                  type="radio"
-                  name="cm-split"
-                  value={value}
-                  checked={split === value && layout === 'grid'}
-                  disabled={!available}
-                  onChange={() => {
-                    setSplit(value);
-                    setLayout('grid');
-                    setPlacement(recommendedPlacement(value));
-                  }}
-                />
-                {value}분할
-              </label>
-            );
-          })}
-          <label className={maxSplit >= 4 ? '' : 'cm-disabled'}>
-            <input
-              type="radio"
-              name="cm-split"
-              value="main-sidebar"
-              checked={split === 4 && layout === 'main-sidebar'}
-              disabled={maxSplit < 4}
-              onChange={() => {
-                setSplit(4);
-                setLayout('main-sidebar');
-                setPlacement(recommendedPlacement(4));
-              }}
-            />
-            메인 70% + 오른쪽 3개
-          </label>
+          {MULTIVIEW_LAYOUT_OPTIONS.map((option) => (
+            <label key={option.value} className={option.split > maxSplit ? 'cm-disabled' : ''}>
+              <input
+                type="radio"
+                name="cm-split"
+                value={option.value}
+                checked={layoutOption.value === option.value}
+                disabled={option.split > maxSplit}
+                onChange={() => {
+                  setLayoutOption(option);
+                  setPlacement(recommendedPlacement(option.split));
+                }}
+              />
+              {option.label}
+            </label>
+          ))}
         </fieldset>
         <button type="button" className="cm-sheet__btn" onClick={() => setSlots([])}>
           초기화

@@ -63,6 +63,51 @@ describe('computeSlotRects — 메인 70% + 오른쪽 3개', () => {
   });
 });
 
+describe('computeSlotRects — 메인 70% + 오른쪽 4개', () => {
+  it.each([2, 3, 4, 5] as const)('가로 슬롯 %d개를 70:30으로 배치한다', (split) => {
+    const [main, ...side] = computeSlotRects(
+      split,
+      1365,
+      768,
+      'landscape',
+      2,
+      31,
+      'main-sidebar-five',
+    );
+    expect(main).toEqual({ index: 1, x: 0, y: 31, width: 954, height: 737 });
+    expect(side).toHaveLength(split - 1);
+    side.forEach((slot, index) => {
+      const previous = side[index - 1];
+      expect(slot).toMatchObject({
+        index: index + 2,
+        x: 956,
+        width: 409,
+        y: previous ? previous.y + previous.height + 2 : 31,
+      });
+    });
+    const last = side.at(-1)!;
+    expect(last.y + last.height).toBe(768);
+  });
+
+  it('세로 커버 화면에서는 메인 아래에 슬롯 2~5를 2×2로 배치한다', () => {
+    const [main, upperLeft, upperRight, lowerLeft, lowerRight] = computeSlotRects(
+      5,
+      411,
+      960,
+      'portrait',
+      2,
+      0,
+      'main-sidebar-five',
+    );
+    expect(main).toMatchObject({ index: 1, x: 0, width: 411, height: 231 });
+    expect(upperLeft).toMatchObject({ x: 0, y: main!.y + main!.height + 2, width: 204 });
+    expect(upperRight).toMatchObject({ x: 206, y: upperLeft!.y, width: 205 });
+    expect(lowerLeft).toMatchObject({ x: 0, y: upperLeft!.y + upperLeft!.height + 2 });
+    expect(lowerRight).toMatchObject({ index: 5, x: 206, y: lowerLeft!.y });
+    expect(lowerRight!.y + lowerRight!.height).toBeLessThanOrEqual(960);
+  });
+});
+
 describe('computeSlotRects — 실측 기준값 재현 (1920×1080)', () => {
   it('4분할 슬롯은 959×539 다 (gap 2px)', () => {
     const rects = computeSlotRects(4, 1920, 1080);
@@ -347,20 +392,22 @@ describe('stripMetrics — 오버레이 vs 예약 배치 (목업 화면 ③′·
 });
 
 describe('기기별 분할 상한 (FR-14 표)', () => {
-  it('desktop / laptop / tablet-13 은 4분할까지', () => {
+  it('desktop / laptop / tablet-13 은 5분할까지', () => {
     for (const cls of ['desktop', 'laptop', 'tablet-13'] as const) {
-      expect(maxSplitFor(cls)).toBe(4);
+      expect(maxSplitFor(cls)).toBe(5);
       expect(isSplitAvailable(4, cls)).toBe(true);
-      expect(clampSplit(4, cls)).toBe(4);
+      expect(isSplitAvailable(5, cls)).toBe(true);
+      expect(clampSplit(5, cls)).toBe(5);
     }
   });
 
-  it('태블릿 7·10인치로 펼쳐져도 3·4분할이 유지된다', () => {
+  it('태블릿 7·10인치로 펼쳐져도 3·4·5분할이 유지된다', () => {
     for (const cls of ['tablet-10', 'tablet-7'] as const) {
-      expect(maxSplitFor(cls)).toBe(4);
+      expect(maxSplitFor(cls)).toBe(5);
       expect(isSplitAvailable(3, cls)).toBe(true);
       expect(isSplitAvailable(4, cls)).toBe(true);
-      expect(clampSplit(4, cls)).toBe(4);
+      expect(isSplitAvailable(5, cls)).toBe(true);
+      expect(clampSplit(5, cls)).toBe(5);
     }
   });
 
@@ -369,9 +416,9 @@ describe('기기별 분할 상한 (FR-14 표)', () => {
    * 2×2 격자가 나와 슬롯마다 레터박스가 생겼을 것이다 — 배치 쪽 회귀는
    * 「세로 3·4분할」 블록이 따로 고정한다.
    */
-  it('모바일은 2·3·4분할을 모두 고를 수 있다', () => {
-    expect(maxSplitFor('mobile')).toBe(4);
-    for (const split of [2, 3, 4] as const) {
+  it('모바일은 2~5분할을 모두 고를 수 있다', () => {
+    expect(maxSplitFor('mobile')).toBe(5);
+    for (const split of [2, 3, 4, 5] as const) {
       expect(isSplitAvailable(split, 'mobile')).toBe(true);
       expect(clampSplit(split, 'mobile')).toBe(split);
     }

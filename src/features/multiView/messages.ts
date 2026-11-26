@@ -10,7 +10,7 @@
  */
 
 import { CHZZK_ORIGINS } from '../../constants/class';
-import type { SlotIndex } from '../../constants/storage';
+import { isSlotIndex, type SlotIndex } from '../../constants/storage';
 
 /** 프로토콜 식별자. 치지직 자체 메시지와 섞이지 않게 붙인다. */
 export const MV_CHANNEL = 'ezzzk/multiview' as const;
@@ -51,7 +51,7 @@ export type ParentToSlot =
   /**
    * 부모 프레임에서 **사용자 제스처**가 있었다 (2026-08-27).
    *
-   * 🔴 슬롯마다 프레임이 다르다 — 사용자가 슬롯 1 을 눌러도 슬롯 2·3·4 의 `click` 리스너는
+   * 🔴 슬롯마다 프레임이 다르다 — 사용자가 슬롯 1 을 눌러도 다른 슬롯의 `click` 리스너는
    * 영영 깨어나지 않는다. 자동재생 정책에 걸려 음소거로 시작한 슬롯은 `volume.ts` 의 제스처
    * 재시도를 기다리다 그대로 굳었다 (사용자 보고 2026-08-27 "멀티뷰에서 음소거 자동 해제가
    * 적용되지 않는다"). 부모가 자기 프레임의 제스처를 **모든 슬롯에** 알려 재시도를 깨운다.
@@ -59,13 +59,13 @@ export type ParentToSlot =
    */
   | { channel: typeof MV_CHANNEL; dir: 'p2s'; kind: 'userGesture'; slot: SlotIndex };
 
-/** `Alt+Shift+1~4` 로 눌린 슬롯 번호. 대상이 아니면 null. 부모·슬롯 양쪽에서 쓴다. */
+/** `Alt+Shift+1~5` 로 눌린 슬롯 번호. 대상이 아니면 null. 부모·슬롯 양쪽에서 쓴다. */
 export function slotFromAudioShortcut(event: KeyboardEvent): SlotIndex | null {
   if (!event.altKey || !event.shiftKey) return null;
   // event.code 를 쓴다 — Shift 조합에서는 event.key 가 `!@#$` 로 바뀐다.
-  const match = /^Digit([1-4])$/.exec(event.code);
-  if (!match) return null;
-  return Number(match[1]) as SlotIndex;
+  const match = /^Digit(\d)$/.exec(event.code);
+  const slot = Number(match?.[1]);
+  return isSlotIndex(slot) ? slot : null;
 }
 
 /** 슬롯 → 부모 */
@@ -106,7 +106,7 @@ export type SlotToParent =
    */
   | { channel: typeof MV_CHANNEL; dir: 's2p'; kind: 'requestAudio'; slot: SlotIndex }
   /**
-   * 슬롯 안에서 오디오 단축키(`Alt+Shift+1~4`)를 눌렀다 → 그 슬롯으로 옮겨 달라.
+   * 슬롯 안에서 오디오 단축키(`Alt+Shift+1~5`)를 눌렀다 → 그 슬롯으로 옮겨 달라.
    *
    * 🔴 필요한 이유 (실측 2026-08-18): 슬롯을 한 번 누르면 `document.activeElement` 가 **iframe**
    * 이 되어 키 입력이 슬롯 문서로 간다. 부모의 `window` keydown 리스너는 그 뒤로 아무것도 받지
@@ -136,7 +136,7 @@ export function parseMvMessage(
   if (msg.dir !== expectedDir) return null;
   if (typeof msg.kind !== 'string') return null;
   if (msg.kind === 'setAutoVolume' && typeof msg.enabled !== 'boolean') return null;
-  if (typeof msg.slot !== 'number' || msg.slot < 1 || msg.slot > 4) return null;
+  if (!isSlotIndex(msg.slot)) return null;
   return data as MvMessage;
 }
 

@@ -297,7 +297,7 @@ export function startSlotController(slot: SlotIndex): Disposer {
   document.addEventListener('pointerdown', onPointerDown, { capture: true, passive: true });
 
   /**
-   * 오디오 단축키(`Alt+Shift+1~4`)를 프레임에서도 받아 부모로 넘긴다.
+   * 오디오 단축키(`Alt+Shift+1~5`)를 프레임에서도 받아 부모로 넘긴다.
    *
    * 🔴 슬롯을 한 번 누르면 포커스가 iframe 으로 넘어가(실측 2026-08-18: 탭 뒤
    * `document.activeElement` = `IFRAME`) 부모의 keydown 리스너가 더 이상 아무것도 받지 못한다.

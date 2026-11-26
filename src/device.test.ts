@@ -154,7 +154,7 @@ describe('DEVICE_PROFILES — 유형별 값 (FR-12 표)', () => {
   });
 
   it('접힘·펼침으로 기기 분류가 바뀌어도 4분할을 유지한다', () => {
-    for (const profile of Object.values(DEVICE_PROFILES)) expect(profile.maxSplit).toBe(4);
+    for (const profile of Object.values(DEVICE_PROFILES)) expect(profile.maxSplit).toBe(5);
   });
 
   it('슬롯 채팅 줄 상한 (FR-14.2)', () => {

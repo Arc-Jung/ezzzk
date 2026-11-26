@@ -19,9 +19,14 @@ export const WRITER_KEY = 'ezzzk.lastWriter';
 
 export type QualityTarget = 'auto' | '1080p' | '720p' | '480p' | 'best';
 export type SlotLines = 0 | 1 | 2 | 3 | 4 | 5;
-export type SlotIndex = 1 | 2 | 3 | 4;
-export type SplitCount = 2 | 3 | 4;
-export type MultiViewLayout = 'grid' | 'main-sidebar';
+export const SLOT_INDEXES = [1, 2, 3, 4, 5] as const;
+export type SlotIndex = (typeof SLOT_INDEXES)[number];
+export type SplitCount = Exclude<SlotIndex, 1>;
+export type MultiViewLayout = 'grid' | 'main-sidebar' | 'main-sidebar-five';
+
+export function isSlotIndex(value: unknown): value is SlotIndex {
+  return typeof value === 'number' && SLOT_INDEXES.some((index) => index === value);
+}
 
 export type ChatPreset = { id: string; label: string; text: string; order: number };
 
@@ -187,7 +192,7 @@ export type Settings = {
   multiView: {
     enabled: boolean;
     defaultSplit: SplitCount;
-    /** 4분할 가로 화면: 기본 격자 또는 메인 70% + 오른쪽 3개. */
+    /** 기본 격자, 메인 70% + 오른쪽 3개, 메인 70% + 오른쪽 4개. */
     layout: MultiViewLayout;
     /**
      * 비활성 슬롯 화질을 720p 로 낮출지. **기본 끄기**(2026-08-12 요청) —

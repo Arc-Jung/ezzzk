@@ -4,14 +4,12 @@
  */
 
 import { useState } from 'react';
-import {
-  CHAT_FONT_RANGE,
-  LIMITS,
-  type Settings,
-  type SlotLines,
-  type SplitCount,
-} from '../constants/storage';
+import { CHAT_FONT_RANGE, LIMITS, type Settings, type SlotLines } from '../constants/storage';
 import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
+import {
+  MULTIVIEW_LAYOUT_OPTIONS,
+  selectedLayoutOption,
+} from '../features/multiView/layoutOptions';
 import {
   CHAT_PRESET_ENABLED,
   addPreset,
@@ -35,8 +33,6 @@ import { CloseIcon } from '../ui/icons';
 import { cleanBotTarget, readCleanBotState } from '../features/chzzkCleanBot';
 import { ChatSubtitleOptions } from './ChatSubtitleOptions';
 
-const SPLITS: SplitCount[] = [2, 3, 4];
-
 export function MultiViewTab({ settings, device, update }: TabProps) {
   const multiView = settings.multiView;
 
@@ -49,30 +45,28 @@ export function MultiViewTab({ settings, device, update }: TabProps) {
         <span>기본 분할</span>
         <select
           aria-label="기본 분할 수"
-          value={
-            multiView.defaultSplit === 4 && multiView.layout === 'main-sidebar'
-              ? 'main-sidebar'
-              : multiView.defaultSplit
-          }
+          value={selectedLayoutOption(multiView.defaultSplit, multiView.layout).value}
           onChange={(event) => {
-            const layout = event.target.value === 'main-sidebar' ? 'main-sidebar' : 'grid';
-            const split =
-              layout === 'main-sidebar' ? 4 : (Number(event.target.value) as SplitCount);
-            patch({ defaultSplit: split, layout, slotChatPlacement: recommendedPlacement(split) });
+            const option = MULTIVIEW_LAYOUT_OPTIONS.find(
+              (item) => item.value === event.target.value,
+            );
+            if (!option) return;
+            patch({
+              defaultSplit: option.split,
+              layout: option.layout,
+              slotChatPlacement: recommendedPlacement(option.split),
+            });
           }}
         >
-          {SPLITS.map((split) => (
+          {MULTIVIEW_LAYOUT_OPTIONS.map((option) => (
             <option
-              key={split}
-              value={split}
-              disabled={!isSplitAvailable(split, device.deviceClass)}
+              key={option.value}
+              value={option.value}
+              disabled={!isSplitAvailable(option.split, device.deviceClass)}
             >
-              {split}분할
+              {option.label}
             </option>
           ))}
-          <option value="main-sidebar" disabled={!isSplitAvailable(4, device.deviceClass)}>
-            메인 70% + 오른쪽 3개
-          </option>
         </select>
       </div>
       <Toggle
