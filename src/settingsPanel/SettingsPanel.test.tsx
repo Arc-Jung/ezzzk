@@ -172,10 +172,11 @@ afterEach(() => {
  */
 describe('좁은/짧은 화면 대응 CSS', () => {
   it('세로가 짧은 화면에서도 탭 레일을 가로 줄로 접는다', () => {
-    expect(SETTINGS_PANEL_CSS).toContain('@media (max-height: 560px)');
+    expect(SETTINGS_PANEL_CSS).toContain('@container cm-sheet-viewport');
     const shortBlock = SETTINGS_PANEL_CSS.slice(
-      SETTINGS_PANEL_CSS.indexOf('@media (max-height: 560px)'),
+      SETTINGS_PANEL_CSS.indexOf('@container cm-sheet-viewport'),
     );
+    expect(shortBlock).toContain('(max-height: 560px)');
     expect(shortBlock).toContain('.cm-sp__rail { flex-direction: row;');
   });
 

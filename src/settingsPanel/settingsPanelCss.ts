@@ -32,7 +32,7 @@ export const SETTINGS_PANEL_CSS = `
   overflow-wrap: anywhere; text-shadow: 0 1px 2px #000, 0 0 2px #000;
 }
 .cm-sp input[type='color'] { min-width: 44px; min-height: 44px; }
-.cm-sp input[type='range'] { max-width: 40vw; min-height: 44px; }
+.cm-sp input[type='range'] { max-width: 40cqw; min-height: 44px; }
 .cm-sp { display: flex; gap: 20px; align-items: flex-start; }
 .cm-sp__rail {
   display: flex;
@@ -212,26 +212,9 @@ export const SETTINGS_PANEL_CSS = `
   overflow-wrap: anywhere;
 }
 
-/* 좁은 화면(태블릿 세로·모바일)에서는 탭 레일을 위쪽 가로 줄로 접는다. */
-@media (max-width: 700px) {
-  .cm-sp { flex-direction: column; }
-  .cm-sp__rail { flex-direction: row; flex-wrap: nowrap; width: 100%; min-width: 0; box-sizing: border-box; overflow-x: auto; }
-  .cm-sp__tab { flex: 0 0 auto; white-space: nowrap; }
-  .cm-sp__panel { width: 100%; }
-}
-
-/*
-  🔴 **세로가 짧은 화면**(모바일 가로 915×412)도 같은 처방이 필요하다 (실측 2026-08-16, 실사이트).
-  시트 높이가 80vh = 330px 로 줄면 본문에 남는 높이가 198px 뿐이라, 세로 레일에서는 탭 7개 중
-  3개만 보이고 나머지는 스크롤해야 나온다. 그런데 레일이 본문과 함께 스크롤되므로 아래로 내리면
-  탭 자체가 화면에서 사라져 **어느 탭에 있는지도 알 수 없다** (본문은 scrollHeight 358 /
-  clientHeight 198 로 스크롤 자체는 됐다 — 잘려서 못 읽히는 것이 문제였다).
-  → 레일을 가로 줄로 접어 탭 7개를 한 번에 보이게 하고, 남는 높이를 전부 내용에 준다.
-  폭 조건과 달리 max-height 라 태블릿10 가로(820px)처럼 높이가 넉넉한 화면은 영향받지 않는다.
-  ⚠️ 이 문자열은 템플릿 리터럴이다 — 주석에 백틱을 쓰지 않는다 (빌드가 깨진다).
-*/
-@media (max-height: 560px) {
-  .cm-sp { flex-direction: column; }
+/* 화면 폭이나 높이가 부족하면 탭 레일을 위로 옮긴다. */
+@container cm-sheet-viewport (max-width: 700px) or (max-height: 560px) {
+  .cm-sp { flex-direction: column; gap: 12px; }
   .cm-sp__rail { flex-direction: row; flex-wrap: nowrap; width: 100%; min-width: 0; box-sizing: border-box; overflow-x: auto; }
   .cm-sp__tab { flex: 0 0 auto; white-space: nowrap; }
   .cm-sp__panel { width: 100%; }

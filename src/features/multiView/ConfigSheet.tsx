@@ -230,7 +230,8 @@ export function ConfigSheet({ settings, device, currentChannel, onClose, onStart
   useEffect(() => {
     const scroll = scrollRef.current;
     const body = scroll?.closest('.cm-sheet__body') as HTMLElement | null;
-    if (!scroll || !body) return;
+    const backdrop = body?.closest('.cm-sheet-backdrop');
+    if (!scroll || !body || !backdrop) return;
 
     const apply = () => {
       const rows = scroll.querySelectorAll<HTMLLIElement>('.cm-mv-channels > li');
@@ -240,10 +241,11 @@ export function ConfigSheet({ settings, device, currentChannel, onClose, onStart
       const bodyBox = body.getBoundingClientRect();
       const padBottom = parseFloat(getComputedStyle(body).paddingBottom) || 0;
       const scrollTopY = scroll.getBoundingClientRect().top;
-      const available = bodyBox.bottom - padBottom - scrollTopY;
+      const zoom = Number(getComputedStyle(backdrop).zoom) || 1;
+      const available = (bodyBox.bottom - scrollTopY) / zoom - padBottom;
       const firstTop = first.getBoundingClientRect().top;
-      const headOffset = firstTop - scrollTopY + scroll.scrollTop;
-      const rowPitch = second.getBoundingClientRect().top - firstTop;
+      const headOffset = (firstTop - scrollTopY) / zoom + scroll.scrollTop;
+      const rowPitch = (second.getBoundingClientRect().top - firstTop) / zoom;
       // 본문이 넘쳐 스크롤 영역이 이미 화면 밖이면 건드리지 않는다 (CSS 기본값에 맡긴다).
       if (available < headOffset + rowPitch) {
         scroll.style.maxHeight = '';
@@ -549,7 +551,7 @@ export function ConfigSheet({ settings, device, currentChannel, onClose, onStart
                       <p className="cm-sheet__note">(현재 시청)</p>
                     ) : null
                   ) : (
-                    <p className="cm-sheet__note">오른쪽 목록에서 고르세요</p>
+                    <p className="cm-sheet__note">채널 목록에서 고르세요</p>
                   )}
                 </div>
               );
