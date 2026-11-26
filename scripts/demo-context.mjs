@@ -71,6 +71,23 @@ export const PROFILES = [
     expectDeviceClass: 'tablet-10',
     minTargetPx: 44,
   },
+  ...[
+    ['tablet11', '태블릿 11인치', 1194, 834],
+    ['tablet13', '태블릿 13인치', 1366, 1024],
+  ].flatMap(([key, label, width, height]) =>
+    [
+      ['landscape', '가로', width, height],
+      ['portrait', '세로', height, width],
+    ].map(([orientation, direction, w, h]) => ({
+      key: `${key}-${orientation}`,
+      label: `${label} ${direction} ${w}×${h} (참조 에뮬레이션)`,
+      viewport: { width: w, height: h },
+      deviceScaleFactor: 2,
+      hasTouch: true,
+      expectDeviceClass: width < 1200 ? 'tablet-10' : 'tablet-13',
+      minTargetPx: 44,
+    })),
+  ),
   {
     key: 'laptop13',
     label: '노트북13 1440×900',

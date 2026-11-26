@@ -146,7 +146,9 @@ describe('재생 시작 화면 선택', () => {
       <MultiViewTab settings={DEFAULT_SETTINGS} device={decideDevice('mobile')} update={update} />,
     );
     const select = host!.querySelector<HTMLSelectElement>('select[aria-label="기본 분할 수"]')!;
-    expect(select.options[select.options.length - 1]?.textContent).toBe('메인 70% + 오른쪽 4개');
+    expect(select.options[select.options.length - 1]?.textContent).toBe(
+      '5분할 · 메인 70% + 오른쪽 4개',
+    );
     act(() => {
       select.value = 'main-sidebar-five';
       select.dispatchEvent(new Event('change', { bubbles: true }));

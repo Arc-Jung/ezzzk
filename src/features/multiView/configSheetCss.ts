@@ -103,21 +103,20 @@ export const CONFIG_SHEET_CSS = `
 .cm-mv-grid[data-split='3'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cm-mv-grid[data-split='3'] .cm-mv-cell:first-child { grid-row: span 2; }
 .cm-mv-grid[data-split='4'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.cm-mv-grid[data-split='4'][data-layout='main-sidebar'],
-.cm-mv-grid[data-split='5'] {
-  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
-}
 .cm-mv-grid[data-split='4'][data-layout='main-sidebar'] {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
   grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 .cm-mv-grid[data-split='4'][data-layout='main-sidebar'] .cm-mv-cell:first-child {
   grid-row: span 3;
 }
+/* 미리보기에서 보조 방송 이름과 44px 삭제 버튼을 함께 보여 준다. */
 .cm-mv-grid[data-split='5'] {
+  grid-template-columns: minmax(0, 7fr) minmax(168px, 3fr);
   grid-template-rows: repeat(4, minmax(0, 1fr));
 }
 .cm-mv-grid[data-split='5'] .cm-mv-cell:first-child { grid-row: span 4; }
-@container cm-sheet-viewport (aspect-ratio < 1) {
+@container cm-sheet-viewport (aspect-ratio < 1) or (max-width: ${TWO_COLUMN_MIN_PX}px) {
   .cm-mv-grid[data-split='5'] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
@@ -156,7 +155,13 @@ export const CONFIG_SHEET_CSS = `
 .cm-mv-cell__head button { flex: 0 0 auto; }
 
 /* 채널 목록 */
-.cm-mv-list { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.cm-mv-list {
+  container: cm-mv-channel-list / inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
 /*
   🔴 채널 목록에 **자체 스크롤 영역**을 준다 (실측 2026-08-12).
   무한 스크롤로 목록이 230개까지 자라면 시트 본문 전체가 함께 늘어나
@@ -203,7 +208,8 @@ export const CONFIG_SHEET_CSS = `
 }
 .cm-mv-channels > li > span:not(:first-child) { flex: 0 0 auto; }
 .cm-mv-channels > li > span:has(> button) { display: inline-flex; gap: 3px; }
-@container cm-sheet-viewport (max-width: 560px) {
+/* 두 단 배치의 폴드·태블릿에서도 채널 열 자체가 좁으면 버튼을 다음 줄에 둔다. */
+@container cm-mv-channel-list (max-width: 450px) {
   .cm-mv-columns:has(.cm-mv-grid[data-split='5']) .cm-mv-channels > li:has(> span > button) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
