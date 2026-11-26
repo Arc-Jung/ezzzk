@@ -12,7 +12,13 @@
 
 import { averageVolumeTarget, AUTO_VOLUME_TARGET } from './autoVolume';
 import { OURS } from '../../constants/class';
-import type { MultiViewSlot, Settings, SlotIndex, SlotLines } from '../../constants/storage';
+import type {
+  MultiViewSlot,
+  Settings,
+  SlotIndex,
+  SlotLines,
+  SplitCount,
+} from '../../constants/storage';
 import type { DeviceDecision } from '../../device';
 import { upsertStyle, removeStyle } from '../../utils/dom';
 import { info, warning } from '../../utils/log';
@@ -67,8 +73,8 @@ const SLOT_RETRY_BACKOFF_MS = [2_000, 4_000];
  * (2026-08-23 의 재시도 로직이 생긴 원인)는 이 동시 출발과 겹칠 가능성이 있다(미검증 — 상관은
  * 관찰됐지만 인과는 실측으로 확정하지 않았다).
  *
- * 첫 슬롯은 즉시, 이후 슬롯은 인덱스마다 이만큼 미뤄 출발시킨다. 4슬롯 기준 마지막 슬롯이
- * 300ms 늦게 시작할 뿐이라 체감 지연은 없고, 로드 타임아웃(`FRAME_LOAD_TIMEOUT_MS`)은
+ * 첫 슬롯은 즉시, 이후 슬롯은 인덱스마다 이만큼 미뤄 출발시킨다. 5슬롯 기준 마지막 슬롯이
+ * 400ms 늦게 시작할 뿐이라 체감 지연은 없고, 로드 타임아웃(`FRAME_LOAD_TIMEOUT_MS`)은
  * **`src` 를 대입한 시점부터** 재므로 뒤쪽 슬롯이 대기 시간을 손해 보지도 않는다.
  */
 const SLOT_LOAD_STAGGER_MS = 100;
@@ -380,7 +386,7 @@ export class MultiViewStage {
     this.container.style.width = `${width}px`;
     this.container.style.height = zoom === 1 ? '' : `${height}px`;
     this.container.dataset['compact'] = String(compact);
-    const split = Math.max(2, this.runtimes.size) as 2 | 3 | 4;
+    const split = Math.max(2, this.runtimes.size) as SplitCount;
     /**
      * 🔴 예전에는 바가 차지하는 띠를 배치에서 통째로 떼어 냈다(`stageTopInset`) — 바 높이만큼
      * 슬롯이 작아졌다. 지금은 **띠를 떼지 않고 슬롯이 무대 전체를 쓴다** (요청 2026-09-07:

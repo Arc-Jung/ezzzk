@@ -50,16 +50,14 @@ export function stripHeight(lines: number, fontPx = 12): number {
  * 기기별 최대 분할 수 (FR-14 표).
  * 상한을 넘는 분할은 UI 에서 선택 자체를 비활성화한다 — 에러 대신 사전 차단.
  */
-export function maxSplitFor(deviceClass: DeviceClass): 2 | 4 {
+export function maxSplitFor(deviceClass: DeviceClass): SplitCount {
   return DEVICE_PROFILES[deviceClass].maxSplit;
 }
 
 /** 요청한 분할 수를 기기 상한으로 클램프한다. */
 export function clampSplit(requested: SplitCount, deviceClass: DeviceClass): SplitCount {
   const max = maxSplitFor(deviceClass);
-  if (requested <= max) return requested;
-  // 상한이 2 인 기기에서 3·4 분할은 개별 영상이 가독 한계 이하가 되므로 제공하지 않는다.
-  return max === 2 ? 2 : 4;
+  return requested <= max ? requested : max;
 }
 
 /** 해당 분할 수를 이 기기에서 선택할 수 있는가 (UI 비활성 판정). */
@@ -92,7 +90,6 @@ function portraitColumn(
   if (byWidth > 0 && byWidth * count + gaps <= usableH) {
     const pad = Math.floor((usableH - (byWidth * count + gaps)) / 2);
     return Array.from({ length: count }, (_, i) => ({
-      // `count` 는 SplitCount(2·3·4)라 i+1 은 항상 1..4 다.
       index: (i + 1) as SlotIndex,
       x: 0,
       y: pad + i * (byWidth + gap),
@@ -114,6 +111,51 @@ function portraitColumn(
   }));
 }
 
+/** 가로의 메인과 오른쪽 세로 열. 마지막 행에서 나눗셈의 나머지를 흡수한다. */
+function mainWithSidebar(stageW: number, height: number, gap: number, rows: number): SlotRect[] {
+  const columnGap = Math.min(gap, stageW);
+  const availableW = stageW - columnGap;
+  const mainW = Math.floor(availableW * 0.7);
+  const rowGap = rows > 1 ? Math.min(gap, Math.floor(height / (rows - 1))) : 0;
+  const availableH = height - rowGap * (rows - 1);
+  const rowH = Math.floor(availableH / rows);
+
+  return [
+    { index: 1, x: 0, y: 0, width: mainW, height },
+    ...Array.from({ length: rows }, (_, i) => ({
+      index: (i + 2) as SlotIndex,
+      x: mainW + columnGap,
+      y: i * (rowH + rowGap),
+      width: availableW - mainW,
+      height: i === rows - 1 ? availableH - rowH * i : rowH,
+    })),
+  ];
+}
+
+/** 세로에서는 넓은 메인 영상 아래에 보조 영상 네 개를 2×2로 배치한다. */
+function portraitFive(stageW: number, height: number, gap: number): SlotRect[] {
+  const columnGap = Math.min(gap, stageW);
+  const rowGap = Math.min(gap, Math.floor(height / 2));
+  const usableH = height - rowGap * 2;
+  const halfW = Math.floor((stageW - columnGap) / 2);
+  const rightX = halfW + columnGap;
+  const mainH = Math.min(Math.round((stageW * 9) / 16), Math.floor(usableH / 2));
+  const rowH = Math.min(
+    Math.round(((stageW - rightX) * 9) / 16),
+    Math.floor((usableH - mainH) / 2),
+  );
+  const top = Math.floor((usableH - mainH - rowH * 2) / 2);
+  const firstRow = top + mainH + rowGap;
+  const secondRow = firstRow + rowH + rowGap;
+  return [
+    { index: 1, x: 0, y: top, width: stageW, height: mainH },
+    { index: 2, x: 0, y: firstRow, width: halfW, height: rowH },
+    { index: 3, x: rightX, y: firstRow, width: stageW - rightX, height: rowH },
+    { index: 4, x: 0, y: secondRow, width: halfW, height: rowH },
+    { index: 5, x: rightX, y: secondRow, width: stageW - rightX, height: rowH },
+  ];
+}
+
 /**
  * 슬롯 사각형 배치.
  *
@@ -122,6 +164,7 @@ function portraitColumn(
  *   우측 슬롯은 1920×1080 에서 959×539 = 정확히 16:9 가 되어 여백이 0 이다.
  * - 4분할 main-sidebar: 왼쪽 70% 메인 + 오른쪽 30%에 3행 (가로 화면 전용).
  * - 4분할: 2×2. 1920×1080 에서 959×539 로 이미 16:9 다.
+ * - 5분할: 가로는 왼쪽 70% 메인과 오른쪽 4행, 세로는 위쪽 메인과 아래 2×2.
  *
  * 🔴 `topInset` — **스테이지 조작 바 전용 띠**를 무대 위쪽에서 떼어 낸다 (2026-08-16 회귀).
  * 조작 바는 가운데 상단에 있고 슬롯 헤더(`.cm-slot__head`)도 각 슬롯의 `top: 0` 이라,
@@ -151,6 +194,11 @@ export function computeSlotRects(
   const bottomY = usableH - halfH;
 
   const rects = ((): SlotRect[] => {
+    if (orientation === 'landscape' && (split === 5 || layout === 'main-sidebar-five')) {
+      return mainWithSidebar(stageW, usableH, gap, split - 1);
+    }
+    if (split === 5) return portraitFive(stageW, usableH, gap);
+
     if (split === 2) {
       // 주소창이 보이는 폴드 내부 화면은 폭이 높이보다 길어질 수 있다.
       // 자세만 보고 좌우로 나누면 영상 폭이 절반이 된다. 실제 무대에서
@@ -209,21 +257,7 @@ export function computeSlotRects(
     }
 
     if (split === 4 && layout === 'main-sidebar' && orientation === 'landscape') {
-      const availableW = Math.max(0, stageW - gap);
-      const mainW = Math.floor(availableW * 0.7);
-      const sideW = availableW - mainW;
-      const availableH = Math.max(0, usableH - gap * 2);
-      const rowH = Math.floor(availableH / 3);
-      return [
-        { index: 1, x: 0, y: 0, width: mainW, height: usableH },
-        ...Array.from({ length: 3 }, (_, i) => ({
-          index: (i + 2) as SlotIndex,
-          x: mainW + gap,
-          y: i * (rowH + gap),
-          width: sideW,
-          height: i === 2 ? availableH - rowH * 2 : rowH,
-        })),
-      ];
+      return mainWithSidebar(stageW, usableH, gap, 3);
     }
 
     if (split === 3) {

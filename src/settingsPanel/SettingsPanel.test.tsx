@@ -140,6 +140,26 @@ describe('재생 시작 화면 선택', () => {
     );
     expect(host!.querySelector('[aria-label*="자동 전체화면"]')).toBeNull();
   });
+  it('설정의 기본 분할에서 메인 70%와 보조 슬롯 네 개를 저장한다', () => {
+    const update = vi.fn();
+    mount(
+      <MultiViewTab settings={DEFAULT_SETTINGS} device={decideDevice('mobile')} update={update} />,
+    );
+    const select = host!.querySelector<HTMLSelectElement>('select[aria-label="기본 분할 수"]')!;
+    expect(select.options[select.options.length - 1]?.textContent).toBe('메인 70% + 오른쪽 4개');
+    act(() => {
+      select.value = 'main-sidebar-five';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(update).toHaveBeenCalledWith({
+      multiView: {
+        ...DEFAULT_SETTINGS.multiView,
+        defaultSplit: 5,
+        layout: 'main-sidebar-five',
+        slotChatPlacement: 'overlay',
+      },
+    });
+  });
   it('재생 시작 화면에서 기본과 넓은 화면을 저장한다', () => {
     const update = vi.fn();
     mount(

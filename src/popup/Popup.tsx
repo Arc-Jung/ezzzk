@@ -10,9 +10,12 @@ import {
   CHAT_FONT_RANGE,
   LIMITS,
   type SlotLines,
-  type SplitCount,
 } from '../constants/storage';
 import { MULTIVIEW_CHAT_ENABLED } from '../features/multiView/chatFeature';
+import {
+  MULTIVIEW_LAYOUT_OPTIONS,
+  selectedLayoutOption,
+} from '../features/multiView/layoutOptions';
 import { Stepper } from './Stepper';
 import { useSettings } from './useSettings';
 import { CloseIcon } from '../ui/icons';
@@ -220,28 +223,26 @@ export function Popup() {
             <span>기본 분할</span>
             <select
               aria-label="기본 분할 수"
-              value={
-                multiView.defaultSplit === 4 && multiView.layout === 'main-sidebar'
-                  ? 'main-sidebar'
-                  : multiView.defaultSplit
-              }
-              onChange={(e) =>
+              value={selectedLayoutOption(multiView.defaultSplit, multiView.layout).value}
+              onChange={(event) => {
+                const option = MULTIVIEW_LAYOUT_OPTIONS.find(
+                  (item) => item.value === event.target.value,
+                );
+                if (!option) return;
                 update({
                   multiView: {
                     ...multiView,
-                    defaultSplit:
-                      e.target.value === 'main-sidebar'
-                        ? 4
-                        : (Number(e.target.value) as SplitCount),
-                    layout: e.target.value === 'main-sidebar' ? 'main-sidebar' : 'grid',
+                    defaultSplit: option.split,
+                    layout: option.layout,
                   },
-                })
-              }
+                });
+              }}
             >
-              <option value={2}>2분할</option>
-              <option value={3}>3분할</option>
-              <option value={4}>4분할</option>
-              <option value="main-sidebar">메인 70% + 오른쪽 3개</option>
+              {MULTIVIEW_LAYOUT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
           {/* 멀티뷰 채팅 임시 비활성화 (`features/multiView/chatFeature.ts`, 2026-08-22). */}

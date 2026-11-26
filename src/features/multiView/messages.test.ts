@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isAllowedOrigin, MV_CHANNEL, parseMvMessage, slotFrameUrl } from './messages';
+import {
+  isAllowedOrigin,
+  MV_CHANNEL,
+  parseMvMessage,
+  slotFrameUrl,
+  slotFromAudioShortcut,
+} from './messages';
 
 describe('isAllowedOrigin — postMessage origin 검증', () => {
   it('치지직 도메인 2개만 허용한다', () => {
@@ -35,11 +41,11 @@ describe('parseMvMessage', () => {
     expect(parseMvMessage({ ...valid, dir: 's2p' }, 'https://chzzk.naver.com', 'p2s')).toBeNull();
   });
 
-  it('슬롯 번호 범위를 검증한다 (1~4)', () => {
-    for (const slot of [0, 5, -1, 99]) {
+  it('슬롯 번호 범위를 검증한다 (1~5)', () => {
+    for (const slot of [0, 6, -1, 2.5, NaN, 99]) {
       expect(parseMvMessage({ ...valid, slot }, 'https://chzzk.naver.com', 'p2s')).toBeNull();
     }
-    for (const slot of [1, 2, 3, 4]) {
+    for (const slot of [1, 2, 3, 4, 5]) {
       expect(parseMvMessage({ ...valid, slot }, 'https://chzzk.naver.com', 'p2s')).not.toBeNull();
     }
   });
@@ -63,5 +69,14 @@ describe('slotFrameUrl', () => {
     const a = slotFrameUrl('abc123abc123abc1', 1);
     const b = slotFrameUrl('abc123abc123abc1', 2);
     expect(a).not.toBe(b);
+  });
+});
+
+describe('slotFromAudioShortcut', () => {
+  it('Alt+Shift+5를 다섯 번째 슬롯으로 해석한다', () => {
+    const shortcut = (code: string) =>
+      new KeyboardEvent('keydown', { code, altKey: true, shiftKey: true });
+    expect(slotFromAudioShortcut(shortcut('Digit5'))).toBe(5);
+    expect(slotFromAudioShortcut(shortcut('Digit6'))).toBeNull();
   });
 });

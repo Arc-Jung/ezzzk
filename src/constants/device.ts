@@ -37,7 +37,7 @@ export type DeviceProfile = {
   /** 설정 UI 우선 경로 */
   settingsUi: 'popup' | 'popup+sheet' | 'sheet';
   /** FR-14 최대 분할 수 */
-  maxSplit: 2 | 4;
+  maxSplit: 2 | 4 | 5;
   /** FR-14.2 슬롯 채팅 줄 상한 */
   maxSlotChatLines: 2 | 3 | 5;
   /** 채팅 프리셋 표시 방식 */
@@ -55,7 +55,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'on',
     allowHover: true,
     settingsUi: 'popup',
-    maxSplit: 4,
+    maxSplit: 5,
     maxSlotChatLines: 5,
     chatPresetUi: 'chips',
     relaxObservers: false,
@@ -68,7 +68,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'on',
     allowHover: true,
     settingsUi: 'popup',
-    maxSplit: 4,
+    maxSplit: 5,
     maxSlotChatLines: 5,
     chatPresetUi: 'chips',
     relaxObservers: false,
@@ -81,7 +81,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'if-physical-keyboard',
     allowHover: false,
     settingsUi: 'popup+sheet',
-    maxSplit: 4,
+    maxSplit: 5,
     maxSlotChatLines: 5,
     chatPresetUi: 'chips',
     relaxObservers: false,
@@ -94,8 +94,8 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'if-physical-keyboard',
     allowHover: false,
     settingsUi: 'popup+sheet',
-    // 접힘·펼침 전환에서 모바일의 3·4분할 선택을 유지한다.
-    maxSplit: 4,
+    // 접힘·펼침 전환에서 모바일의 분할 선택을 유지한다.
+    maxSplit: 5,
     maxSlotChatLines: 3,
     chatPresetUi: 'chips-2rows',
     relaxObservers: true,
@@ -108,8 +108,8 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
     shortcuts: 'off',
     allowHover: false,
     settingsUi: 'sheet',
-    // 접힘·펼침 전환에서 모바일의 3·4분할 선택을 유지한다.
-    maxSplit: 4,
+    // 접힘·펼침 전환에서 모바일의 분할 선택을 유지한다.
+    maxSplit: 5,
     maxSlotChatLines: 2,
     chatPresetUi: 'sheet',
     relaxObservers: true,
@@ -138,7 +138,7 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
      * 그림 면적이 3.3배다 (`slotLayout.ts` 의 `portraitColumn` 표). 세로 전용 배치가 생겨
      * 근거가 사라졌으므로 상한을 푼다.
      */
-    maxSplit: 4,
+    maxSplit: 5,
     maxSlotChatLines: 2,
     chatPresetUi: 'sheet',
     relaxObservers: true,

@@ -103,12 +103,29 @@ export const CONFIG_SHEET_CSS = `
 .cm-mv-grid[data-split='3'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cm-mv-grid[data-split='3'] .cm-mv-cell:first-child { grid-row: span 2; }
 .cm-mv-grid[data-split='4'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.cm-mv-grid[data-split='4'][data-layout='main-sidebar'] {
+.cm-mv-grid[data-split='4'][data-layout='main-sidebar'],
+.cm-mv-grid[data-split='5'] {
   grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+}
+.cm-mv-grid[data-split='4'][data-layout='main-sidebar'] {
   grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 .cm-mv-grid[data-split='4'][data-layout='main-sidebar'] .cm-mv-cell:first-child {
   grid-row: span 3;
+}
+.cm-mv-grid[data-split='5'] {
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+}
+.cm-mv-grid[data-split='5'] .cm-mv-cell:first-child { grid-row: span 4; }
+@container cm-sheet-viewport (aspect-ratio < 1) {
+  .cm-mv-grid[data-split='5'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+  }
+  .cm-mv-grid[data-split='5'] .cm-mv-cell:first-child {
+    grid-row: auto;
+    grid-column: 1 / -1;
+  }
 }
 
 
@@ -186,6 +203,17 @@ export const CONFIG_SHEET_CSS = `
 }
 .cm-mv-channels > li > span:not(:first-child) { flex: 0 0 auto; }
 .cm-mv-channels > li > span:has(> button) { display: inline-flex; gap: 3px; }
+@container cm-sheet-viewport (max-width: 560px) {
+  .cm-mv-columns:has(.cm-mv-grid[data-split='5']) .cm-mv-channels > li:has(> span > button) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 4px;
+  }
+  .cm-mv-columns:has(.cm-mv-grid[data-split='5']) .cm-mv-channels > li > span:has(> button) {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
 /* 목록 썸네일 (사용자 요청 2026-08-23) — 16:9, 폭을 고정해 행 높이가 흔들리지 않는다. */
 .cm-mv-thumb {
   flex: 0 0 auto;

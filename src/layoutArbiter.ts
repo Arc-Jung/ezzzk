@@ -254,7 +254,37 @@ export function buildLayoutCss(claim: WidthClaim | null): string {
   const direction =
     collapsed || overlay ? '' : `${CHZZK.layoutWrapper} { flex-direction: row !important; }`;
 
-  return [base, wrapper, direction, asideRule, mainRule, buildVideoAlignCss(claim.videoAlign)]
+  // CHZZK keeps the chat mounted in its fullscreen wrapper but folds it with display:none.
+  // Restore that panel only for a right-side claim. Bound its width by the 16:9 letterbox
+  // so the video picture keeps its size and the player controls remain within the video column.
+  const fullscreenWrapper = `:is(${CHZZK.layoutWrapper}:fullscreen, :fullscreen ${CHZZK.layoutWrapper})`;
+  const fullscreenChat =
+    collapsed || overlay || claim.source === 'multiView'
+      ? ''
+      : `@media (min-aspect-ratio: 16/9) {
+  ${fullscreenWrapper} > ${ID.asideChatting} {
+    display: flex !important;
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 auto !important;
+    width: clamp(0px, calc(100dvw - 100dvh * 16 / 9), ${width}px) !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+}`;
+
+  return [
+    base,
+    wrapper,
+    direction,
+    asideRule,
+    mainRule,
+    fullscreenChat,
+    buildVideoAlignCss(claim.videoAlign),
+  ]
     .filter((part) => part.length > 0)
     .join('\n');
 }
