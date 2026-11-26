@@ -827,8 +827,8 @@ export const chatWidthFeature: Feature = {
 
     function updatePlacementButton(): void {
       if (!placementButton) return;
-      const next = placement === 'right' ? '아래' : '오른쪽';
-      placementButton.setAttribute('aria-label', `채팅 위치를 ${next}로 옮기기`);
+      const next = placement === 'right' ? '아래로' : '오른쪽으로';
+      placementButton.setAttribute('aria-label', `채팅 위치를 ${next} 옮기기`);
       placementButton.title = `채팅 위치: ${placement === 'right' ? '오른쪽' : '아래'} (누르면 ${next})`;
       // 현재 배치를 아이콘으로 보여 준다 — 다음 상태가 아니라 현재 상태다(혼동 방지).
       // `textContent` 를 쓰면 SVG 자식이 통째로 사라진다 — `replaceChildren` 으로만 갈아치운다.

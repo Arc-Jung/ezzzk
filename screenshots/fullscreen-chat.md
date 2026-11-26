@@ -44,3 +44,16 @@ yarn test src/features/fullscreenChat.test.ts
 yarn build
 node scripts/verify-overlay-chat-compose.mjs
 ```
+
+## 전체화면 오른쪽 채팅
+
+초광폭 화면에서 오른쪽 채팅을 사용하면 기존 치지직 채팅창이 16:9 영상 옆 여백에 표시된다. 전체화면 진입 때 치지직의 접힘 스타일이 채팅창을 숨기던 문제를 수정했다. 1266×549 Chromium 재현에서는 채팅 폭이 0px에서 290px로 복구됐으며 영상은 976×549를 유지했다. 두 캡처에는 재현용 영상과 채팅을 사용했다.
+
+| 수정 전 | 수정 후 |
+| --- | --- |
+| ![오른쪽 채팅 영역이 비어 있는 전체화면](demo-fullscreen-side-chat-before.png) | ![오른쪽에 원본 채팅 목록이 표시된 전체화면](demo-fullscreen-side-chat-after.png) |
+
+```sh
+yarn build
+node scripts/verify-fullscreen-side-chat.mjs
+```

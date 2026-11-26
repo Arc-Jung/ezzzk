@@ -1,5 +1,5 @@
 /** 영상 위의 연속 두 번 터치로 전체화면을 전환한다. */
-import { OURS, PLAYER } from '../constants/class';
+import { CHZZK, ID, OURS, PLAYER } from '../constants/class';
 import type { Disposer, Feature } from './types';
 
 const SLOT_TOGGLE = 'cm-double-tap-fullscreen';
@@ -111,7 +111,11 @@ export function registerDoubleTapFullscreen(isSlotFrame = false): Disposer {
     event.preventDefault();
     event.stopImmediatePropagation();
     if (isSlotFrame) window.parent.postMessage(SLOT_TOGGLE, location.origin);
-    else toggle(tap.player);
+    else {
+      const wrapper = tap.player.closest<HTMLElement>(CHZZK.layoutWrapper);
+      // Match CHZZK's live fullscreen target so its native chat can be shown alongside the player.
+      toggle(wrapper?.querySelector(ID.asideChatting) ? wrapper : tap.player);
+    }
   };
   const onCancel = (event: PointerEvent) => {
     touches.delete(event.pointerId);

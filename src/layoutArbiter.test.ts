@@ -152,6 +152,22 @@ describe('buildLayoutCss — 실험으로 검증된 CSS 를 그대로 만든다'
     expect(buildLayoutCss(null)).toBe('');
   });
 
+  it('우측 채팅의 전체화면 폭만 16:9 영상 옆의 공간으로 제한한다', () => {
+    const active = buildLayoutCss({ ...claim('ultraWide', 290), mode: 'flex' });
+    expect(active).toContain('@media (min-aspect-ratio: 16/9)');
+    expect(active).toContain('display: flex !important');
+    expect(active).toContain('100dvw - 100dvh * 16 / 9), 290px)');
+    const others: WidthClaim[] = [
+      claim('chatWidth', 0),
+      { ...claim('chatWidth', 290), mode: 'bottom' },
+      { ...claim('ultraWide', 100), mode: 'overlay' },
+      claim('multiView', 290),
+    ];
+    for (const inactive of others) {
+      expect(buildLayoutCss(inactive)).not.toContain('@media (min-aspect-ratio: 16/9)');
+    }
+  });
+
   it('width 와 flex 를 !important 로 함께 쓴다', () => {
     const css = buildLayoutCss(claim('chatWidth', 420));
     expect(css).toContain('#aside-chatting {');
