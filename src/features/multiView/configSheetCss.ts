@@ -13,7 +13,7 @@
  */
 
 /** 우측 채널 목록이 접히기 시작하는 시트 폭. 이보다 좁으면 1단으로 쌓는다. */
-const TWO_COLUMN_MIN_PX = 680;
+const TWO_COLUMN_MIN_PX = 720;
 
 /**
  * ⚠️ 상단 옵션 줄에는 공용 `.cm-sheet__row` 를 쓰지 않는다.
@@ -66,26 +66,16 @@ export const CONFIG_SHEET_CSS = `
   flex: 1 1 auto;
   min-height: 0;
 }
-@media (max-width: ${TWO_COLUMN_MIN_PX}px) {
+@container cm-sheet-viewport (max-width: ${TWO_COLUMN_MIN_PX}px) {
   /* 1단으로 쌓일 때는 슬롯 배치는 내용 높이, 채널 목록이 남은 높이를 갖는다. */
   .cm-mv-columns {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
 }
-/*
-  🔴 시트 높이를 넓혀야 채널 10행이 들어간다 (사용자 보고 2026-08-20 "10개씩 보여야 한다", 실측).
-  - 공용 시트 높이 min(600px, 80vh) 에서는 laptop13(1440×900) 본문 가시 영역이 492px 인데
-    위쪽 옵션이 207px 를 먹어 채널 목록엔 285px 밖에 안 남는다 — 행 높이 40px 기준 4행이 한도다.
-  - mobile-portrait(412×915) 는 더 나쁘다: 본문 708px 중 옵션이 343px 를 먹어 목록엔 365px 뿐이라
-    행 높이 52px(터치) 기준 1행도 겨우 채운다(실측 스크린샷 etc/shots/config-sheet-mobile-portrait.png).
-  → 좁은 화면 전용이던 min(860px, 92vh) 오버라이드를 **모든 폭**에 적용한다. 이 프로젝트는
-    모바일 우선이지만 "데스크톱에서만 10개 보이면 안 된다" — 두 화면 다 시트를 키워야 한다.
-    옵션을 줄이는 대신(기능을 없애지 않는다) 세로를 더 준다 — 그래도 10행이 물리적으로
-    안 들어가는 화면(짧은 세로 뷰포트)은 들어갈 만큼만 보여 준다(스크롤로 이어진다).
-    멀티뷰 시트에만 적용한다(:has). 다른 시트는 목업 실측값 그대로 둔다.
-*/
-.cm-sheet-backdrop:has(.cm-mv-columns) .cm-sheet { height: min(900px, 96vh); }
+/* 채널 목록에 높이를 우선 배정하되 닫기와 시작 버튼은 화면 안에 둔다. */
+.cm-sheet-backdrop:has(.cm-mv-columns) .cm-sheet { height: min(900px, 96cqh); }
+.cm-mv-scroll input[type='text'] { min-width: 0; max-width: 52%; }
 .cm-mv-columns > section { min-width: 0; }
 .cm-mv-columns h3 { margin: 0 0 6px; font-size: 12px; color: ${FG.muted}; }
 /*
@@ -195,6 +185,7 @@ export const CONFIG_SHEET_CSS = `
   min-width: 0;
 }
 .cm-mv-channels > li > span:not(:first-child) { flex: 0 0 auto; }
+.cm-mv-channels > li > span:has(> button) { display: inline-flex; gap: 3px; }
 /* 목록 썸네일 (사용자 요청 2026-08-23) — 16:9, 폭을 고정해 행 높이가 흔들리지 않는다. */
 .cm-mv-thumb {
   flex: 0 0 auto;

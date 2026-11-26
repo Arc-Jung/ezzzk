@@ -9,7 +9,7 @@
 - 내부 화면의 낮은 가로 비율에서는 채팅을 영상 아래에 자동 배치한다. 직접 선택한 위치와 배치별 크기가 우선한다.
 - 좁은 설정 창은 탭을 가로 스크롤하고, 멀티뷰 분할 옵션은 줄을 바꿔 표시한다.
 
-폴드8 울트라 커버의 멀티뷰는 Chromium에서 980px 데스크톱 페이지를 411px 화면으로 표시하고, 두 슬롯이 광고 중인 상황을 재현해 캡처했다. 같은 배율에서 세 줄로 커졌던 상단 바가 44px 터치 영역의 아이콘 한 줄로 표시된다. 360px 화면에서도 한 줄을 유지한다. 나머지 화면은 2026-10-27 치지직 라이브에서 캡처했다.
+폴드8 울트라 커버 화면은 Chromium에서 980px 데스크톱 페이지를 411px 화면에 맞춰 재현했다. 설정과 멀티뷰 구성은 폭 395px를 쓰고 버튼 터치 영역을 약 44px로 표시한다. 설정 탭은 가로로, 멀티뷰 채널 목록은 슬롯 아래로 배치한다. 멀티뷰 재생 캡처는 두 슬롯의 광고 상태와 아이콘 한 줄을 보여 준다. 다른 프로필의 화면은 2026-10-27 치지직 라이브에서 캡처했다.
 
 | 화면 / CSS 뷰포트 | 설정 | 멀티뷰 |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ yarn build
 node scripts/verify-fold-cover-controls.mjs
 ```
 
-커버 캡처 경로는 `etc/tmp/fold-cover-controls/cover.png`다.
+커버 캡처는 `etc/tmp/fold-cover-controls/`의 `cover-settings.png`, `cover-config.png`, `cover.png`에 저장된다.
 
 ## 펼친 가로 화면의 영상·채팅 배치
 
@@ -46,7 +46,7 @@ node scripts/verify-fold-cover-controls.mjs
 | 폴드8 펼침 가로 | ![폴드8 가로 구성](demo-fold8-open-landscape-multiview-config.png) |
 
 ```sh
-yarn demo:shots watch,config-sheet fold8-ultra-cover,fold8-cover,fold8-ultra-open,fold8-ultra-open-landscape,fold8-open-landscape
+yarn demo:shots watch,config-sheet fold8-cover,fold8-ultra-open,fold8-ultra-open-landscape,fold8-open-landscape
 ```
 
 ## 2분할: 주소창이 보이는 일반 모드

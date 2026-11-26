@@ -6,6 +6,7 @@ import { openLiveContext, PROFILES, ROOT, seedSettings, warmUp } from './demo-co
 
 const baseline = process.argv.includes('--baseline');
 const overscaleBaseline = process.argv.includes('--overscale-baseline');
+const sheetsBaseline = process.argv.includes('--sheets-baseline');
 const out = resolve(ROOT, 'etc/tmp/fold-cover-controls');
 mkdirSync(out, { recursive: true });
 
@@ -80,6 +81,25 @@ try {
       body: fixture(params.get('cmSlot'), params.has('responsive')),
     });
   });
+  const cors = {
+    'access-control-allow-origin': 'https://chzzk.naver.com',
+    'access-control-allow-credentials': 'true',
+  };
+  const followings = Array.from({ length: 10 }, (_, i) => ({
+    channelId: (i + 1).toString(16).repeat(32),
+    channelName: `테스트 채널 ${i + 1}`,
+    liveTitle: '커버 화면 재현용 라이브',
+    concurrentUserCount: 1000 - i * 50,
+    openLive: true,
+  }));
+  await context.route('https://comm-api.game.naver.com/**', (route) =>
+    route.fulfill({ headers: cors, json: { content: { loggedIn: true } } }),
+  );
+  await context.route('https://api.chzzk.naver.com/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const content = path.endsWith('/followings') ? { data: followings } : { data: [] };
+    return route.fulfill({ headers: cors, json: { code: 200, content } });
+  });
   await warmUp(context, channelIds[0]);
   await seedSettings(context, {
     wideScreen: { enabled: false, mode: 'default' },
@@ -87,7 +107,7 @@ try {
     multiView: {
       enabled: true,
       restoreLastLayout: true,
-      defaultSplit: 2,
+      defaultSplit: 4,
       layout: 'grid',
       slots: channelIds.map((channelId, index) => ({
         index: index + 1,
@@ -173,7 +193,119 @@ try {
     return measure();
   };
 
-  if (baseline) {
+  const verifySheets = async () => {
+    for (const { title, trigger, mode, shot } of [
+      { title: '멀티뷰 구성', trigger: '멀티뷰 구성 열기', mode: 'config', shot: 'cover-config' },
+      {
+        title: '이지직 설정',
+        trigger: '이지직 설정 열기',
+        mode: 'settings',
+        shot: 'cover-settings',
+      },
+    ]) {
+      const triggerSelector = `${toolbar} button[aria-label="${trigger}"]`;
+      await tap(triggerSelector);
+      const dialog = page.getByRole('dialog', { name: title, exact: true });
+      await dialog.waitFor();
+      const search = dialog.getByRole('textbox', { name: '채널 검색' });
+      if (mode === 'config') await search.waitFor();
+      const panelState = () =>
+        dialog.evaluate((panel) => {
+          const rect = panel.getBoundingClientRect();
+          const close = panel.querySelector('.cm-sheet__close').getBoundingClientRect();
+          const { width, height, scale, offsetLeft, offsetTop } = visualViewport;
+          const columns = panel.querySelector('.cm-mv-columns');
+          const rail = panel.querySelector('.cm-sp__rail');
+          const backdrop = getComputedStyle(panel.closest('.cm-sheet-backdrop'));
+          const heading = getComputedStyle(panel.querySelector('h2'));
+          const body = panel.querySelector('.cm-sheet__body');
+          return {
+            width: Math.round(rect.width * scale),
+            available: Math.round(width * scale),
+            fits:
+              rect.left >= offsetLeft - 1 &&
+              rect.top >= offsetTop - 1 &&
+              rect.right <= offsetLeft + width + 1 &&
+              rect.bottom <= offsetTop + height + 1,
+            target: Math.min(close.width, close.height) * scale,
+            textSize: parseFloat(heading.fontSize) * (Number(backdrop.zoom) || 1) * scale,
+            compact: columns
+              ? getComputedStyle(columns).gridTemplateColumns.split(' ').length === 1
+              : getComputedStyle(rail).flexDirection === 'row',
+            noHorizontalScroll: body.scrollWidth <= body.clientWidth + 1,
+          };
+        });
+      const current = await panelState();
+      console.log(mode, current);
+      if (sheetsBaseline) {
+        assert.ok(!current.compact && current.target < 30, `${mode}: original issue reproduced`);
+        await page.screenshot({ path: resolve(out, shot + '-before.png') });
+      } else {
+        assert.ok(current.compact && current.fits && current.width >= current.available - 20);
+        assert.ok(current.target >= 43.5 && current.textSize >= 13.5 && current.noHorizontalScroll);
+        await page.screenshot({ path: resolve(out, shot + '.png') });
+        if (mode === 'config') {
+          await search.fill('테스트 채널 3');
+          const assign = dialog.getByRole('button', { name: '테스트 채널 3 을 슬롯 3 에 배치' });
+          await assign.click();
+          await dialog.getByText('3/4개 방송 선택').waitFor();
+        } else {
+          await dialog.getByRole('tab', { name: '채팅 탭', exact: true }).click();
+        }
+
+        await page.setViewportSize({ width: 859, height: 954 });
+        await page.waitForFunction(() => {
+          const backdrop = document.querySelector('.cm-sheet-backdrop');
+          return parseFloat(backdrop.style.width) > 720;
+        });
+        const expanded = await panelState();
+        assert.ok(!expanded.compact && expanded.fits, `${mode}: unfolded layout`);
+        const resizeCover = async (width, height) => {
+          await page.setViewportSize({ width, height });
+          await page.waitForFunction(
+            ({ width, height }) => {
+              const sheet = document.querySelector('.cm-sheet-backdrop');
+              return (
+                Math.abs(parseFloat(sheet.style.width) - width) < 1 &&
+                Math.abs(parseFloat(sheet.style.height) - height) < 1
+              );
+            },
+            { width, height },
+          );
+        };
+        if (mode === 'config') await search.focus();
+        await resizeCover(360, 510);
+        const narrow = await panelState();
+        assert.ok(
+          narrow.compact && narrow.fits && narrow.noHorizontalScroll,
+          `${mode}: narrow sheet`,
+        );
+        if (mode === 'config')
+          assert.ok(await search.evaluate((input) => input === document.activeElement));
+        await resizeCover(cover.viewport.width, cover.viewport.height);
+        const refoldedSheet = await panelState();
+        assert.ok(refoldedSheet.compact && refoldedSheet.fits && refoldedSheet.target >= 43.5);
+        if (mode === 'config') {
+          assert.equal(await search.inputValue(), '테스트 채널 3');
+          await dialog.getByText('3/4개 방송 선택').waitFor();
+        } else {
+          assert.equal(
+            await dialog
+              .getByRole('tab', { name: '채팅 탭', exact: true })
+              .getAttribute('aria-selected'),
+            'true',
+          );
+        }
+      }
+      await tap('.cm-sheet__close');
+      await dialog.waitFor({ state: 'hidden' });
+      assert.ok(frames.every((frame) => !frame.isDetached()));
+    }
+  };
+
+  if (sheetsBaseline) {
+    await verifySheets();
+  } else if (baseline) {
     assert.ok(state.barTarget < 30, 'Original undersized buttons should reproduce');
     await page.screenshot({ path: resolve(out, 'before.png') });
   } else if (overscaleBaseline) {
@@ -186,6 +318,7 @@ try {
     assert.ok(state.playerTarget >= 43.5, 'Slot player target should be 44 visible CSS pixels');
     assert.ok(state.barFits && state.barRows === 1 && !state.barLabels);
     assert.ok(state.stacked && state.firstWidth >= state.width - 1);
+    await verifySheets();
 
     await tap('.pzp-pc__playback-switch', true);
     await frames[0].waitForFunction(() => document.querySelector('video').paused);

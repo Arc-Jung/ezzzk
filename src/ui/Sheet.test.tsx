@@ -9,6 +9,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { CONFIG_SHEET_CSS } from '../features/multiView/configSheetCss';
 import { Sheet, SHEET_CSS, SHEET_MAX_H } from './Sheet';
 
 declare global {
@@ -100,30 +101,24 @@ describe('Sheet — 높이(콘텐츠에 맞춰 줄고 늘되 튀지 않게)', ()
   it('.cm-sheet 는 고정 height 대신 max-height/min-height 로 상하한만 준다', () => {
     const rule = SHEET_CSS.slice(
       SHEET_CSS.indexOf('.cm-sheet:not(:has(.cm-mv-columns))'),
-      SHEET_CSS.indexOf('.cm-sheet:has(.cm-mv-columns)'),
+      SHEET_CSS.indexOf('.cm-sheet__head'),
     );
-    expect(rule).toContain(`max-height: min(${SHEET_MAX_H}px, 80vh)`);
+    expect(rule).toContain(`max-height: min(${SHEET_MAX_H}px, 80cqh)`);
     // 최소 높이는 짧은 탭과 긴 탭 사이 탭 전환 시 시트 크기가 크게 튀지 않도록 두는 바닥값이다
     // (재생 296px ~ 채팅 470px, 실측 근거는 SHEET_CSS 의 .cm-sheet 규칙 주석 참조).
-    expect(rule).toContain('min-height: min(500px, 70vh)');
+    expect(rule).toContain('min-height: min(500px, 70cqh)');
     const baseRule = SHEET_CSS.slice(
       SHEET_CSS.indexOf('.cm-sheet {'),
       SHEET_CSS.indexOf('}', SHEET_CSS.indexOf('.cm-sheet {')),
     );
-    expect(baseRule).not.toContain('height:');
+    expect(baseRule).not.toMatch(/^\s*height:/m);
+    expect(baseRule).toContain('max-height: calc(100cqh - 16px)');
   });
 
-  it('멀티뷰 구성 시트(:has(.cm-mv-columns))는 예전과 같은 고정 height 를 그대로 쓴다', () => {
-    // configSheetCss.ts 의 860px/92vh 좁은 화면 오버라이드가 이 값을 대체해야 하는데,
-    // 여기서 max-height 까지 걸면 그 오버라이드가 600px 로 도로 눌린다 — 그래서 멀티뷰는
-    // max-height/min-height 규칙에서 빼고 height 고정을 유지한다.
-    const rule = SHEET_CSS.slice(
-      SHEET_CSS.indexOf('.cm-sheet:has(.cm-mv-columns)'),
-      SHEET_CSS.indexOf('.cm-sheet__head'),
+  it('멀티뷰 구성 시트는 채널 목록을 위해 표시 영역 높이를 사용한다', () => {
+    expect(CONFIG_SHEET_CSS).toMatch(
+      /\.cm-sheet-backdrop:has\(\.cm-mv-columns\) \.cm-sheet \{ height: min\(900px, 96cqh\);/,
     );
-    expect(rule).toContain(`height: min(${SHEET_MAX_H}px, 80vh)`);
-    expect(rule).not.toContain('max-height');
-    expect(rule).not.toContain('min-height');
   });
 });
 
