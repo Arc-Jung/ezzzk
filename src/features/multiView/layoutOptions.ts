@@ -9,7 +9,7 @@ export const MULTIVIEW_LAYOUT_OPTIONS = [
     value: 'main-sidebar-five',
     split: 5,
     layout: 'main-sidebar-five',
-    label: '메인 70% + 오른쪽 4개',
+    label: '5분할 · 메인 70% + 오른쪽 4개',
   },
 ] as const satisfies readonly {
   value: string;

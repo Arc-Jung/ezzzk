@@ -4,15 +4,13 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { openLiveContext, PROFILES, ROOT, seedSettings, warmUp } from './demo-context.mjs';
 
-const touch = process.argv.includes('--touch');
-const out = resolve(
-  ROOT,
-  touch ? 'etc/tmp/multiview-five-streams-touch' : 'etc/tmp/multiview-five-streams',
-);
+const profileKey =
+  process.argv.find((arg) => arg.startsWith('--profile='))?.split('=')[1] ??
+  (process.argv.includes('--touch') ? 'fold8-ultra-open-landscape' : 'laptop13');
+const profile = PROFILES.find(({ key }) => key === profileKey);
+assert.ok(profile, `Unknown profile: ${profileKey}`);
+const out = resolve(ROOT, 'etc/tmp/multiview-five-streams', profileKey);
 mkdirSync(out, { recursive: true });
-const profile = PROFILES.find(
-  ({ key }) => key === (touch ? 'fold8-ultra-open-landscape' : 'laptop13'),
-);
 const context = await openLiveContext(profile, {
   profileDir: resolve(ROOT, 'etc/tmp/playwright', 'multiview-five-streams-' + profile.key),
 });
@@ -20,6 +18,9 @@ const channels = Array.from({ length: 6 }, (_, i) => ({
   channelId: String(i + 1).repeat(32),
   channelName: i === 0 ? '메인 방송' : `보조 방송 ${i}`,
   openLive: true,
+  liveTitle: '길이가 긴 테스트 방송 제목',
+  concurrentUserCount: 21000 - i,
+  liveImageUrl: 'https://chzzk.naver.com/test-thumbnail.png',
 }));
 const stage = '#cm-multiview-stage';
 const cells = `${stage} .cm-slot`;
@@ -98,7 +99,41 @@ async function playingFrames(page) {
   return frames;
 }
 
+function assertLayout(rects, orientation) {
+  assert.deepEqual(
+    rects.map(({ index }) => index),
+    [1, 2, 3, 4, 5],
+  );
+  assert.ok(rects.every(({ width, height }) => width > 0 && height > 0));
+  const [main, ...side] = rects;
+  if (orientation === 'landscape') {
+    assert.ok(Math.abs(main.width - 0.7 * (main.width + side[0].width)) < 1);
+    assert.ok(
+      side.every(
+        (rect, i) =>
+          rect.left === main.width + 2 &&
+          rect.top === (i ? side[i - 1].top + side[i - 1].height + 2 : main.top),
+      ),
+    );
+    assert.equal(side.at(-1).top + side.at(-1).height, main.top + main.height);
+    return;
+  }
+  const [upperLeft, upperRight, lowerLeft, lowerRight] = side;
+  assert.equal(upperLeft.top, main.top + main.height + 2);
+  assert.equal(upperRight.top, upperLeft.top);
+  assert.equal(lowerLeft.top, upperLeft.top + upperLeft.height + 2);
+  assert.equal(lowerRight.top, lowerLeft.top);
+  assert.equal(lowerRight.left, upperRight.left);
+  assert.equal(upperRight.left + upperRight.width, main.left + main.width);
+}
+
 try {
+  await context.route('https://chzzk.naver.com/test-thumbnail.png', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 27"><rect width="48" height="27" fill="#285369"/><path d="M0 27 24 8l11 11 6-5 7 8v5z" fill="#70a797"/></svg>',
+    }),
+  );
   await context.route('https://chzzk.naver.com/live/**', (route) => {
     const slot = Number(new URL(route.request().url()).searchParams.get('cmSlot'));
     return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fixture(slot) });
@@ -142,17 +177,54 @@ try {
   });
   await page.goto('https://chzzk.naver.com/live/' + first.channelId);
 
-  await page.getByRole('button', { name: '멀티뷰 구성 열기' }).click();
+  const press = (locator) => (profile.hasTouch ? locator.tap() : locator.click());
+  const openSheet = () => press(page.getByRole('button', { name: '멀티뷰 구성 열기' }));
+  await openSheet();
   const sheet = page.getByRole('dialog', { name: '멀티뷰 구성', exact: true });
-  await sheet.getByRole('radio', { name: '메인 70% + 오른쪽 4개' }).check();
-  for (const index of [3, 4, 5]) {
+  await press(sheet.locator('label').filter({ hasText: '5분할 · 메인 70% + 오른쪽 4개' }));
+  await sheet.locator('.cm-mv-grid[data-split="5"]').waitFor();
+  const fifthTarget = sheet.getByRole('button', { name: '보조 방송 5 을 슬롯 5 에 배치' });
+  await fifthTarget.waitFor();
+  const dimensions = await fifthTarget.boundingBox();
+  assert.ok(dimensions.width >= profile.minTargetPx && dimensions.height >= profile.minTargetPx);
+  await page.screenshot({ path: resolve(out, 'configuration.png'), scale: 'css' });
+  const infoWidth = await fifthTarget
+    .locator('xpath=ancestor::li')
+    .locator('.cm-mv-info__text')
+    .evaluate((text) => text.getBoundingClientRect().width);
+  const listWidth = await sheet.locator('.cm-mv-scroll').evaluate((list) => ({
+    scroll: list.scrollWidth,
+    client: list.clientWidth,
+  }));
+  const dialogWidth = await sheet.locator('.cm-sheet__body').evaluate((body) => ({
+    scroll: body.scrollWidth,
+    client: body.clientWidth,
+  }));
+  console.log(
+    `${profileKey}: channel text is ${infoWidth}px, list ${listWidth.scroll}/${listWidth.client}px, dialog ${dialogWidth.scroll}/${dialogWidth.client}px`,
+  );
+  assert.ok(infoWidth >= 95, `Channel name is squeezed to ${infoWidth}px`);
+  assert.ok(listWidth.scroll <= listWidth.client + 1, 'Channel list scrolls horizontally');
+  assert.ok(dialogWidth.scroll <= dialogWidth.client + 1, 'Dialog body scrolls horizontally');
+  assert.ok(
+    await sheet
+      .locator('.cm-mv-cell:nth-child(2) .cm-mv-cell__head > span')
+      .evaluate((name) => name.scrollWidth <= name.clientWidth + 1),
+    'A short channel name in the slot preview is clipped',
+  );
+  for (const index of [5, 4, 3]) {
     const { channelName } = channels[index - 1];
-    await sheet.getByRole('button', { name: `${channelName} 을 슬롯 ${index} 에 배치` }).click();
+    await press(sheet.getByRole('button', { name: `${channelName} 을 슬롯 ${index} 에 배치` }));
   }
   await sheet.getByText('5/5개 방송 선택').waitFor();
   await page.evaluate(() => window.readySlots.clear());
-  await sheet.getByRole('button', { name: '멀티뷰 시작' }).click();
+  await press(sheet.getByRole('button', { name: '멀티뷰 시작' }));
   const frames = await playingFrames(page);
+  const streamIds = () =>
+    Promise.all(
+      frames.map((frame) => frame.locator('video').evaluate((video) => video.srcObject.id)),
+    );
+  const originalStreams = await streamIds();
 
   const rects = () =>
     page.locator(cells).evaluateAll((slots) =>
@@ -164,65 +236,59 @@ try {
         height: slot.offsetHeight,
       })),
     );
-  const landscape = await rects();
-  const [main, ...side] = landscape;
-  assert.deepEqual(
-    landscape.map((rect) => rect.index),
-    [1, 2, 3, 4, 5],
-  );
-  assert.ok(Math.abs(main.width / (main.width + side[0].width) - 0.7) < 0.001);
-  assert.ok(
-    side.every(
-      (rect, i) =>
-        rect.left === main.width + 2 &&
-        rect.top === (i ? side[i - 1].top + side[i - 1].height + 2 : 0),
-    ),
-  );
-  assert.equal(side.at(-1).top + side.at(-1).height, main.height);
+  async function checkLayout({ width, height }) {
+    const orientation = width >= height ? 'landscape' : 'portrait';
+    const mainWidth = orientation === 'landscape' ? Math.floor((width - 2) * 0.7) : width;
+    await page.waitForFunction(
+      ({ stage, selector, width, height, mainWidth }) => {
+        const el = document.querySelector(stage);
+        return (
+          el?.clientWidth === width &&
+          el.clientHeight === height &&
+          document.querySelector(selector)?.offsetWidth === mainWidth
+        );
+      },
+      { stage, selector: cells, width, height, mainWidth },
+    );
+    assertLayout(await rects(), orientation);
+  }
+  await checkLayout(profile.viewport);
+  if (!profile.hasTouch) {
+    await page.mouse.move(profile.viewport.width / 2, 10);
+    await page.keyboard.press('Alt+Shift+5');
+    await page.locator(`${cells}[data-slot="5"].cm-slot--focused`).waitFor();
+  }
+  await page.screenshot({ path: resolve(out, 'playing.png'), scale: 'css' });
 
-  await page.mouse.move(profile.viewport.width / 2, 10);
-  await page.screenshot({ path: resolve(out, 'landscape.png'), scale: 'css' });
-  await page.keyboard.press('Alt+Shift+5');
-  await page.locator(`${cells}[data-slot="5"].cm-slot--focused`).waitFor();
-
-  await page.setViewportSize({ width: 411, height: 960 });
-  await page.waitForFunction((selector) => {
-    const main = document.querySelector(selector);
-    return main?.offsetWidth === 411;
-  }, cells);
-  const [hero, upperLeft, upperRight, lowerLeft, lowerRight] = await rects();
-  assert.equal(upperLeft.top, hero.top + hero.height + 2);
-  assert.equal(upperRight.top, upperLeft.top);
-  assert.equal(lowerLeft.top, upperLeft.top + upperLeft.height + 2);
-  assert.equal(lowerRight.top, lowerLeft.top);
-  assert.equal(lowerRight.left, upperRight.left);
+  const { width, height } = profile.viewport;
+  const next = {
+    'fold8-ultra-cover': { width: 859, height: 954 },
+    'fold8-ultra-open': { width: 411, height: 960 },
+    'fold8-cover': { width: 704, height: 933 },
+    'fold8-open': { width: 475, height: 751 },
+  }[profileKey] ?? { width: height, height: width };
+  await page.setViewportSize(next);
+  await checkLayout(next);
   assert.ok(frames.every((frame) => !frame.isDetached()));
   await Promise.all(
     frames.map((frame) => frame.waitForFunction(() => !document.querySelector('video').paused)),
   );
-  await page.mouse.move(200, 100);
-  await page.screenshot({ path: resolve(out, 'portrait.png'), scale: 'css' });
-  await page.getByRole('button', { name: '멀티뷰 구성 열기' }).click();
-  const fifthTarget = sheet.getByRole('button', { name: '보조 방송 5 을 슬롯 5 에 배치' });
+  assert.deepEqual(await streamIds(), originalStreams);
+  await page.screenshot({ path: resolve(out, 'resized.png'), scale: 'css' });
+  await openSheet();
   await fifthTarget.waitFor();
-  const dimensions = await fifthTarget.boundingBox();
-  assert.ok(dimensions.width >= profile.minTargetPx && dimensions.height >= profile.minTargetPx);
-  assert.ok(
-    await sheet.evaluate((dialog) => {
-      const body = dialog.querySelector('.cm-sheet__body');
-      return body.scrollWidth <= body.clientWidth + 1;
-    }),
-  );
-  await sheet.getByRole('button', { name: '닫기', exact: true }).click();
+  await press(sheet.getByRole('button', { name: '닫기', exact: true }));
 
   await page.setViewportSize(profile.viewport);
   await page.reload();
   await playingFrames(page);
-  assert.deepEqual(await rects(), landscape);
-  await page.getByRole('button', { name: '멀티뷰 구성 열기' }).click();
-  assert.ok(await sheet.getByRole('radio', { name: '메인 70% + 오른쪽 4개' }).isChecked());
+  await checkLayout(profile.viewport);
+  await openSheet();
+  assert.ok(await sheet.getByRole('radio', { name: '5분할 · 메인 70% + 오른쪽 4개' }).isChecked());
   await sheet.getByText('5/5개 방송 선택').waitFor();
-  console.log('PASS: five streams play, rotate without replacing frames, and restore after reload');
+  console.log(
+    `PASS ${profileKey}: five streams play, resize without replacing frames, and restore after reload`,
+  );
 } finally {
   await context.close();
 }
