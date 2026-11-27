@@ -407,6 +407,64 @@ describe('전체화면 채팅 입력', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(vi.getTimerCount()).toBe(0);
   });
+  it('치지직의 대기용 입력칸을 활성화하고 늦게 마운트된 편집기로 초안을 넘긴다', async () => {
+    const placeholder = input();
+    placeholder.classList.add('_default_test');
+    const activate = vi.fn(() => {
+      setTimeout(() => {
+        const rich = document.createElement('pre');
+        rich.className = '_input_test';
+        rich.setAttribute('contenteditable', 'true');
+        rich.addEventListener('input', () => {
+          nativeSend().disabled = !rich.textContent?.trim();
+        });
+        placeholder.replaceWith(rich);
+      }, 400);
+    });
+    placeholder.addEventListener('focusin', activate);
+    const sent: string[] = [];
+    nativeSend().addEventListener('click', () => {
+      const rich = document.querySelector('pre')!;
+      sent.push(rich.textContent ?? '');
+      rich.textContent = '';
+      nativeSend().disabled = true;
+    });
+
+    enterFullscreen();
+    button().click();
+    edit('한글 <채팅> & 확인');
+    await vi.advanceTimersByTimeAsync(250);
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(editor().value).toBe('한글 <채팅> & 확인');
+    expect(placeholder.value).toBe('');
+    expect(send().disabled).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(250);
+    expect(document.querySelector('pre')?.childElementCount).toBe(0);
+    expect(send().disabled).toBe(false);
+    send().click();
+    expect(sent).toEqual(['한글 <채팅> & 확인']);
+    expect(editor().value).toBe('');
+  });
+
+  it('치지직이 편집기 열기를 제한하면 초안을 유지하고 전송하지 않는다', async () => {
+    input().classList.add('_default_test');
+    const activate = vi.fn();
+    input().addEventListener('focusin', activate);
+    const clicked = vi.fn();
+    nativeSend().addEventListener('click', clicked);
+
+    enterFullscreen();
+    button().click();
+    edit('보낼 수 없는 채팅');
+    await vi.advanceTimersByTimeAsync(1250);
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(editor().value).toBe('보낼 수 없는 채팅');
+    expect(send().disabled).toBe(true);
+    expect(popup()?.textContent).toContain('현재 치지직에서 채팅을 보낼 수 없습니다.');
+    expect(clicked).not.toHaveBeenCalled();
+  });
+
   it.each(['button', 'ime'])(
     'React 제어 입력에서도 %s 전송이 최신 값과 원본의 초기화를 반영한다',
     async (method) => {
