@@ -369,7 +369,7 @@ describe('effectiveChatLayout — 폭 오버라이드와 배치 오버라이드�
   const range = { min: 15, max: 50 };
   const portrait = { width: 540, height: 960 };
   const landscape = { width: 1440, height: 900 };
-  /** 실측 프로필: 540×960 은 tablet-10 으로 판정된다 (chatRatioPortrait 35). */
+  /** 실측 프로필: 540×960 은 tablet-10 으로 판정된다. */
   const tablet = DEVICE_PROFILES['tablet-10'];
   const layout = (
     settings: Parameters<typeof effectiveChatLayout>[0],
@@ -487,12 +487,7 @@ describe('effectiveChatLayout — 폭 오버라이드와 배치 오버라이드�
     ).toEqual({ placement: 'right', ratio: 50 });
   });
 
-  /**
-   * 🔴 2026-08-20 요청으로 규칙이 바뀌었다 — **자세만 본다.**
-   * 예전에는 `chatRatioPortrait` 가 없는 프로필(데스크톱)이면 세로여도 오른쪽에 남았다.
-   * 그 결과 창을 세로로 길게 줄이면 영상과 채팅이 둘 다 찌그러졌다.
-   */
-  it('세로용 점유율이 없는 프로필(데스크톱)도 세로 뷰포트면 하단으로 간다', () => {
+  it('데스크톱도 세로 뷰포트면 하단으로 간다', () => {
     const result = effectiveChatLayout(
       { ratio: 30, ratioSource: 'auto', placement: 'right' },
       DEVICE_PROFILES.desktop,
@@ -551,7 +546,6 @@ describe('effectiveChatLayout — 폭 오버라이드와 배치 오버라이드�
    * aside 가 124×124 상자로 찌그러지고 채팅 목록 높이가 0 이 된다.
    */
   it('폰 세로(412×915)는 자동으로 하단 배치가 된다', () => {
-    expect(DEVICE_PROFILES.mobile.chatRatioPortrait).not.toBeNull();
     expect(
       effectiveChatLayout(
         { ratio: 30, ratioSource: 'auto', placement: 'right' },
@@ -921,11 +915,9 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
       Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
     });
 
-    /** 실측 프로필과 같은 값 — tablet-10 의 세로 점유율은 35% 다. */
-    const portraitCtx = (chatWidth: Partial<Settings['chatWidth']> = {}) =>
-      makeCtx(chatWidth, { chatRatioPortrait: 35 });
+    const portraitCtx = (chatWidth: Partial<Settings['chatWidth']> = {}) => makeCtx(chatWidth);
 
-    /** 540×960 의 자동 하단 점유율 — 기기 고정값 35% 가 아니라 뷰포트에서 유도된다. */
+    /** 540×960 영상 아래 남는 높이에서 계산한 점유율. */
     const AUTO = autoBottomChatRatio({ width: 540, height: 960 });
 
     it('시작하자마자 하단 배치가 된다 (높이 = 960 − 영상 그림 높이)', () => {
@@ -1566,25 +1558,38 @@ describe('chatWidthFeature — 사용자 조작과 재시작 (실측 회귀 2026
 });
 
 describe('펼친 폴드의 채팅 자동 배치', () => {
-  const settings = { ratio: 30, ratioSource: 'auto' as const, placement: 'right' as const };
+  const settings = { ratio: 30, ratioSource: 'auto' as const, placement: 'bottom' as const };
+
   it.each([
     [954, 859],
     [933, 704],
-  ])('%d×%d에서는 영상 아래의 여백을 채팅으로 쓴다', (width, height) => {
+    [859, 798],
+    [859, 859],
+  ])('%d×%d 가로·정사각 화면에서는 오른쪽 배치가 기본이다', (width, height) => {
     const viewport = { width, height };
-    const result = effectiveChatLayout(settings, DEVICE_PROFILES['tablet-10'], viewport, 15, 50);
-    expect(result.placement).toBe('bottom');
-    expect(height * (1 - result.ratio / 100)).toBeGreaterThanOrEqual((width * 9) / 16);
+    expect(effectiveChatLayout(settings, DEVICE_PROFILES['tablet-10'], viewport, 15, 50)).toEqual({
+      placement: 'right',
+      ratio: 22,
+    });
     expect(
       effectiveChatLayout(settings, DEVICE_PROFILES['tablet-10'], viewport, 15, 50, {
         placementOverride: true,
       }).placement,
-    ).toBe('right');
+    ).toBe('bottom');
   });
-  it('긴 커버 가로 화면은 오른쪽 채팅을 유지한다', () => {
-    expect(
-      effectiveChatLayout(settings, DEVICE_PROFILES.mobile, { width: 960, height: 411 }, 15, 50)
-        .placement,
-    ).toBe('right');
+
+  it.each([
+    [859, 954],
+    [704, 933],
+  ])('%d×%d 세로 화면에서는 영상 바로 아래에 채팅을 표시한다', (width, height) => {
+    const result = effectiveChatLayout(
+      settings,
+      DEVICE_PROFILES['tablet-10'],
+      { width, height },
+      15,
+      50,
+    );
+    expect(result.placement).toBe('bottom');
+    expect(height * (1 - result.ratio / 100)).toBeGreaterThanOrEqual((width * 9) / 16);
   });
 });

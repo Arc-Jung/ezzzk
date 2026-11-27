@@ -106,13 +106,18 @@ export function onViewportChange(
   callback: (change: ViewportChange) => void,
   { relaxed = false, observeElements = [] as Element[] } = {},
 ): Disposer {
+  const displayedWidth = (size: ViewportSize) => size.width * (window.visualViewport?.scale ?? 1);
   let previous = readViewport();
+  let previousDisplayedWidth = displayedWidth(previous);
 
   let force = false;
   let fastFrame: number | undefined;
   const usesAnimationFrame = typeof window.requestAnimationFrame === 'function';
   const deliver = () => {
     const size = readViewport();
+    const widthOnScreen = displayedWidth(size);
+    const displayWidthUnchanged = Math.abs(widthOnScreen - previousDisplayedWidth) <= 2;
+    previousDisplayedWidth = widthOnScreen;
     if (!force && size.width === previous.width && size.height === previous.height) return;
     force = false;
     const active = document.activeElement;
@@ -122,7 +127,8 @@ export function onViewportChange(
         'textarea, input:not([type="checkbox"]):not([type="range"]):not([type="button"])',
       ) ||
         active.isContentEditable === true);
-    const keyboardLikely = editing && looksLikeKeyboard(previous, size);
+    // Desktop site mode can keep the CSS width at 980px across rotation and change the scale.
+    const keyboardLikely = editing && displayWidthUnchanged && looksLikeKeyboard(previous, size);
     const change: ViewportChange = { size, previous, keyboardLikely };
     previous = size;
     callback(change);

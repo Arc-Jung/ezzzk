@@ -197,6 +197,7 @@ export const OURS = {
   /** document_start 조기 스타일 */
   earlyStyleId: 'cm-early-style',
   /** FR-15 채팅 폰트 단일 style 태그 (값만 교체, 노드를 매번 만들지 않는다) */
+  chatWidthControlId: 'cm-chat-width-control',
   chatFontStyleId: 'cm-chat-font-style',
   /** FR-05/10 레이아웃 오버라이드 단일 style 태그 */
   layoutStyleId: 'cm-layout-style',
