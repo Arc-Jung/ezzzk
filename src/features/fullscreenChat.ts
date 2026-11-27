@@ -14,6 +14,23 @@ import {
 } from './chatInputProtocol';
 const STYLE_ID = `${FULLSCREEN_CHAT_POPUP_ID}-style`;
 
+// CHZZK mounts a contenteditable editor after the placeholder textarea receives focus.
+const ACTIVE_CHAT_EDITOR = `${ID.asideChatting} [class*="_input_"][contenteditable]`;
+
+function isChatPlaceholder(source: HTMLElement | null): source is HTMLTextAreaElement {
+  return source instanceof HTMLTextAreaElement && source.matches('[class*="_default_"]');
+}
+
+function isChatWritable(source: HTMLElement | null): source is HTMLElement {
+  if (source instanceof HTMLTextAreaElement) return !source.disabled && !source.readOnly;
+  const editable = source?.getAttribute('contenteditable');
+  return editable === '' || editable === 'true' || editable === 'plaintext-only';
+}
+
+function readChatDraft(source: HTMLElement | null): string {
+  return source instanceof HTMLTextAreaElement ? source.value : (source?.textContent ?? '');
+}
+
 function isLineBreak(event: InputEvent) {
   return (
     event.inputType === 'insertLineBreak' ||
@@ -37,12 +54,26 @@ export const fullscreenChatFeature: Feature = {
     let send: HTMLButtonElement | null = null;
     let note: HTMLParagraphElement | null = null;
     let composing = false;
+    let draftPending = false;
+    let activatedPlaceholder: HTMLTextAreaElement | null = null;
+    let nativeActivationAt = -Infinity;
     let enterTimer: ReturnType<typeof setTimeout> | undefined;
     let busy = false;
     let lastSentAt = -Infinity;
     let poll: ReturnType<typeof setInterval> | undefined;
     let alive = true;
-    const input = () => document.querySelector<HTMLTextAreaElement>(CHZZK.chatInput);
+    const input = () =>
+      document.querySelector<HTMLElement>(ACTIVE_CHAT_EDITOR) ??
+      document.querySelector<HTMLTextAreaElement>(CHZZK.chatInput);
+    const activateNativeEditor = () => {
+      const source = input();
+      if (!isChatPlaceholder(source) || !isChatWritable(source) || activatedPlaceholder === source)
+        return;
+      activatedPlaceholder = source;
+      nativeActivationAt = performance.now();
+      // Run the site's normal focus handler without taking focus from the popup or opening a second keyboard.
+      source.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    };
     const nativeSend = () => document.querySelector<HTMLButtonElement>(CHZZK.chatSendButton);
     const fullscreenHost = () => {
       const host = document.fullscreenElement;
@@ -58,6 +89,8 @@ export const fullscreenChatFeature: Feature = {
       STYLE_ID,
       `
 #${FULLSCREEN_CHAT_BUTTON_ID}[hidden] { display: none !important; }
+/* The site's delayed focus must not move the keyboard back to the native editor. */
+body:has(#${FULLSCREEN_CHAT_POPUP_ID}) ${ACTIVE_CHAT_EDITOR} { visibility: hidden !important; }
 #${FULLSCREEN_CHAT_POPUP_ID} {
   position: fixed; z-index: 2147483647; box-sizing: border-box;
   right: max(12px, env(safe-area-inset-right)); bottom: var(--cm-chat-bottom, 76px);
@@ -125,9 +158,24 @@ export const fullscreenChatFeature: Feature = {
       send = null;
       note = null;
       composing = false;
+      draftPending = false;
+      activatedPlaceholder = null;
+      nativeActivationAt = -Infinity;
       paintButton();
       if (restoreFocus && focusTarget?.isConnected && !focusTarget.closest('[hidden]'))
         focusTarget.focus();
+    };
+    const copyDraft = () => {
+      const source = input();
+      if (!editor || !isChatWritable(source) || isChatPlaceholder(source)) return;
+      draftPending = false;
+      if (readChatDraft(source) === editor.value) return;
+      if (source instanceof HTMLTextAreaElement) {
+        setNativeValue(source, editor.value);
+      } else {
+        source.textContent = editor.value;
+        source.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+      }
     };
     const sync = () => {
       if (!popup || !editor || !send || !note) return;
@@ -140,42 +188,48 @@ export const fullscreenChatFeature: Feature = {
         close();
         return;
       }
-      const unavailable = !source || source.disabled || source.readOnly;
+      const unavailable = !isChatWritable(source);
       if (editor.disabled !== unavailable) editor.disabled = unavailable;
-      if (source) {
-        if (!composing && editor.value !== source.value) editor.value = source.value;
-        const limit = source.maxLength > 0 ? source.maxLength : 400;
-        if (editor.maxLength !== limit) editor.maxLength = limit;
-        const placeholder = source.placeholder || '채팅을 입력해주세요';
-        if (editor.placeholder !== placeholder) editor.placeholder = placeholder;
+      if (draftPending) copyDraft();
+      else if (source && !composing) {
+        const draft = readChatDraft(source);
+        if (editor.value !== draft) editor.value = draft;
       }
+      const limit =
+        source instanceof HTMLTextAreaElement && source.maxLength > 0 ? source.maxLength : 400;
+      if (editor.maxLength !== limit) editor.maxLength = limit;
+      const placeholder = source?.getAttribute('placeholder') || '채팅을 입력해주세요';
+      if (editor.placeholder !== placeholder) editor.placeholder = placeholder;
       const original = nativeSend();
       const disabled =
         busy ||
         unavailable ||
+        draftPending ||
         !editor.value.trim() ||
         !original ||
         original.disabled ||
         performance.now() - lastSentAt < LIMITS.chatSendIntervalMs;
       if (send.disabled !== disabled) send.disabled = disabled;
-      let message = unavailable ? '채팅 입력이 가능한 상태에서 사용해주세요.' : 'Enter로 전송';
-      if (source?.placeholder.includes('로그인'))
-        message = '치지직에 로그인한 뒤 채팅을 보낼 수 있습니다.';
+      let message = 'Enter로 전송';
+      if (placeholder.includes('로그인')) message = '치지직에 로그인한 뒤 채팅을 보낼 수 있습니다.';
+      else if (draftPending && performance.now() - nativeActivationAt < 1000)
+        message = '치지직 채팅 입력창을 여는 중입니다.';
+      else if (
+        unavailable ||
+        (editor.value.trim() && (!original || original.disabled || draftPending))
+      )
+        message = '현재 치지직에서 채팅을 보낼 수 없습니다.';
       if (note.textContent !== message) note.textContent = message;
-    };
-    const copyDraft = () => {
-      const source = input();
-      if (source && !source.disabled && !source.readOnly && editor && source.value !== editor.value)
-        setNativeValue(source, editor.value);
     };
     const submit = () => {
       if (!editor || composing || busy) return;
+      copyDraft();
       const source = input();
       const original = nativeSend();
       if (
-        !source ||
-        source.disabled ||
-        source.readOnly ||
+        !isChatWritable(source) ||
+        isChatPlaceholder(source) ||
+        draftPending ||
         !original ||
         original.disabled ||
         !editor.value.trim() ||
@@ -235,7 +289,7 @@ export const fullscreenChatFeature: Feature = {
       editor.className = 'cm-fullscreen-chat-editor';
       editor.setAttribute('aria-label', '전체화면 채팅 내용');
       editor.setAttribute('enterkeyhint', 'send');
-      editor.value = input()?.value ?? '';
+      editor.value = readChatDraft(input());
       editor.addEventListener('compositionstart', () => {
         composing = true;
       });
@@ -252,7 +306,8 @@ export const fullscreenChatFeature: Feature = {
           // 취소할 수 없는 IME 입력도 처리한다. 한 줄 입력창은 개행을 저장하지 않는다.
           queueEnter();
         }
-        copyDraft();
+        draftPending = true;
+        activateNativeEditor();
         sync();
       });
       editor.addEventListener('keydown', (event) => {
@@ -282,6 +337,7 @@ export const fullscreenChatFeature: Feature = {
         }
       });
       host.appendChild(popup);
+      activateNativeEditor();
       sync();
       position();
       paintButton();

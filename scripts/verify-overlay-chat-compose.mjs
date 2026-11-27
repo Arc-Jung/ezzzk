@@ -13,7 +13,32 @@ const report = {
 const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 body{margin:0;background:#101518;color:#fff;font:16px Arial}.pzp-pc{position:relative;width:90vw;height:65vh;margin:65px auto;background:#173541}.pzp-pc:fullscreen{width:100%;height:100%;margin:0}video{width:100%;height:100%;object-fit:contain}.pzp-pc__bottom{position:absolute;bottom:12px;left:12px;right:12px}.pzp-pc__bottom-buttons{display:flex;justify-content:space-between}.pzp-pc__bottom-buttons-right{display:flex;gap:8px}.pzp-pc:not(.pzp-pc--controls) .pzp-pc__bottom{visibility:hidden}button{padding:12px;color:#fff;background:#183140;border:1px solid #6b8290}#aside-chatting{padding:12px}#fixture-header{position:absolute;top:14px;left:5vw}
 </style><div id="fixture-header">채팅 오버레이 입력 · 재현용 영상</div><div id="root"><div id="live_player_layout"><div class="pzp-pc pzp-pc--controls"><video autoplay playsinline muted></video><div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div><div class="pzp-pc__bottom-buttons-right"><button class="custom__clip-button" aria-label="클립 만들기">클립</button><button class="pzp-pc__fullscreen-button" onclick="document.fullscreenElement?document.exitFullscreen():document.querySelector('.pzp-pc').requestFullscreen()">전체화면</button></div></div></div></div></div><aside id="aside-chatting"><div class="_chatting_message_test"><span class="_nickname_test">시청자1</span><span class="_text_test">오늘 방송도 잘 보고 있어요</span></div><div class="_chatting_message_test"><span class="_nickname_test">시청자2</span><span class="_text_test">말풍선을 눌러 채팅할 수 있어요</span></div><div class="_chatting_message_test"><span class="_nickname_test">시청자3</span><span class="_text_test">안녕하세요!</span></div><textarea class="_input_test" placeholder="채팅을 입력해주세요" maxlength="400"></textarea><button class="_send_button_test" disabled>채팅</button></aside></div><script>
-window.sent=[];window.surfaceClicks=0;const source=document.querySelector('aside textarea');const send=document.querySelector('aside button');source.addEventListener('input',()=>send.disabled=!source.value.trim());send.addEventListener('click',()=>{window.sent.push({channel:location.pathname.split('/').pop(),text:source.value});source.value='';source.dispatchEvent(new Event('input',{bubbles:true}))});document.querySelector('.pzp-pc').addEventListener('click',e=>{if(!e.target.closest('button,[role=dialog]'))window.surfaceClicks++});
+window.sent=[];window.surfaceClicks=0;
+let source=document.querySelector('aside textarea');
+const send=document.querySelector('aside button');
+const slot=new URLSearchParams(location.search).get('cmSlot');
+const syncSend=()=>send.disabled=!(source instanceof HTMLTextAreaElement ? source.value : source.textContent).trim();
+if (slot === '2') {
+  // CHZZK's inactive textarea is only a placeholder for the rich editor.
+  source.classList.add('_default_test');
+  source.addEventListener('focusin',()=>{
+    setTimeout(()=>{
+      const rich=document.createElement('pre');
+      rich.contentEditable='true';
+      rich.className='_input_test';
+      rich.setAttribute('placeholder','채팅을 입력해주세요');
+      source.replaceWith(rich);
+      source=rich;
+      rich.addEventListener('input',syncSend);
+    },100);
+  },{once:true});
+} else source.addEventListener('input',syncSend);
+send.addEventListener('click',()=>{
+  window.sent.push({channel:location.pathname.split('/').pop(),text:source instanceof HTMLTextAreaElement ? source.value : source.textContent});
+  if (source instanceof HTMLTextAreaElement) source.value='';
+  else source.textContent='';
+  syncSend();
+});document.querySelector('.pzp-pc').addEventListener('click',e=>{if(!e.target.closest('button,[role=dialog]'))window.surfaceClicks++});
 const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const c=canvas.getContext('2d');let n=0;function draw(){c.fillStyle='#173541';c.fillRect(0,0,1280,720);c.fillStyle='#00ffa3';c.fillRect(n++%1000,540,180,10);c.fillStyle='#fff';c.font='44px sans-serif';c.fillText('오버레이에서 채팅 보내기',80,70);c.font='26px sans-serif';c.fillText('재현용 영상 · 프레임 '+n,80,120);requestAnimationFrame(draw)}draw();const v=document.querySelector('video');v.srcObject=canvas.captureStream(20);v.play();window.originalVideo=v;
 if (new URLSearchParams(location.search).get('cmSlot') === '1') {
   const aside = document.querySelector('#aside-chatting');
@@ -261,14 +286,14 @@ for (const key of [
     const slotPopup = owners[1].locator('#cm-fullscreen-chat-popup');
     await slotPopup
       .getByRole('textbox', { name: '전체화면 채팅 내용' })
-      .fill('두 번째 방송으로 전송');
+      .fill('두 번째 방송으로 전송 <채팅> & 확인');
     await page.screenshot({ path: resolve(out, 'multiview-popup.png') });
-    await slotPopup.locator('.cm-fullscreen-chat-send').click();
+    await slotPopup.getByRole('button', { name: '전송', exact: true }).tap({ timeout: 4000 });
     const allSent = await Promise.all(owners.map((o) => o.evaluate(() => window.sent)));
     ensure(
       allSent[1].length === 1 &&
         allSent[1][0].channel === channels[1] &&
-        allSent[1][0].text === '두 번째 방송으로 전송',
+        allSent[1][0].text === '두 번째 방송으로 전송 <채팅> & 확인',
       'multiview: wrong channel',
     );
     ensure(
@@ -283,6 +308,31 @@ for (const key of [
       name: 'fullscreen multiview sends to clicked channel only',
       sent: allSent,
     });
+
+    await owners[0].locator('#cm-chat-subtitle-compose').tap();
+    const firstPopup = owners[0].locator('#cm-fullscreen-chat-popup');
+    const firstEditor = firstPopup.getByRole('textbox', { name: '전체화면 채팅 내용' });
+    await firstEditor.focus();
+    const composedText = '한글 조합 중';
+    const slotIme = await context.newCDPSession(page);
+    await slotIme.send('Input.imeSetComposition', {
+      text: composedText,
+      selectionStart: composedText.length,
+      selectionEnd: composedText.length,
+    });
+    await firstPopup.getByRole('button', { name: '전송', exact: true }).tap();
+    const composedSend = await owners[0].evaluate(() => window.sent);
+    ensure(
+      composedSend.length === 1 &&
+        composedSend[0].channel === channels[0] &&
+        composedSend[0].text === composedText,
+      'multiview: tap while composing',
+    );
+    report.cases.push({
+      name: 'fullscreen multiview sends while IME composition is active',
+      sent: composedSend,
+    });
+    await slotIme.detach();
     console.log('multiview: passed');
   } finally {
     await context.close();
