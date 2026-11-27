@@ -129,7 +129,7 @@ export type Settings = {
     ratioSource: 'auto' | 'manual';
     /**
      * 배치를 사용자가 직접 정했는가. `auto` 면 자세에 맞춰 자동으로 정한다
-     * (세로 + 프로필의 `chatRatioPortrait` 가 있으면 `bottom`).
+     * (가로는 오른쪽, 세로는 아래).
      *
      * 🔴 `ratioSource` 와 **분리해야 한다.** 하나로 묶으면 `+`/`−` 로 폭만 바꿔도 배치까지
      * 저장값으로 되돌아가, 세로 화면의 자동 하단 배치가 풀린다

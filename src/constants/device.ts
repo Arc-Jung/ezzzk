@@ -19,15 +19,6 @@ export type DeviceProfile = {
   touchTargetPx: number;
   /** 채팅 기본 점유율(%) — 가로 기준. null = FR-10 계산값을 쓴다. */
   chatRatioLandscape: number | null;
-  /**
-   * 세로 자세에서 자동 하단 배치를 쓰는가. `null` = 쓰지 않음.
-   *
-   * ⚠️ 2026-08-16 이후 **숫자 값 자체는 점유율로 쓰이지 않는다.** 하단 점유율은
-   * "뷰포트 높이 − 영상 그림 높이" 로 계산한다(`autoBottomChatRatio`) — 고정 비율로는
-   * 영상과 채팅 사이에 죽은 공백이 남기 때문이다(412×915 에서 316px 실측).
-   * 값은 자동 배치 대상 프로필을 구분하는 표시로만 읽히며 기존 숫자를 그대로 둔다.
-   */
-  chatRatioPortrait: number | null;
   /** FR-03 볼륨 컨트롤 상시 노출 여부 */
   volumeAlwaysVisible: boolean;
   /** 키보드 단축키 정책 */
@@ -50,7 +41,6 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
   desktop: {
     touchTargetPx: 32,
     chatRatioLandscape: 28,
-    chatRatioPortrait: null,
     volumeAlwaysVisible: true,
     shortcuts: 'on',
     allowHover: true,
@@ -63,7 +53,6 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
   laptop: {
     touchTargetPx: 32,
     chatRatioLandscape: 25,
-    chatRatioPortrait: null,
     volumeAlwaysVisible: true,
     shortcuts: 'on',
     allowHover: true,
@@ -76,7 +65,6 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
   'tablet-13': {
     touchTargetPx: 44,
     chatRatioLandscape: 25,
-    chatRatioPortrait: 30,
     volumeAlwaysVisible: true,
     shortcuts: 'if-physical-keyboard',
     allowHover: false,
@@ -89,7 +77,6 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
   'tablet-10': {
     touchTargetPx: 44,
     chatRatioLandscape: 22,
-    chatRatioPortrait: 35,
     volumeAlwaysVisible: true,
     shortcuts: 'if-physical-keyboard',
     allowHover: false,
@@ -103,7 +90,6 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
   'tablet-7': {
     touchTargetPx: 44,
     chatRatioLandscape: null,
-    chatRatioPortrait: 40,
     volumeAlwaysVisible: false,
     shortcuts: 'off',
     allowHover: false,
@@ -117,16 +103,6 @@ export const DEVICE_PROFILES: Record<DeviceClass, DeviceProfile> = {
   mobile: {
     touchTargetPx: 44,
     chatRatioLandscape: null,
-    /**
-     * 🔴 `null` 이면 안 된다 (실측 2026-08-16, 실사이트 412×915).
-     * `null` 은 "세로 자동 하단 배치를 쓰지 않는다"는 뜻이라 **폰 세로가 그대로 오른쪽 배치**로
-     * 남았고, 치지직 자체 래퍼(`_wrapper_wj4te_16`)가 좁은 폭에서 `flex-direction: column` 이라
-     * 우리 `flex: 0 0 124px` 이 **높이**로 해석돼 채팅 aside 가 124×124 상자로 찌그러졌다
-     * (채팅 목록 높이 0, 입력 영역 125px 가 넘쳐 `로그인` 이 두 줄로 접힘).
-     * `chatWidth.ts` 의 근거 표가 문제 사례로 든 412×915 가 정확히 이 값 때문에 빠져 있었다.
-     * 값은 기기가 작을수록 크게 잡는 기존 흐름(13인치 30 · 10인치 35 · 7인치 40)을 따른다.
-     */
-    chatRatioPortrait: 40,
     volumeAlwaysVisible: false,
     shortcuts: 'off',
     allowHover: false,

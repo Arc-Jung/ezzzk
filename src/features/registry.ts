@@ -25,6 +25,7 @@ import { doubleTapFullscreenFeature } from './doubleTapFullscreen';
 import { chatPresetFeature } from './chatPreset';
 import { chatUserFilterFeature } from './chatUserFilter';
 import { chatWidthFeature } from './chatWidth';
+import { coverUiScaleFeature } from './coverUiScale';
 import { chzzkCleanBotFeature } from './chzzkCleanBot';
 import { mobileWebNoticeFeature } from './mobileWebNotice';
 import { liveResumeFeature } from './liveResume';
@@ -46,6 +47,7 @@ export const FEATURES: Feature[] = [
   promoHideFeature, // FR-13
   chatClutterHideFeature, // FR-16
   chatFontFeature, // FR-15
+  coverUiScaleFeature,
   chatSubtitleFeature,
   chatSubtitleButtonFeature,
   fullscreenChatFeature,

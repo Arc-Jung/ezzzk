@@ -28,8 +28,7 @@ import { guardAsync, info } from '../utils/log';
 import { isScrolledToBottom } from './chatFont';
 import type { Feature } from './types';
 
-// TODO(consolidate into constants/class.ts OURS)
-const CONTROL_ID = 'cm-chat-width-control';
+const CONTROL_ID = OURS.chatWidthControlId;
 // TODO(consolidate into constants/class.ts OURS)
 const CONTROL_STYLE_ID = 'cm-chat-width-control-style';
 
@@ -95,25 +94,8 @@ export function effectiveChatRatio(
 
 export type ChatPlacement = 'right' | 'bottom';
 
-/** 세로 자세인가. 정사각(1:1)은 가로로 본다 — 오른쪽 배치가 성립하는 폭이다. */
-export function isPortraitViewport(width: number, height: number): boolean {
-  return height > width;
-}
-
-/** 펼친 폴드의 낮은 가로 비율에서는 아래쪽 여백을 채팅으로 쓴다. */
-function prefersBottomChat(
-  viewport: { width: number; height: number },
-  profile: { chatRatioPortrait: number | null },
-): boolean {
-  const { width, height } = viewport;
-  return (
-    isPortraitViewport(width, height) ||
-    (profile.chatRatioPortrait !== null &&
-      width >= 600 &&
-      width <= 1000 &&
-      height > 0 &&
-      width / height <= 1.4)
-  );
+function defaultChatPlacement({ width, height }: { width: number; height: number }): ChatPlacement {
+  return height > width ? 'bottom' : 'right';
 }
 
 /**
@@ -147,7 +129,7 @@ function videoPictureHeight(viewport: { width: number; height: number }): number
  * |---|---|
  * | `main` | 412×**549** |
  * | `#live_player_layout` / `video` | 412×**232** (= 412 ÷ 16×9, 폭이 잡는 16:9 상한) |
- * | `#aside-chatting` | 412×366 (= 915 의 40%, `chatRatioPortrait`) |
+ * | `#aside-chatting` | 412×366 (= 915 의 40%) |
  *
  * `main` 은 `flex: 1 1 auto` 로 남는 높이를 전부 먹는데 영상은 232px 를 넘길 수 없으므로
  * **549 − 232 = 317px 이 죽는다.** 점유율을 기기 프로필의 고정값(30~40%)으로 잡는 한 이
@@ -158,8 +140,6 @@ function videoPictureHeight(viewport: { width: number; height: number }): number
  * **영상 그림은 전혀 줄지 않는다** — 어차피 폭이 16:9 상한을 잡고 있어 그 위 공간은
  * 영상이 쓸 수 없는 자리였기 때문이다. 이것이 이 방향의 근거다.
  *
- * ⚠️ 이 값은 기기 프로필의 `chatRatioPortrait` 를 **대체한다.** 그 필드는 이제 값이 아니라
- * "이 프로필에서 세로 자동 하단 배치를 쓰는가"의 on/off 표시로만 읽힌다(`null` = 쓰지 않음).
  */
 export function autoBottomChatRatio(viewport: { width: number; height: number }): number {
   const picture = videoPictureHeight(viewport);
@@ -201,36 +181,10 @@ export function chatRatioRangeFor(
   return { min, max: Math.max(max, cap) };
 }
 
-/**
- * 자세에 맞는 배치와 점유율. **순수 함수 — 테스트 대상.**
- *
- * 🔴 근거 (실측 2026-08-15, `portrait-shots/`. 사용자 보고 "9:16 비율에서 문제가 있다").
- * 세로 화면인데 채팅이 오른쪽 세로 띠로 붙어 영상과 채팅이 **둘 다** 쓸 수 없게 됐다.
- *
- * | 뷰포트 | 채팅 | 영상 그림 |
- * |---|---|---|
- * | 540×960 (9:16) | 119px = 폭의 22% | 421×237 = **높이의 24.7%** |
- * | 720×1280 (9:16) | 180px = 폭의 25% | 540×304 = **높이의 23.7%** |
- * | 412×915 (폰 세로) | 124px = 폭의 30% | 288×162 = **높이의 17.7%** |
- *
- * 119px 폭에서는 닉네임이 잘리고 한 줄 메시지가 두 줄로 쪼개진다(스크린샷 확인).
- *
- * 원인은 **FR-12 의 `chatRatioPortrait` 가 죽은 설정이었다는 것**이다 — 정의만 있고
- * 코드 어디에서도 읽히지 않아 세로에서도 가로용 값(`chatRatioLandscape`)이 쓰였다.
- * `layoutArbiter` 에는 이미 `bottom`(영상 아래 쌓기) 모드가 있으므로 자세에 맞춰 그것을 쓴다.
- *
- * ⚠️ **사용자가 직접 정한 배치·폭은 건드리지 않는다.** 위치 버튼(▦/▤)이나 `+`/`−` 를 누른
- * 사용자에게 회전할 때마다 자동값을 덮어씌우면 그 조작이 무의미해진다.
- *
- * 🔴 단, **폭 오버라이드와 배치 오버라이드는 서로 다른 결정이다** (실측 2026-08-15
- * `ratio-9to16/S-06`, 540×960). 하나의 플래그로 묶었더니 세로 화면에서 점유율 `+` 를 누르는
- * 순간 자동 하단 배치가 풀리고 저장된 `placement: 'right'` 로 되돌아갔다
- * (하단 336px → 오른쪽 189px 세로 띠). 폭만 정한 사용자는 배치를 정한 적이 없다.
- * → 배치와 점유율을 **각각** 정한다.
- */
+/** 기본 배치는 현재 화면 방향을 따르고, 위치와 크기의 수동 설정은 각각 적용한다. */
 export function effectiveChatLayout(
   settings: { ratio: number; ratioSource: 'auto' | 'manual'; placement: ChatPlacement },
-  profile: { chatRatioLandscape: number | null; chatRatioPortrait: number | null },
+  profile: { chatRatioLandscape: number | null },
   viewport: { width: number; height: number },
   min: number,
   max: number,
@@ -239,18 +193,15 @@ export function effectiveChatLayout(
     placementOverride = false,
   }: { widthOverride?: boolean; placementOverride?: boolean } = {},
 ): { placement: ChatPlacement; ratio: number } {
-  // 세로 화면과 펼친 폴드의 낮은 가로 비율에서는 영상 아래 여백을 활용한다.
-  // 수동 배치는 이 자동 판단보다 우선한다.
-  const autoBottom = prefersBottomChat(viewport, profile);
-
-  const placement: ChatPlacement = placementOverride || !autoBottom ? settings.placement : 'bottom';
+  const autoPlacement = defaultChatPlacement(viewport);
+  const placement = placementOverride ? settings.placement : autoPlacement;
 
   // 범위는 **정해진 배치**를 따른다 — 하단에서만 상한이 올라간다 (`chatRatioRangeFor`).
   const range = chatRatioRangeFor(placement, viewport, min, max);
 
   const ratio = widthOverride
     ? clampChatRatio(settings.ratio, range.min, range.max)
-    : autoBottom && placement === 'bottom'
+    : autoPlacement === 'bottom' && placement === 'bottom'
       ? clampChatRatio(autoBottomChatRatio(viewport), range.min, range.max)
       : effectiveChatRatio(withoutBottomLeftover(settings, max), profile, range.min, range.max);
 
@@ -575,10 +526,9 @@ export const chatWidthFeature: Feature = {
     if (needsRatioMigration) {
       const viewport = readViewport();
       const initialPlacement =
-        ctx.settings.chatWidth.placementSource === 'manual' ||
-        !prefersBottomChat(viewport, device.profile)
+        ctx.settings.chatWidth.placementSource === 'manual'
           ? ctx.settings.chatWidth.placement
-          : 'bottom';
+          : defaultChatPlacement(viewport);
       savedRatios[initialPlacement] = ratio;
     }
 
@@ -892,7 +842,9 @@ export const chatWidthFeature: Feature = {
       const playerHeight = qs<HTMLElement>(PLAYER.rootPc)?.getBoundingClientRect().height;
       if (!playerHeight) return; // 못 재면 기존 1열을 유지한다 — 잘못된 접힘보다 안전하다.
       const size = Math.max(28, Math.round(device.profile.touchTargetPx));
-      const compact = playerRightColumnHeightPx(size) / playerHeight > PLAYER_RIGHT_COMPACT_RATIO;
+      const zoom = Number(getComputedStyle(controlEl).zoom) || 1;
+      const compact =
+        (playerRightColumnHeightPx(size) * zoom) / playerHeight > PLAYER_RIGHT_COMPACT_RATIO;
       controlEl.dataset['compact'] = compact ? 'true' : 'false';
     };
 

@@ -212,6 +212,34 @@ describe('폴드 전환 뷰포트 구독', () => {
     await vi.advanceTimersByTimeAsync(350);
     expect(callback.mock.calls[0]![0].keyboardLikely).toBe(false);
   });
+  it('데스크톱 사이트가 같은 CSS 폭을 유지해도 입력 중 회전을 키보드로 오판하지 않는다', async () => {
+    vi.useFakeTimers();
+    const visual = Object.assign(new EventTarget(), { width: 980, height: 1955, scale: 411 / 980 });
+    vi.stubGlobal('visualViewport', visual);
+    const input = document.createElement('textarea');
+    document.body.appendChild(input);
+    input.focus();
+
+    const callback = vi.fn();
+    stop = onViewportChange(callback);
+    Object.assign(visual, { height: 340, scale: 915 / 980 });
+    visual.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(32);
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback.mock.lastCall?.[0]).toMatchObject({
+      size: { width: 980, height: 340 },
+      keyboardLikely: false,
+    });
+
+    visual.height = 200;
+    visual.dispatchEvent(new Event('resize'));
+    await vi.advanceTimersByTimeAsync(32);
+    expect(callback.mock.lastCall?.[0]).toMatchObject({
+      size: { width: 980, height: 200 },
+      keyboardLikely: true,
+    });
+  });
   it('실제 입력 중 키보드 추정은 유지하고, 구독 해제 후 예약된 갱신은 취소한다', async () => {
     vi.useFakeTimers();
     viewport(411, 812);

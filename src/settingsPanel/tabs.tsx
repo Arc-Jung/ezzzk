@@ -469,6 +469,27 @@ export function LayoutTab({
   return (
     <>
       <div className="cm-sheet__row">
+        <label htmlFor="cm-chat-placement">채팅창 위치</label>
+        <select
+          id="cm-chat-placement"
+          value={chatWidth.placementSource === 'auto' ? 'auto' : chatWidth.placement}
+          onChange={(event) => {
+            const placement = event.target.value as typeof chatWidth.placement | 'auto';
+            update({
+              chatWidth: {
+                ...chatWidth,
+                placement: placement === 'auto' ? DEFAULT_SETTINGS.chatWidth.placement : placement,
+                placementSource: placement === 'auto' ? 'auto' : 'manual',
+              },
+            });
+          }}
+        >
+          <option value="auto">자동 (화면 방향)</option>
+          <option value="right">오른쪽</option>
+          <option value="bottom">아래</option>
+        </select>
+      </div>
+      <div className="cm-sheet__row">
         <span>채팅창 점유율</span>
         <span className="cm-sp__controls">
           <Stepper

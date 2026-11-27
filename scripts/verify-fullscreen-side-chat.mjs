@@ -5,28 +5,40 @@ import { resolve } from 'node:path';
 import { openLiveContext, PROFILES, ROOT, seedSettings, warmUp } from './demo-context.mjs';
 
 const baseline = process.argv.includes('--baseline');
-const out = resolve(ROOT, 'etc/tmp/fullscreen-side-chat');
+const desktopSite = process.argv.includes('--desktop-site');
+const out = resolve(
+  ROOT,
+  desktopSite ? 'etc/tmp/fullscreen-side-chat-desktop-site' : 'etc/tmp/fullscreen-side-chat',
+);
 mkdirSync(out, { recursive: true });
 const profile = PROFILES.find(({ key }) => key === 'fold8-mobile-browser');
 const screen = { width: 1266, height: 549 };
 const context = await openLiveContext(
   { ...profile, viewport: screen },
-  { profileDir: resolve(ROOT, 'etc/tmp/playwright/fullscreen-side-chat') },
+  {
+    profileDir: resolve(
+      ROOT,
+      'etc/tmp/playwright',
+      desktopSite ? 'fullscreen-side-chat-desktop-site' : 'fullscreen-side-chat',
+    ),
+  },
 );
 const channelId = '1'.repeat(32);
 const url = 'https://chzzk.naver.com/live/' + channelId;
 const report = {};
 const html = `<!doctype html><html lang="ko"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><style>
+${desktopSite ? '' : '<meta name="viewport" content="width=device-width,initial-scale=1">'}<style>
 html, body, #root, #layout-body { margin:0; width:100%; height:100%; background:#000; color:#fff; font:15px sans-serif }
 ._wrapper_wj4te_test { display:flex; width:100%; height:100% }
+@media (max-width: 1000px) { ._wrapper_wj4te_test { flex-direction:column } }
 main { min-width:0; flex:1; height:100% }
 #live_player_layout, .pzp-pc { position:relative; width:100%; height:100% }
 video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain }
 .pzp-pc__bottom { position:absolute; bottom:10px; right:14px; left:14px }
-.pzp-pc__bottom-buttons { display:flex; justify-content:flex-end }
+.pzp-pc__bottom-buttons { display:flex; justify-content:space-between }
+.pzp-pc__bottom-buttons-left { display:flex }
 .pzp-pc__bottom-buttons-right { display:flex; gap:8px }
-button { color:#fff; background:#161e25; border:1px solid #627482; padding:8px; min-height:36px }
+button { color:#fff; background:#161e25; border:1px solid #627482; min-width:36px; min-height:36px; white-space:nowrap }
 ._container_nu1j9_2 { box-sizing:border-box; background:#1d2025; display:flex; flex-direction:column; width:353px; position:relative }
 ._container_nu1j9_2._is_folded_nu1j9_10 { display:none }
 aside header { padding:12px; border-bottom:1px solid #404650 }
@@ -36,8 +48,8 @@ aside footer { display:flex; gap:6px; padding:8px; border-top:1px solid #404650 
 aside textarea { flex:1; min-width:0 }
 </style><div id="root"><div id="layout-body"><div class="_wrapper_wj4te_test"><main>
 <div id="live_player_layout"><div class="pzp-pc pzp-pc--controls pzp-pc--onlive"><video autoplay muted playsinline></video>
-<div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"></div>
-<div class="pzp-pc__bottom-buttons-right"><button class="custom__clip-button">클립</button><button class="pzp-pc__fullscreen-button">전체화면</button></div>
+<div class="pzp-pc__bottom"><div class="pzp-pc__bottom-buttons"><div class="pzp-pc__bottom-buttons-left"><button aria-label="재생">▶</button><button aria-label="음량">◖</button><button>실시간</button></div>
+<div class="pzp-pc__bottom-buttons-right"><button class="custom__clip-button" aria-label="클립">✂</button><button aria-label="설정">⚙</button><button aria-label="넓은 화면">⇔</button><button class="pzp-pc__fullscreen-button" aria-label="전체화면">⛶</button></div>
 </div></div></div></div></main>
 <aside id="aside-chatting" class="_container_nu1j9_2"><header>실시간 채팅</header>
 <div class="_wrapper_8lqsk_test"></div><footer><textarea class="_input_test" aria-label="방송 채팅 입력"></textarea>
@@ -52,7 +64,7 @@ const scroller = aside.querySelector('._wrapper_8lqsk_test');
 window.original = { aside, video };
 window.receive = (text) => {
   const row = document.createElement('div');
-  row.className = '_chatting_message_test';
+  row.className = '_item_8lqsk_test _chatting_message_test';
   row.textContent = text;
   scroller.append(row);
   scroller.scrollTop = scroller.scrollHeight;
@@ -74,7 +86,7 @@ const draw = canvas.getContext('2d');
 let frame = 0;
 setInterval(() => {
   draw.fillStyle = '#214759'; draw.fillRect(0,0,640,360);
-  draw.fillStyle = '#e8f1fc'; draw.font = '28px sans-serif'; draw.fillText('전체화면 채팅 재현 영상',30,56);
+  draw.fillStyle = '#e8f1fc'; draw.font = '28px sans-serif'; draw.fillText('이지직 화면 재현 영상',30,56);
   draw.fillStyle = '#6ab6b1'; draw.fillRect(frame++ % 480,230,150,12);
 }, 100);
 video.srcObject = canvas.captureStream(10);
@@ -118,6 +130,165 @@ try {
         paused: video.paused,
       };
     });
+  if (!baseline) {
+    const editor = page.getByRole('textbox', { name: '방송 채팅 입력' });
+    const waitForPlacement = (placement) =>
+      page.waitForFunction((placement) => {
+        const video = document.querySelector('video').getBoundingClientRect();
+        const chat = document.querySelector('#aside-chatting').getBoundingClientRect();
+        if (chat.width <= 0 || chat.height <= 0) return false;
+        return placement === 'bottom'
+          ? Math.abs(chat.top - video.bottom) <= 1 && Math.abs(chat.left - video.left) <= 1
+          : Math.abs(chat.left - video.right) <= 1 && Math.abs(chat.top - video.top) <= 1;
+      }, placement);
+    const cover = { width: 411, height: 820 };
+    const unfoldedLandscape = { width: 954, height: 859 };
+    await page.setViewportSize(cover);
+    await waitForPlacement('bottom');
+    const viewport = () =>
+      page.evaluate(() => ({
+        inner: [innerWidth, innerHeight],
+        visual: [visualViewport.width, visualViewport.height, visualViewport.scale],
+        screen: [screen.width, screen.height, screen.orientation.type],
+        focus: document.activeElement?.tagName,
+        direction: getComputedStyle(document.querySelector('._wrapper_wj4te_test')).flexDirection,
+      }));
+    const coverUi = () =>
+      page.evaluate(() => {
+        const scale = visualViewport.scale;
+        const heightOnScreen = (selector) =>
+          document.querySelector(selector).getBoundingClientRect().height * scale;
+        const message = document.querySelector('._chatting_message_test');
+        const settings = document.querySelector('button[aria-label="이지직 설정"]');
+        const videoRect = document.querySelector('video').getBoundingClientRect();
+        const settingsRect = settings.getBoundingClientRect();
+        const controls = [...document.querySelectorAll('.pzp-pc__bottom-buttons button')];
+        const visibleControls = controls.filter(
+          (button) => button.getBoundingClientRect().width > 0,
+        );
+        return {
+          pageScale: scale,
+          uiZoom: settings.currentCSSZoom,
+          volumePx: heightOnScreen('#cm-volume-control .cm-volume-button'),
+          messagePx:
+            parseFloat(getComputedStyle(message).fontSize) * message.currentCSSZoom * scale,
+          nativeButtonPx: heightOnScreen('.pzp-pc__fullscreen-button'),
+          settingsButtonPx: heightOnScreen('button[aria-label="이지직 설정"]'),
+          chatWidthButtonPx: heightOnScreen(
+            '#cm-chat-width-control button[aria-label="채팅 폭 늘리기"]',
+          ),
+          videoHeight: heightOnScreen('video'),
+          width: visualViewport.width * scale,
+          settingsHit: settings.contains(
+            document.elementFromPoint(
+              (settingsRect.left + settingsRect.right) / 2,
+              (settingsRect.top + settingsRect.bottom) / 2,
+            ),
+          ),
+          controlsFit: visibleControls.every((button) => {
+            const rect = button.getBoundingClientRect();
+            return (
+              rect.left >= -1 &&
+              rect.right <= visualViewport.width + 1 &&
+              rect.top >= videoRect.top - 1 &&
+              rect.bottom <= videoRect.bottom + 1
+            );
+          }),
+        };
+      });
+    if (desktopSite) {
+      report.coverUi = await coverUi();
+      assert.ok(
+        report.coverUi.messagePx >= 10.5 && report.coverUi.messagePx <= 12.5,
+        JSON.stringify(report.coverUi),
+      );
+      assert.ok(report.coverUi.nativeButtonPx >= 28 && report.coverUi.settingsButtonPx >= 34);
+      assert.ok(report.coverUi.chatWidthButtonPx >= 34 && report.coverUi.controlsFit);
+      assert.ok(report.coverUi.settingsHit && report.coverUi.volumePx >= 22);
+      assert.ok(Math.abs(report.coverUi.videoHeight - (cover.width * 9) / 16) < 1.5);
+      await page.screenshot({ path: resolve(out, 'fold-cover-ui.png'), scale: 'css' });
+      const setCoverCorrection = (enabled) =>
+        page.evaluate((enabled) => {
+          document.getElementById('cm-cover-ui-scale-style').sheet.disabled = !enabled;
+        }, enabled);
+      await setCoverCorrection(false);
+      try {
+        report.coverUiWithoutCorrection = await coverUi();
+        assert.equal(report.coverUiWithoutCorrection.uiZoom, 1);
+        assert.ok(report.coverUiWithoutCorrection.messagePx < 7);
+        assert.ok(
+          Math.abs(report.coverUiWithoutCorrection.videoHeight - report.coverUi.videoHeight) < 1,
+        );
+        await page.screenshot({
+          path: resolve(out, 'fold-cover-ui-without-correction.png'),
+          scale: 'css',
+        });
+      } finally {
+        await setCoverCorrection(true);
+      }
+    }
+    await editor.fill('회전 전 작성한 메시지');
+    if (desktopSite) report.beforeCoverRotation = await viewport();
+    const beforeRotation = await page.evaluate(() => window.original.video.currentTime);
+    await page.setViewportSize({ width: 915, height: 317 });
+    if (desktopSite) report.afterCoverRotation = await viewport();
+    await waitForPlacement('right');
+    await page.setViewportSize(unfoldedLandscape);
+    await waitForPlacement('right');
+    await page.screenshot({ path: resolve(out, 'fold-landscape-chat-right.png'), scale: 'css' });
+    if (desktopSite) {
+      report.unfoldedUi = await coverUi();
+      assert.equal(report.unfoldedUi.uiZoom, 1);
+      assert.ok(Math.abs(report.unfoldedUi.messagePx / report.unfoldedUi.pageScale - 14) < 0.1);
+    }
+    await page.waitForFunction(
+      (beforeRotation) =>
+        window.original.video.currentTime > beforeRotation && !window.original.video.paused,
+      beforeRotation,
+    );
+    assert.equal(await editor.inputValue(), '회전 전 작성한 메시지');
+    assert.ok((await measure()).sameAside && (await measure()).sameVideo);
+
+    await page.getByRole('button', { name: '이지직 설정', exact: true }).tap();
+    const settings = page.getByRole('dialog', { name: '이지직 설정' });
+    await settings.getByRole('tab', { name: '레이아웃 탭' }).tap();
+    const placement = settings.getByRole('combobox', { name: '채팅창 위치' });
+    assert.equal(await placement.inputValue(), 'auto');
+    await placement.selectOption('bottom');
+    await waitForPlacement('bottom');
+    await placement.selectOption('auto');
+    await waitForPlacement('right');
+    await settings.getByRole('button', { name: '닫기' }).tap();
+
+    await page.setViewportSize(cover);
+    await waitForPlacement('bottom');
+    if (desktopSite) {
+      for (const width of [360, 475]) {
+        await page.setViewportSize({ width, height: 820 });
+        await page.waitForFunction((width) => {
+          const message = document.querySelector('._chatting_message_test');
+          const { width: visibleWidth, scale } = visualViewport;
+          const renderedSize =
+            parseFloat(getComputedStyle(message).fontSize) * message.currentCSSZoom * scale;
+          return (
+            Math.abs(visibleWidth * scale - width) < 1 &&
+            renderedSize >= 10.5 &&
+            renderedSize <= 12.5
+          );
+        }, width);
+        await waitForPlacement('bottom');
+        const compact = await coverUi();
+        assert.ok(compact.controlsFit && compact.settingsHit, JSON.stringify(compact));
+        assert.ok(Math.abs(compact.videoHeight - (width * 9) / 16) < 1.5);
+      }
+      await page.setViewportSize(cover);
+      await waitForPlacement('bottom');
+    }
+    await page.screenshot({ path: resolve(out, 'fold-portrait-chat-bottom.png'), scale: 'css' });
+    await page.setViewportSize(screen);
+    await waitForPlacement('right');
+    report.orientation = 'PASS';
+  }
   report.normal = await measure();
   await fullscreen.click();
   await page.waitForFunction(() => document.querySelector('aside').matches('._is_folded_nu1j9_10'));
